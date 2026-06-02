@@ -85,6 +85,18 @@ function onTreatmentPlanChange(e, line) {
   line.treatmentPlan = planOpts[idx]
 }
 
+/** 提交成功后回到「质检任务」列表（兼容列表直达 / 经详情进入） */
+function backToQcTaskList() {
+  const pages = getCurrentPages()
+  for (let i = pages.length - 2; i >= 0; i--) {
+    if (pages[i].route?.includes('qc-task/list')) {
+      uni.navigateBack({ delta: pages.length - 1 - i })
+      return
+    }
+  }
+  uni.redirectTo({ url: '/pages/qc-task/list' })
+}
+
 onLoad((query) => {
   const r = getQcById(query.id)
   if (!r || r.qcStatus !== '待质检') {
@@ -116,9 +128,7 @@ function handleSubmit() {
     return
   }
   uni.showToast({ title: result.message, icon: 'success' })
-  setTimeout(() => {
-    uni.navigateBack({ delta: 2 })
-  }, 1200)
+  setTimeout(backToQcTaskList, 1200)
 }
 </script>
 
