@@ -48,6 +48,20 @@ npm run dev:mp-weixin
 npm run dev:h5
 ```
 
+### GitHub Pages 在线预览
+
+地址：**https://lianghaiye.github.io/MES-mobile/**
+
+仓库已配置 GitHub Actions（`.github/workflows/deploy-github-pages.yml`），推送 `main` 后会自动构建 H5 并发布。
+
+**首次请在 GitHub 仓库设置中启用 Pages：**
+
+1. 打开 **Settings → Pages**
+2. **Build and deployment → Source** 选择 **GitHub Actions**
+3. 等待工作流跑完后刷新上述链接
+
+> 说明：微信小程序请用微信开发者工具导入 `dist/dev/mp-weixin`；GitHub Pages 仅用于 H5 浏览器预览，不是小程序运行环境。
+
 ## 演示账号
 
 - 账号：`admin`（或任意非空账号）  

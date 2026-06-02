@@ -19,7 +19,9 @@
   "h5": {
     "title": "I-DOMS 移动端",
     "router": {
-      "mode": "hash"
-    }
+      "mode": "hash",
+      "base": "./"
+    },
+    "publicPath": "./"
   }
 }
