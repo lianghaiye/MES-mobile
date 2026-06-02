@@ -1,0 +1,98 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/workbench/index",
+      "style": {
+        "navigationBarTitleText": "工作台"
+      }
+    },
+    {
+      "path": "pages/todo/index",
+      "style": {
+        "navigationBarTitleText": "待办任务"
+      }
+    },
+    {
+      "path": "pages/qc-task/list",
+      "style": {
+        "navigationBarTitleText": "质检任务",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/qc-task/detail",
+      "style": {
+        "navigationBarTitleText": "质检详情"
+      }
+    },
+    {
+      "path": "pages/qc-task/inspect",
+      "style": {
+        "navigationBarTitleText": "执行质检"
+      }
+    },
+    {
+      "path": "pages/work-hours/index",
+      "style": {
+        "navigationBarTitleText": "工时工资"
+      }
+    },
+    {
+      "path": "pages/approval/index",
+      "style": {
+        "navigationBarTitleText": "审批管理"
+      }
+    },
+    {
+      "path": "pages/material-req/index",
+      "style": {
+        "navigationBarTitleText": "领料管理"
+      }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/placeholder/index",
+      "style": {
+        "navigationBarTitleText": "功能开发中"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "I-DOMS",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f6f8"
+  },
+  "tabBar": {
+    "color": "#8c8c8c",
+    "selectedColor": "#1677ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/workbench/index",
+        "text": "工作台",
+        "iconPath": "static/tab/workbench.png",
+        "selectedIconPath": "static/tab/workbench-active.png"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的",
+        "iconPath": "static/tab/mine.png",
+        "selectedIconPath": "static/tab/mine-active.png"
+      }
+    ]
+  }
+}

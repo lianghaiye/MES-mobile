@@ -1,0 +1,25 @@
+{
+  "name": "I-DOMS",
+  "appid": "__UNI__IDOMS_MOBILE",
+  "description": "I-DOMS MES 移动端",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "vueVersion": "3",
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "lazyCodeLoading": "requiredComponents"
+  },
+  "h5": {
+    "title": "I-DOMS 移动端",
+    "router": {
+      "mode": "hash"
+    }
+  }
+}
