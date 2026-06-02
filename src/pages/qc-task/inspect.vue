@@ -19,7 +19,7 @@
             :key="opt"
             class="opt"
             :class="{ active: line.lineQcResult === opt }"
-            @tap="line.lineQcResult = opt"
+            @tap="setLineResult(line, opt)"
           >
             {{ opt }}
           </view>
@@ -27,7 +27,19 @@
       </view>
       <view v-if="line.lineQcResult === '不合格'" class="row">
         <text class="l">处理方案</text>
-        <input v-model="line.treatmentPlan" class="text-input" placeholder="请输入" />
+        <picker
+          mode="selector"
+          :range="planOpts"
+          :value="planPickerIndex(line)"
+          @change="onTreatmentPlanChange($event, line)"
+        >
+          <view class="picker-field">
+            <text :class="{ placeholder: !line.treatmentPlan }">
+              {{ line.treatmentPlan || '请选择' }}
+            </text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
       </view>
     </view>
 
@@ -43,7 +55,12 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getQcById, submitQcInspection, lineQcResultOptions } from '@/mock/factoryQc'
+import {
+  getQcById,
+  submitQcInspection,
+  lineQcResultOptions,
+  treatmentPlanOptions,
+} from '@/mock/factoryQc'
 import { getUser } from '@/utils/auth'
 
 const record = ref(null)
@@ -51,6 +68,22 @@ const formLines = ref([])
 const remark = ref('')
 const submitting = ref(false)
 const resultOpts = lineQcResultOptions
+const planOpts = treatmentPlanOptions
+
+function setLineResult(line, opt) {
+  line.lineQcResult = opt
+  if (opt !== '不合格') line.treatmentPlan = ''
+}
+
+function planPickerIndex(line) {
+  const i = planOpts.indexOf(line.treatmentPlan)
+  return i >= 0 ? i : 0
+}
+
+function onTreatmentPlanChange(e, line) {
+  const idx = Number(e.detail.value)
+  line.treatmentPlan = planOpts[idx]
+}
 
 onLoad((query) => {
   const r = getQcById(query.id)
@@ -136,12 +169,27 @@ function handleSubmit() {
 }
 
 .num-input,
-.text-input {
+.picker-field {
   height: 72rpx;
   padding: 0 20rpx;
   background: #f5f5f5;
   border-radius: 8rpx;
   font-size: 28rpx;
+}
+
+.picker-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.picker-field .placeholder {
+  color: #999;
+}
+
+.picker-arrow {
+  font-size: 22rpx;
+  color: $text-secondary;
 }
 
 .textarea {

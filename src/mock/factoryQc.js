@@ -2,6 +2,7 @@
 export const qcStatusOptions = ['待质检', '已完成', '已终止']
 export const qcResultOptions = ['', '质检通过', '质检不通过', '部分通过']
 export const lineQcResultOptions = ['合格', '不合格']
+export const treatmentPlanOptions = ['返工', '换批次']
 
 const records = [
   {
@@ -54,7 +55,7 @@ const records = [
         shipQty: 20,
         lineQcResult: '不合格',
         inspectQty: 20,
-        treatmentPlan: '返工后复检',
+        treatmentPlan: '返工',
       },
     ],
   },
@@ -131,6 +132,15 @@ export function submitQcInspection(id, payload) {
   const lines = payload.lineItems || []
   for (const line of lines) {
     if (!line.lineQcResult) return { ok: false, message: '请填写每条明细的质检结果' }
+    if (line.lineQcResult === '不合格' && !line.treatmentPlan) {
+      return { ok: false, message: `「${line.itemName}」不合格请选择处理方案` }
+    }
+    if (
+      line.lineQcResult === '不合格' &&
+      !treatmentPlanOptions.includes(line.treatmentPlan)
+    ) {
+      return { ok: false, message: `「${line.itemName}」处理方案须为返工或换批次` }
+    }
   }
   const results = lines.map((l) => l.lineQcResult)
   let qcResult = '部分通过'
