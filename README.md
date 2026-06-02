@@ -1,4 +1,4 @@
-# I-DOMS Mobile
+# MES-mobile
 
 I-DOMS MES **移动端延伸**（uni-app + Vue 3），主要发布为**微信小程序**，与 PC 端 `i-doms-web` 并列开发。
 
