@@ -6,9 +6,10 @@
         :key="tab.key"
         class="tab-item"
         :class="{ active: activeTab === tab.key }"
-        @tap="activeTab = tab.key"
+        @tap="switchTab(tab.key)"
       >
         {{ tab.label }}
+        <text v-if="tab.key === 'claim' && claimCount > 0" class="tab-badge">{{ claimCount }}</text>
       </view>
       <text class="filter-icon">☰</text>
     </view>
@@ -24,16 +25,23 @@
       </view>
     </view>
 
-    <view v-if="!list.length" class="empty">暂无{{ activeTab === 'todo' ? '待办' : '历史' }}任务</view>
+    <view v-if="!list.length" class="empty">
+      暂无{{ emptyLabel }}任务
+    </view>
 
     <view
       v-for="item in list"
       :key="item.id"
       class="task-card"
-      @tap="goDetail(item)"
+      @tap="onCardTap(item)"
     >
       <view class="card-head">
-        <text class="wo-name">工单名称：{{ item.workOrderName }}</text>
+        <view class="head-left">
+          <text class="category-tag" :class="categoryClass(item.orderCategory)">
+            {{ item.orderCategory || '拆解工单' }}
+          </text>
+          <text class="wo-name">{{ item.workOrderName }}</text>
+        </view>
         <text class="status" :class="statusClass(item.taskStatus)">{{ item.taskStatus }}</text>
       </view>
       <view class="info-grid">
@@ -49,6 +57,13 @@
           <text class="grid-label">工序</text>
           <text class="grid-val">{{ item.processName }}</text>
         </view>
+        <view class="grid-item">
+          <text class="grid-label">计划数量</text>
+          <text class="grid-val">{{ item.expectedQty }}</text>
+        </view>
+      </view>
+      <view v-if="activeTab === 'claim'" class="claim-foot">
+        <button class="claim-btn" size="mini" @tap.stop="onClaim(item)">领取</button>
       </view>
     </view>
   </view>
@@ -57,25 +72,37 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getTaskList } from '@/mock/disassemblyTasks'
+import { getTaskList, getClaimTaskCount, claimTask, mergePcSyncedTasks } from '@/mock/disassemblyTasks'
 
 const activeTab = ref('todo')
 const autoReport = ref(false)
-const allList = ref([])
+const claimCount = ref(0)
 
 const tabs = [
   { key: 'todo', label: '待办任务' },
+  { key: 'claim', label: '待领任务' },
   { key: 'history', label: '历史任务' },
 ]
 
 const list = computed(() => getTaskList(activeTab.value))
 
+const emptyLabel = computed(() => {
+  const map = { todo: '待办', claim: '待领', history: '历史' }
+  return map[activeTab.value] || '待办'
+})
+
 function loadList() {
-  allList.value = getTaskList('todo').concat(getTaskList('history'))
+  mergePcSyncedTasks()
+  claimCount.value = getClaimTaskCount()
+}
+
+function switchTab(key) {
+  activeTab.value = key
+  loadList()
 }
 
 function showTraceCol(item) {
-  return item.processName === '拆解' || item.barcodeType === '一物一码'
+  return item.processName === '拆解' || item.barcodeType === '一物一码' || item.specModel
 }
 
 function traceLabel(item) {
@@ -88,8 +115,18 @@ function traceValue(item) {
   return item.specModel || item.barcodeType
 }
 
+function categoryClass(category) {
+  const map = {
+    生产工单: 'production',
+    总装工单: 'assembly',
+    拆解工单: 'disassembly',
+  }
+  return map[category] || 'disassembly'
+}
+
 function statusClass(status) {
   const map = {
+    待领取: 'pending',
     待分发: 'pending',
     待开始: 'ready',
     执行中: 'doing',
@@ -98,8 +135,19 @@ function statusClass(status) {
   return map[status] || ''
 }
 
-function goDetail(item) {
+function onCardTap(item) {
+  if (activeTab.value === 'claim') return
   uni.navigateTo({ url: `/pages/todo/detail?id=${item.id}` })
+}
+
+function onClaim(item) {
+  const res = claimTask(item.id, 'admin')
+  if (!res.ok) {
+    uni.showToast({ title: res.message, icon: 'none' })
+    return
+  }
+  uni.showToast({ title: '领取成功', icon: 'success' })
+  loadList()
 }
 
 onShow(() => loadList())
@@ -143,6 +191,12 @@ $green: #07c160;
   height: 4rpx;
   background: $green;
   border-radius: 2rpx;
+}
+
+.tab-badge {
+  margin-left: 6rpx;
+  font-size: 22rpx;
+  color: #ff4d4f;
 }
 
 .filter-icon {
@@ -204,8 +258,36 @@ $green: #07c160;
   gap: 16rpx;
 }
 
-.wo-name {
+.head-left {
   flex: 1;
+  min-width: 0;
+}
+
+.category-tag {
+  display: inline-block;
+  font-size: 20rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 6rpx;
+  margin-bottom: 8rpx;
+}
+
+.category-tag.production {
+  background: #e6f4ff;
+  color: #1677ff;
+}
+
+.category-tag.assembly {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.category-tag.disassembly {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.wo-name {
+  display: block;
   font-size: 28rpx;
   font-weight: 600;
   color: #333;
@@ -249,5 +331,16 @@ $green: #07c160;
   font-size: 24rpx;
   color: $green;
   font-weight: 500;
+}
+
+.claim-foot {
+  margin-top: 16rpx;
+  text-align: right;
+}
+
+.claim-btn {
+  background: $green;
+  color: #fff;
+  border: none;
 }
 </style>

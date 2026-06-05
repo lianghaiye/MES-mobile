@@ -10,6 +10,7 @@ const STORAGE_KEY = 'i_doms_mobile_disassembly_tasks'
 const DRAFT_KEY = 'i_doms_mobile_disassembly_drafts'
 const RESULT_KEY = 'i_doms_disassembly_results'
 const SYNC_KEY = 'i_doms_disassembly_pc_sync'
+const MOBILE_TASK_SYNC_KEY = 'i_doms_mobile_tasks_sync'
 const INBOUND_KEY = 'i_doms_disassembly_inbound'
 const SCRAP_MGMT_KEY = 'i_doms_disassembly_scrap_mgmt'
 const WO_STATUS_KEY = 'i_doms_disassembly_wo_status'
@@ -17,7 +18,7 @@ const WO_STATUS_KEY = 'i_doms_disassembly_wo_status'
 export const warehouseOptions = ['半成品仓', '成品仓', '原料仓', '报废品仓']
 
 /** 任务状态 */
-export const taskStatusOptions = ['待分发', '待开始', '执行中', '已完成']
+export const taskStatusOptions = ['待领取', '待分发', '待开始', '执行中', '已完成']
 
 /** 拆解工艺路线工序（一张工单拆成多条任务） */
 const DISASSEMBLY_PROCESSES = ['拆解', '拆解质检', '入库']
@@ -206,6 +207,14 @@ function taskSeed(partial) {
     workOrderRemark: '',
     nextProcess: getNextProcess(partial.processName),
     laborCalcMethod: '时长报工+计时工资',
+    resourceType: partial.resourceType || '工人',
+    placement: partial.placement || 'todo',
+    serialLocked: partial.serialLocked ?? false,
+    claimTargets: partial.claimTargets || [],
+    groupLeader: partial.groupLeader || '',
+    leaderParticipates: partial.leaderParticipates ?? true,
+    groupWorkers: partial.groupWorkers || [],
+    executors: partial.executors || [],
     ...partial,
   }
 }
@@ -429,12 +438,7 @@ export function passQcInspection(taskId, payload) {
   createInboundRecords(task, ebomNodes, payload.reuseWarehouse)
   createScrapRecords(task, ebomNodes)
 
-  const inboundTask = cache.find(
-    (t) => t.workOrderId === task.workOrderId && t.processName === '入库' && t.taskStatus !== '已完成',
-  )
-  if (inboundTask) {
-    inboundTask.taskStatus = '待开始'
-  }
+  unlockNextSerialTask(task.workOrderId, task.processSeq)
   save()
 
   return { ok: true, message: '质检通过' }
@@ -518,11 +522,111 @@ export function rejectQcInspection(taskId) {
   return { ok: true, message: '已驳回，已生成拆解返工任务' }
 }
 
-export function getTaskList(tab = 'todo') {
-  if (tab === 'history') {
-    return cache.filter((t) => t.taskStatus === '已完成')
+function readPcSyncQueue() {
+  const queues = []
+  try {
+    const rawUni = uni.getStorageSync(MOBILE_TASK_SYNC_KEY)
+    if (rawUni) queues.push(typeof rawUni === 'string' ? JSON.parse(rawUni) : rawUni)
+  } catch {
+    /* ignore */
   }
-  return cache.filter((t) => t.taskStatus !== '已完成')
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawWeb = localStorage.getItem(MOBILE_TASK_SYNC_KEY)
+      if (rawWeb) queues.push(JSON.parse(rawWeb))
+    }
+  } catch {
+    /* ignore */
+  }
+  return queues.flat()
+}
+
+export function mergePcSyncedTasks() {
+  const synced = readPcSyncQueue()
+  if (!synced.length) return 0
+  let merged = 0
+  for (const task of synced) {
+    if (!task?.id) continue
+    const idx = cache.findIndex((t) => t.id === task.id)
+    const normalized = taskSeed(task)
+    if (idx >= 0) {
+      cache[idx] = { ...cache[idx], ...normalized }
+    } else {
+      cache.unshift(normalized)
+      merged += 1
+    }
+  }
+  if (merged) save()
+  return merged
+}
+
+function visibleTasks() {
+  return cache.filter((t) => !t.serialLocked)
+}
+
+export function getTaskList(tab = 'todo') {
+  mergePcSyncedTasks()
+  const list = visibleTasks()
+  if (tab === 'history') {
+    return list.filter((t) => t.taskStatus === '已完成')
+  }
+  if (tab === 'claim') {
+    return list.filter((t) => t.placement === 'claim' && t.taskStatus !== '已完成')
+  }
+  return list.filter((t) => t.taskStatus !== '已完成' && t.placement !== 'claim')
+}
+
+export function claimTask(taskId, userName = 'admin') {
+  const task = getTaskById(taskId)
+  if (!task) return { ok: false, message: '任务不存在' }
+  if (task.placement !== 'claim') return { ok: false, message: '该任务不在待领列表' }
+  task.placement = 'todo'
+  task.claimedBy = userName
+  task.claimedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  if (task.resourceType === '工人小组') {
+    task.groupLeader = userName
+    task.executor = userName
+    task.taskStatus = '待分发'
+  } else {
+    task.executor = userName
+    task.taskStatus = '待开始'
+  }
+  save()
+  return { ok: true, task }
+}
+
+export function getDistributableWorkers(task) {
+  const workers = task.groupWorkers || []
+  if (task.leaderParticipates) return workers
+  return workers.filter((w) => !w.isLeader)
+}
+
+export function distributeTask(taskId, executorName) {
+  const task = getTaskById(taskId)
+  if (!task) return { ok: false, message: '任务不存在' }
+  if (task.taskStatus !== '待分发') return { ok: false, message: '当前任务不可分发' }
+  const allowed = getDistributableWorkers(task).map((w) => w.name)
+  if (!allowed.includes(executorName)) {
+    return { ok: false, message: '所选执行人不在可分发范围内' }
+  }
+  task.executor = executorName
+  task.taskStatus = '待开始'
+  task.distributedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  save()
+  return { ok: true, task }
+}
+
+function unlockNextSerialTask(workOrderId, completedProcessSeq) {
+  const next = cache.find(
+    (t) =>
+      t.workOrderId === workOrderId &&
+      t.processSeq === completedProcessSeq + 1 &&
+      t.serialLocked,
+  )
+  if (!next) return null
+  next.serialLocked = false
+  save()
+  return next
 }
 
 export function getTaskById(id) {
@@ -530,7 +634,15 @@ export function getTaskById(id) {
 }
 
 export function getPendingTaskCount() {
-  return cache.filter((t) => ['待分发', '待开始', '执行中'].includes(t.taskStatus)).length
+  mergePcSyncedTasks()
+  return visibleTasks().filter(
+    (t) => t.taskStatus !== '已完成' && ['todo', 'claim'].includes(t.placement || 'todo'),
+  ).length
+}
+
+export function getClaimTaskCount() {
+  mergePcSyncedTasks()
+  return getTaskList('claim').length
 }
 
 /** 获取或初始化执行态 EBOM */
@@ -618,17 +730,7 @@ export function completeDisassemblyTask(taskId, payload) {
     completedAt: task.finishedAt,
   })
 
-  const qcTask = cache.find(
-    (t) =>
-      t.workOrderId === task.workOrderId &&
-      t.processName === '拆解质检' &&
-      t.taskStatus !== '已完成',
-  )
-  if (qcTask && qcTask.taskStatus === '待分发') {
-    /* 拆解完成后质检任务仍待分发时不自动推进 */
-  } else if (qcTask && qcTask.taskStatus !== '已完成') {
-    qcTask.taskStatus = '待开始'
-  }
+  unlockNextSerialTask(task.workOrderId, task.processSeq)
   save()
 
   const drafts = loadDrafts()
