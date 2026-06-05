@@ -8,7 +8,6 @@ export const workbenchModules = [
     color: '#1677ff',
     path: '/pages/todo/index',
     placeholder: false,
-    stub: true,
   },
   {
     key: 'qc-task',

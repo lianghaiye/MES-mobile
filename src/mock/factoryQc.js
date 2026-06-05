@@ -3,6 +3,23 @@ export const qcStatusOptions = ['待质检', '已完成', '已终止']
 export const qcResultOptions = ['', '质检通过', '质检不通过', '部分通过']
 export const lineQcResultOptions = ['合格', '不合格']
 export const treatmentPlanOptions = ['返工', '换批次']
+export const inspectMethodOptions = ['抽检', '全检']
+
+function normalizeQcRecord(record) {
+  if (!record) return null
+  const lineItems = (record.lineItems || []).map((line) => ({
+    ...line,
+    productName: line.productName || line.itemName,
+    specModel: line.specModel ?? '—',
+  }))
+  return {
+    ...record,
+    lineItems,
+    inspectMethod: record.inspectMethod || '抽检',
+    outboundWarehouse:
+      record.outboundWarehouse || lineItems[0]?.shipWarehouse || '',
+  }
+}
 
 const records = [
   {
@@ -15,9 +32,12 @@ const records = [
     outboundDocNo: 'OUT202606020002',
     source: '销售发货',
     inspectDate: '2026-06-02',
+    inspectMethod: '抽检',
+    outboundWarehouse: '成品仓',
     lineItems: [
       {
         id: 'l1',
+        productName: '测试产品00002',
         itemName: '测试产品00002',
         itemCode: 'SPARE-50*30-001',
         specModel: '50*30',
@@ -257,7 +277,8 @@ function save() {
 }
 
 export function getQcList(filters = {}) {
-  return cache.filter((r) => {
+  return cache
+    .filter((r) => {
     if (filters.qcStatus && r.qcStatus !== filters.qcStatus) return false
     if (filters.keyword) {
       const k = filters.keyword
@@ -270,10 +291,12 @@ export function getQcList(filters = {}) {
     }
     return true
   })
+    .map(normalizeQcRecord)
 }
 
 export function getQcById(id) {
-  return cache.find((r) => r.id === id) || null
+  const row = cache.find((r) => r.id === id) || null
+  return normalizeQcRecord(row)
 }
 
 export function getPendingQcCount() {
@@ -286,6 +309,9 @@ export function submitQcInspection(id, payload) {
     return { ok: false, message: '仅待质检任务可提交' }
   }
   const lines = payload.lineItems || []
+  if (!payload.inspectMethod) {
+    return { ok: false, message: '请选择质检方式' }
+  }
   for (const line of lines) {
     if (!line.lineQcResult) return { ok: false, message: '请填写每条明细的质检结果' }
     if (line.lineQcResult === '不合格' && !line.treatmentPlan) {
@@ -307,6 +333,7 @@ export function submitQcInspection(id, payload) {
     qcStatus: '已完成',
     qcResult,
     lineItems: lines,
+    inspectMethod: payload.inspectMethod,
     inspector: payload.inspector || '当前用户',
     inspectedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
     remark: payload.remark || '',

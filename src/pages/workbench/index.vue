@@ -17,7 +17,7 @@
         v-for="mod in modules"
         :key="mod.key"
         :mod="mod"
-        :badge="mod.key === 'qc-task' ? pendingQc : 0"
+        :badge="mod.key === 'qc-task' ? pendingQc : mod.key === 'todo' ? pendingTodo : 0"
         @tap="onModuleTap(mod)"
       />
     </view>
@@ -31,9 +31,11 @@ import ModuleCard from '@/components/ModuleCard.vue'
 import { workbenchModules, openModule } from '@/utils/nav'
 import { getUser, isLoggedIn } from '@/utils/auth'
 import { getPendingQcCount } from '@/mock/factoryQc'
+import { getPendingTaskCount } from '@/mock/disassemblyTasks'
 
 const modules = workbenchModules
 const pendingQc = ref(0)
+const pendingTodo = ref(0)
 
 const userName = computed(() => getUser()?.displayName || '用户')
 const factoryName = computed(() => getUser()?.factory || '默认工厂')
@@ -44,6 +46,7 @@ onShow(() => {
     return
   }
   pendingQc.value = getPendingQcCount()
+  pendingTodo.value = getPendingTaskCount()
 })
 
 function onModuleTap(mod) {

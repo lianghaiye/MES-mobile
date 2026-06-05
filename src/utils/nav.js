@@ -18,6 +18,9 @@ export function statusColor(status) {
     质检通过: '#52c41a',
     质检不通过: '#ff4d4f',
     部分通过: '#faad14',
+    待分发: '#07c160',
+    待开始: '#07c160',
+    执行中: '#07c160',
   }
   return map[status] || '#8c8c8c'
 }
