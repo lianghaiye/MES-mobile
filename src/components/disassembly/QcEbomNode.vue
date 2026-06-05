@@ -22,9 +22,10 @@
           <text class="qty-label">报废原因</text>
           <text class="qty-val">{{ node.scrapReason }}</text>
         </view>
-        <view v-if="node.scrapQty > 0" class="result-row">
+        <view v-if="node.scrapQty > 0" class="parallel-row result-row">
           <text class="qty-label">处理结果</text>
           <picker
+            class="parallel-control"
             mode="selector"
             :range="processResultOptions"
             :value="resultIndex"
@@ -136,8 +137,10 @@ $green: #07c160;
 }
 
 .qty-label {
+  width: 160rpx;
+  flex-shrink: 0;
   color: #999;
-  margin-right: 12rpx;
+  margin-right: 0;
 }
 
 .qty-label.ml {
@@ -156,12 +159,24 @@ $green: #07c160;
   margin-top: 12rpx;
 }
 
+.parallel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.parallel-control {
+  flex: 1;
+  min-width: 0;
+}
+
 .result-picker {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8rpx;
-  padding: 16rpx 20rpx;
+  height: 72rpx;
+  padding: 0 20rpx;
   background: #f5f5f5;
   border-radius: 8rpx;
   font-size: 26rpx;

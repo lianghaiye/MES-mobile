@@ -40,7 +40,7 @@
           <text class="category-tag" :class="categoryClass(item.orderCategory)">
             {{ item.orderCategory || '拆解工单' }}
           </text>
-          <text class="wo-name">{{ item.workOrderName }}</text>
+          <text class="wo-name">{{ item.workOrderName }}（排产数：{{ item.expectedQty }}）</text>
         </view>
         <text class="status" :class="statusClass(item.taskStatus)">{{ item.taskStatus }}</text>
       </view>
@@ -56,10 +56,6 @@
         <view class="grid-item">
           <text class="grid-label">工序</text>
           <text class="grid-val">{{ item.processName }}</text>
-        </view>
-        <view class="grid-item">
-          <text class="grid-label">计划数量</text>
-          <text class="grid-val">{{ item.expectedQty }}</text>
         </view>
       </view>
       <view v-if="activeTab === 'claim'" class="claim-foot">

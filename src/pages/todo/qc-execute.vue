@@ -1,17 +1,17 @@
 <template>
   <view v-if="task" class="qc-page">
     <view class="summary-card">
-      <view class="summary-row">
-        <text class="summary-label">物品名称</text>
-        <text class="summary-val">{{ task.productName }} {{ task.specModel }}</text>
+      <view class="parallel-row">
+        <text class="parallel-label">物品名称</text>
+        <text class="parallel-val">{{ task.productName }} {{ task.specModel }}</text>
       </view>
-      <view class="summary-row">
-        <text class="summary-label">工单编号</text>
-        <text class="summary-val">{{ task.workOrderCode }}</text>
+      <view class="parallel-row">
+        <text class="parallel-label">工单编号</text>
+        <text class="parallel-val">{{ task.workOrderCode }}</text>
       </view>
-      <view class="summary-row">
-        <text class="summary-label">执行人</text>
-        <text class="summary-val">{{ disassemblyExecutor }}</text>
+      <view class="parallel-row">
+        <text class="parallel-label">执行人</text>
+        <text class="parallel-val">{{ disassemblyExecutor }}</text>
       </view>
       <view class="stats-row">
         <text>已拆 <text class="num">{{ stats.dismantled }}</text> 项</text>
@@ -35,34 +35,40 @@
     <view v-if="hasResult" class="warehouse-card">
       <text class="section-title">请选择仓库</text>
       <view class="field">
-        <text class="field-label">回用仓库</text>
-        <picker
-          mode="selector"
-          :range="warehouseOptions"
-          :value="reuseWhIndex"
-          @change="onReuseWhChange"
-        >
-          <view class="picker-field">
-            <text :class="{ placeholder: !reuseWarehouse }">{{ reuseWarehouse || '数据来源：仓库' }}</text>
-            <text class="arrow">▼</text>
-          </view>
-        </picker>
-        <text v-if="needReuseWarehouse" class="hint required-hint">有回用物品时必填!</text>
+        <view class="parallel-row">
+          <text class="parallel-label">回用仓库</text>
+          <picker
+            class="parallel-control"
+            mode="selector"
+            :range="warehouseOptions"
+            :value="reuseWhIndex"
+            @change="onReuseWhChange"
+          >
+            <view class="picker-field">
+              <text :class="{ placeholder: !reuseWarehouse }">{{ reuseWarehouse || '数据来源：仓库' }}</text>
+              <text class="arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        <text v-if="needReuseWarehouse" class="hint required-hint field-hint">有回用物品时必填!</text>
       </view>
       <view class="field">
-        <text class="field-label">报废仓库</text>
-        <picker
-          mode="selector"
-          :range="warehouseOptions"
-          :value="scrapWhIndex"
-          @change="onScrapWhChange"
-        >
-          <view class="picker-field">
-            <text :class="{ placeholder: !scrapWarehouse }">{{ scrapWarehouse || '数据来源：仓库' }}</text>
-            <text class="arrow">▼</text>
-          </view>
-        </picker>
-        <text v-if="needScrapWarehouse" class="hint required-hint">处理结果为"财务变现"时必填!</text>
+        <view class="parallel-row">
+          <text class="parallel-label">报废仓库</text>
+          <picker
+            class="parallel-control"
+            mode="selector"
+            :range="warehouseOptions"
+            :value="scrapWhIndex"
+            @change="onScrapWhChange"
+          >
+            <view class="picker-field">
+              <text :class="{ placeholder: !scrapWarehouse }">{{ scrapWarehouse || '数据来源：仓库' }}</text>
+              <text class="arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        <text v-if="needScrapWarehouse" class="hint required-hint field-hint">处理结果为"财务变现"时必填!</text>
       </view>
     </view>
 
@@ -229,19 +235,40 @@ $green: #07c160;
   padding: 24rpx;
 }
 
-.summary-row {
-  margin-bottom: 12rpx;
+.field {
+  margin-bottom: 20rpx;
+}
+
+.parallel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+
+.parallel-label {
+  width: 160rpx;
+  flex-shrink: 0;
   font-size: 26rpx;
-}
-
-.summary-label {
-  display: block;
   color: #999;
-  margin-bottom: 6rpx;
 }
 
-.summary-val {
+.parallel-val {
+  flex: 1;
+  text-align: right;
+  font-size: 28rpx;
   color: #333;
+}
+
+.parallel-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-hint {
+  margin: -8rpx 0 12rpx 160rpx;
+  padding-left: 16rpx;
 }
 
 .stats-row {
@@ -282,17 +309,6 @@ $green: #07c160;
   font-weight: 600;
   margin-bottom: 16rpx;
   color: #333;
-}
-
-.field {
-  margin-bottom: 24rpx;
-}
-
-.field-label {
-  display: block;
-  font-size: 26rpx;
-  color: #666;
-  margin-bottom: 8rpx;
 }
 
 .picker-field {
