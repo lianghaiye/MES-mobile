@@ -651,16 +651,38 @@ export function getTaskExecutionState(taskId) {
   if (!task) return null
   const drafts = loadDrafts()
   if (drafts[taskId]?.ebomNodes) {
-    return { task, ebomNodes: drafts[taskId].ebomNodes }
+    return {
+      task,
+      ebomNodes: drafts[taskId].ebomNodes,
+      reuseWarehouse: drafts[taskId].reuseWarehouse || '',
+      scrapWarehouse: drafts[taskId].scrapWarehouse || '',
+    }
   }
   const raw = getEbomByKey(task.ebomKey)
   const ebomNodes = initEbomExecutionState(raw)
-  return { task, ebomNodes }
+  return { task, ebomNodes, reuseWarehouse: '', scrapWarehouse: '' }
 }
 
-export function saveTaskDraft(taskId, ebomNodes) {
+export function validateDisassemblyWarehouse(ebomNodes, reuseWarehouse, scrapWarehouse) {
+  const stats = calcDisassemblyStats(ebomNodes)
+  if (stats.reuse > 0 && !reuseWarehouse) {
+    return { ok: false, message: '有回用物品时请填写回用仓库' }
+  }
+  if (stats.scrap > 0 && !scrapWarehouse) {
+    return { ok: false, message: '有报废物品时请填写报废仓库' }
+  }
+  return { ok: true }
+}
+
+export function saveTaskDraft(taskId, payload) {
+  const ebomNodes = Array.isArray(payload) ? payload : payload.ebomNodes
   const drafts = loadDrafts()
-  drafts[taskId] = { ebomNodes, savedAt: new Date().toISOString() }
+  drafts[taskId] = {
+    ebomNodes,
+    reuseWarehouse: payload.reuseWarehouse || '',
+    scrapWarehouse: payload.scrapWarehouse || '',
+    savedAt: new Date().toISOString(),
+  }
   saveDrafts(drafts)
   const task = getTaskById(taskId)
   if (task && task.taskStatus === '待开始') {
@@ -706,12 +728,21 @@ export function completeDisassemblyTask(taskId, payload) {
     return { ok: false, message: '请填写本次报工时长' }
   }
 
+  const whCheck = validateDisassemblyWarehouse(
+    ebomNodes,
+    payload.reuseWarehouse,
+    payload.scrapWarehouse,
+  )
+  if (!whCheck.ok) return whCheck
+
   const stats = calcDisassemblyStats(ebomNodes)
   task.taskStatus = '已完成'
   task.finishedAt = payload.endTime || new Date().toISOString().slice(0, 19).replace('T', ' ')
   task.completion = {
     reuseQty: stats.reuse,
     scrapQty: stats.scrap,
+    reuseWarehouse: payload.reuseWarehouse || '',
+    scrapWarehouse: payload.scrapWarehouse || '',
     workDuration: payload.workDuration,
     startTime: payload.startTime,
     endTime: payload.endTime,
@@ -726,6 +757,8 @@ export function completeDisassemblyTask(taskId, payload) {
     workOrderId: task.workOrderId,
     ebomNodes,
     stats,
+    reuseWarehouse: payload.reuseWarehouse || '',
+    scrapWarehouse: payload.scrapWarehouse || '',
     disassemblyExecutor: task.executor,
     completedAt: task.finishedAt,
   })

@@ -2,7 +2,7 @@
   <view v-if="task" class="execute-page">
     <view class="action-row">
       <button class="action-btn outline" :loading="saving" @tap="onSave">暂存</button>
-      <button class="action-btn primary" @tap="showComplete = true">完工</button>
+      <button class="action-btn primary" @tap="onCompleteClick">完工</button>
     </view>
 
     <view class="summary-card">
@@ -31,6 +31,50 @@
       />
     </view>
 
+    <view class="warehouse-card">
+      <text class="section-title">请选择仓库</text>
+      <view class="field">
+        <view class="parallel-row">
+          <text class="parallel-label">回用仓库</text>
+          <picker
+            class="parallel-control"
+            mode="selector"
+            :range="warehouseOptions"
+            :value="reuseWhIndex"
+            @change="onReuseWhChange"
+          >
+            <view class="picker-field">
+              <text :class="{ placeholder: !reuseWarehouse }">
+                {{ reuseWarehouse || '数据来源：仓库' }}
+              </text>
+              <text class="arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        <text v-if="needReuseWarehouse" class="hint required-hint field-hint">有回用物品时必填!</text>
+      </view>
+      <view class="field">
+        <view class="parallel-row">
+          <text class="parallel-label">报废仓库</text>
+          <picker
+            class="parallel-control"
+            mode="selector"
+            :range="warehouseOptions"
+            :value="scrapWhIndex"
+            @change="onScrapWhChange"
+          >
+            <view class="picker-field">
+              <text :class="{ placeholder: !scrapWarehouse }">
+                {{ scrapWarehouse || '数据来源：仓库' }}
+              </text>
+              <text class="arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        <text v-if="needScrapWarehouse" class="hint required-hint field-hint">有报废物品时必填!</text>
+      </view>
+    </view>
+
     <CompleteModal
       v-model:visible="showComplete"
       :stats="stats"
@@ -51,15 +95,32 @@ import {
   getTaskExecutionState,
   saveTaskDraft,
   completeDisassemblyTask,
+  validateDisassemblyWarehouse,
+  warehouseOptions,
   getTaskById,
 } from '@/mock/disassemblyTasks'
 
 const task = ref(null)
 const ebomNodes = ref([])
+const reuseWarehouse = ref('')
+const scrapWarehouse = ref('')
 const saving = ref(false)
 const showComplete = ref(false)
 
 const stats = computed(() => calcDisassemblyStats(ebomNodes.value))
+
+const needReuseWarehouse = computed(() => stats.value.reuse > 0)
+const needScrapWarehouse = computed(() => stats.value.scrap > 0)
+
+const reuseWhIndex = computed(() => {
+  const i = warehouseOptions.indexOf(reuseWarehouse.value)
+  return i >= 0 ? i : 0
+})
+
+const scrapWhIndex = computed(() => {
+  const i = warehouseOptions.indexOf(scrapWarehouse.value)
+  return i >= 0 ? i : 0
+})
 
 onLoad((query) => {
   const state = getTaskExecutionState(query.id)
@@ -70,6 +131,8 @@ onLoad((query) => {
   }
   task.value = state.task
   ebomNodes.value = state.ebomNodes
+  reuseWarehouse.value = state.reuseWarehouse || ''
+  scrapWarehouse.value = state.scrapWarehouse || ''
   if (task.value.processName !== '拆解') {
     uni.showToast({ title: '仅拆解工序可执行', icon: 'none' })
     setTimeout(() => uni.navigateBack(), 1500)
@@ -80,18 +143,45 @@ function onEbomChange() {
   ebomNodes.value = [...ebomNodes.value]
 }
 
+function onReuseWhChange(e) {
+  reuseWarehouse.value = warehouseOptions[Number(e.detail.value)]
+}
+
+function onScrapWhChange(e) {
+  scrapWarehouse.value = warehouseOptions[Number(e.detail.value)]
+}
+
 function onSave() {
   if (!task.value || saving.value) return
   saving.value = true
-  const res = saveTaskDraft(task.value.id, ebomNodes.value)
+  const res = saveTaskDraft(task.value.id, {
+    ebomNodes: ebomNodes.value,
+    reuseWarehouse: reuseWarehouse.value,
+    scrapWarehouse: scrapWarehouse.value,
+  })
   saving.value = false
   task.value = getTaskById(task.value.id)
   uni.showToast({ title: res.message, icon: 'success' })
 }
 
+function onCompleteClick() {
+  const check = validateDisassemblyWarehouse(
+    ebomNodes.value,
+    reuseWarehouse.value,
+    scrapWarehouse.value,
+  )
+  if (!check.ok) {
+    uni.showToast({ title: check.message, icon: 'none' })
+    return
+  }
+  showComplete.value = true
+}
+
 function onComplete(form) {
   const res = completeDisassemblyTask(task.value.id, {
     ebomNodes: ebomNodes.value,
+    reuseWarehouse: reuseWarehouse.value,
+    scrapWarehouse: scrapWarehouse.value,
     ...form,
   })
   if (!res.ok) {
@@ -202,11 +292,74 @@ $green: #07c160;
   margin: 0 24rpx;
 }
 
-.list-title {
+.warehouse-card {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+.list-title,
+.section-title {
   display: block;
   font-size: 30rpx;
   font-weight: 600;
   margin-bottom: 16rpx;
   color: #333;
+}
+
+.field {
+  margin-bottom: 20rpx;
+}
+
+.parallel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.parallel-label {
+  width: 160rpx;
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: #999;
+}
+
+.parallel-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 72rpx;
+  padding: 0 20rpx;
+  background: #f5f5f5;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+}
+
+.picker-field .placeholder {
+  color: #999;
+}
+
+.arrow {
+  font-size: 20rpx;
+  color: #999;
+}
+
+.hint.required-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #ff4d4f;
+}
+
+.field-hint {
+  margin-left: 160rpx;
+  padding-left: 16rpx;
 }
 </style>
