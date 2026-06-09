@@ -6,8 +6,8 @@
         <text class="factory">{{ factoryName }}</text>
       </view>
       <view class="stat">
-        <text class="stat-num">{{ pendingQc }}</text>
-        <text class="stat-label">待质检</text>
+        <text class="stat-num">{{ myPendingCount }}</text>
+        <text class="stat-label">我的待办</text>
       </view>
     </view>
 
@@ -32,8 +32,10 @@ import { workbenchModules, openModule } from '@/utils/nav'
 import { getUser, isLoggedIn } from '@/utils/auth'
 import { getPendingQcCount } from '@/mock/factoryQc'
 import { getPendingTaskCount } from '@/mock/disassemblyTasks'
+import { getMyPendingCount } from '@/mock/myPending'
 
 const modules = workbenchModules
+const myPendingCount = ref(0)
 const pendingQc = ref(0)
 const pendingTodo = ref(0)
 
@@ -45,8 +47,11 @@ onShow(() => {
     uni.reLaunch({ url: '/pages/login/index' })
     return
   }
-  pendingQc.value = getPendingQcCount()
-  pendingTodo.value = getPendingTaskCount()
+  const user = getUser()
+  const pending = getMyPendingCount(user)
+  myPendingCount.value = pending.total
+  pendingQc.value = pending.qc
+  pendingTodo.value = pending.todo
 })
 
 function onModuleTap(mod) {

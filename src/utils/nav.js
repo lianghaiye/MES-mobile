@@ -21,6 +21,8 @@ export function statusColor(status) {
     待分发: '#07c160',
     待开始: '#07c160',
     执行中: '#07c160',
+    已确认: '#52c41a',
+    待确认: '#fa8c16',
   }
   return map[status] || '#8c8c8c'
 }

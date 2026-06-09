@@ -65,6 +65,42 @@
       }
     },
     {
+      "path": "pages/quick-report/list",
+      "style": {
+        "navigationBarTitleText": "快速报工"
+      }
+    },
+    {
+      "path": "pages/quick-report/form",
+      "style": {
+        "navigationBarTitleText": "快速报工"
+      }
+    },
+    {
+      "path": "pages/quick-report/detail",
+      "style": {
+        "navigationBarTitleText": "报工详情"
+      }
+    },
+    {
+      "path": "pages/quick-report/product-search",
+      "style": {
+        "navigationBarTitleText": "选择产品"
+      }
+    },
+    {
+      "path": "pages/quick-report/personnel-select",
+      "style": {
+        "navigationBarTitleText": "选择人员"
+      }
+    },
+    {
+      "path": "pages/quick-report/material-list",
+      "style": {
+        "navigationBarTitleText": "领料清单"
+      }
+    },
+    {
       "path": "pages/work-hours/index",
       "style": {
         "navigationBarTitleText": "工时工资"

@@ -19,6 +19,15 @@ export const workbenchModules = [
     placeholder: false,
   },
   {
+    key: 'quick-report',
+    title: '快速报工',
+    desc: '产出登记与报工',
+    icon: '⚡',
+    color: '#1677ff',
+    path: '/pages/quick-report/list',
+    placeholder: false,
+  },
+  {
     key: 'work-hours',
     title: '工时工资',
     desc: '报工与工资查询',
