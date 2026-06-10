@@ -15,7 +15,15 @@
           <text class="val">{{ data.productName }} · {{ data.productCode }}</text>
         </view>
         <view class="info-row">
-          <text class="label">完工数量</text>
+          <text class="label">良品数</text>
+          <text class="val">{{ data.goodQty ?? data.finishedQty }} 件</text>
+        </view>
+        <view class="info-row">
+          <text class="label">不良品数</text>
+          <text class="val">{{ data.defectQty || 0 }} 件</text>
+        </view>
+        <view class="info-row">
+          <text class="label">合计完工</text>
           <text class="val">{{ data.finishedQty }} 件</text>
         </view>
         <view class="info-row">
@@ -47,6 +55,8 @@ const props = defineProps({
       workOrderNo: '',
       productName: '',
       productCode: '',
+      goodQty: 0,
+      defectQty: 0,
       finishedQty: 0,
       processes: [],
       operators: [],

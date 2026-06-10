@@ -39,8 +39,12 @@
 
       <view class="metrics">
         <view class="metric">
-          <text class="metric-num">{{ item.finishedQty }}</text>
-          <text class="metric-label">完工数量(件)</text>
+          <text class="metric-num">{{ item.goodQty ?? item.finishedQty }}</text>
+          <text class="metric-label">良品数(件)</text>
+        </view>
+        <view class="metric">
+          <text class="metric-num defect">{{ item.defectQty || 0 }}</text>
+          <text class="metric-label">不良品数(件)</text>
         </view>
         <view class="metric">
           <text class="metric-num">{{ item.processCount }}</text>
@@ -240,6 +244,10 @@ $primary: #1677ff;
   font-weight: 700;
   color: $primary;
   line-height: 1.1;
+
+  &.defect {
+    color: #ff4d4f;
+  }
 }
 
 .metric-label {

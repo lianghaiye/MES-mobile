@@ -18,17 +18,36 @@
       </view>
 
       <view class="field-row qty-row">
-        <text class="field-label required">完工数量</text>
+        <text class="field-label required">良品数</text>
         <view class="qty-input-wrap">
           <input
-            v-model="finishedQtyStr"
+            v-model="goodQtyStr"
             class="qty-input"
             type="digit"
             placeholder="0"
-            @blur="onFinishedQtyBlur"
+            @blur="onReportQtyBlur"
           />
           <text class="qty-unit">件</text>
         </view>
+      </view>
+
+      <view class="field-row qty-row">
+        <text class="field-label required">不良品数</text>
+        <view class="qty-input-wrap">
+          <input
+            v-model="defectQtyStr"
+            class="qty-input"
+            type="digit"
+            placeholder="0"
+            @blur="onReportQtyBlur"
+          />
+          <text class="qty-unit">件</text>
+        </view>
+      </view>
+
+      <view class="qty-total-row">
+        <text class="qty-total-label">合计完工</text>
+        <text class="qty-total-value">{{ totalReportQty }} 件</text>
       </view>
 
       <view class="field-row date-row">
@@ -229,7 +248,8 @@ const submitting = ref(false)
 const editId = ref('')
 const processExpanded = ref(true)
 const dateChip = ref('today')
-const finishedQtyStr = ref('')
+const goodQtyStr = ref('')
+const defectQtyStr = ref('0')
 const showSuccess = ref(false)
 const successData = ref({})
 const processSelectVisible = ref(false)
@@ -242,7 +262,8 @@ const form = reactive({
   productName: '',
   productCode: '',
   reportDate: formatReportDate(),
-  finishedQty: null,
+  goodQty: null,
+  defectQty: 0,
   routeId: '',
   routeName: '',
   perProcessMode: false,
@@ -283,6 +304,10 @@ const customChipLabel = computed(() =>
   dateChip.value === 'custom' && form.reportDate ? form.reportDate : '选择日期',
 )
 
+const totalReportQty = computed(
+  () => (Number(goodQtyStr.value) || 0) + (Number(defectQtyStr.value) || 0),
+)
+
 onLoad((query) => {
   if (!query.id) {
     form.operators = [...getLastOperators()]
@@ -316,8 +341,10 @@ function loadFromRecord(row) {
   form.productName = row.productName
   form.productCode = row.productCode
   form.reportDate = row.reportDate
-  form.finishedQty = row.finishedQty
-  finishedQtyStr.value = String(row.finishedQty || '')
+  form.goodQty = row.goodQty ?? row.finishedQty
+  form.defectQty = row.defectQty || 0
+  goodQtyStr.value = String(form.goodQty || '')
+  defectQtyStr.value = String(form.defectQty || 0)
   form.routeId = row.routeId || ''
   form.routeName = row.routeName || ''
   form.perProcessMode = !!row.perProcessMode
@@ -351,8 +378,7 @@ function applyProduct(product) {
 function applyRoute(route) {
   form.routeId = route.id
   form.routeName = route.name
-  const qty = Number(form.finishedQty) || Number(finishedQtyStr.value) || 0
-  form.processes = buildProcessesFromRoute(route, qty)
+  form.processes = buildProcessesFromRoute(route, totalReportQty.value)
 }
 
 function onRouteChange(e) {
@@ -377,9 +403,10 @@ function onCustomDate(e) {
   form.reportDate = val
 }
 
-function onFinishedQtyBlur() {
-  const qty = Number(finishedQtyStr.value) || 0
-  form.finishedQty = qty
+function onReportQtyBlur() {
+  form.goodQty = Number(goodQtyStr.value) || 0
+  form.defectQty = Number(defectQtyStr.value) || 0
+  const qty = totalReportQty.value
   form.processes.forEach((p) => {
     if (!p.deleted) p.qty = qty
   })
@@ -402,7 +429,7 @@ function openProcessSelect() {
 }
 
 function onProcessesSelected(rows) {
-  const qty = Number(form.finishedQty) || Number(finishedQtyStr.value) || 0
+  const qty = totalReportQty.value
   rows.forEach((proc) => {
     form.processes.push({
       id: `cfg-${proc.id}-${Date.now()}`,
@@ -457,8 +484,8 @@ function onCancel() {
 
 function onSubmit() {
   if (submitting.value) return
-  const finishedQty = Number(finishedQtyStr.value) || Number(form.finishedQty) || 0
-  form.finishedQty = finishedQty
+  form.goodQty = Number(goodQtyStr.value) || 0
+  form.defectQty = Number(defectQtyStr.value) || 0
 
   submitting.value = true
   const user = getUser()
@@ -468,7 +495,8 @@ function onSubmit() {
     productName: form.productName,
     productCode: form.productCode,
     reportDate: form.reportDate,
-    finishedQty,
+    goodQty: form.goodQty,
+    defectQty: form.defectQty,
     routeId: form.routeId,
     routeName: form.routeName,
     perProcessMode: form.perProcessMode,
@@ -489,6 +517,8 @@ function onSubmit() {
     workOrderNo: res.record.workOrderNo,
     productName: res.record.productName,
     productCode: res.record.productCode,
+    goodQty: res.record.goodQty,
+    defectQty: res.record.defectQty,
     finishedQty: res.record.finishedQty,
     processes: res.record.processes,
     operators: res.record.operators,
@@ -615,6 +645,24 @@ $primary: #1677ff;
 .qty-unit {
   font-size: 28rpx;
   color: #8c8c8c;
+}
+
+.qty-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rpx 0 4rpx;
+}
+
+.qty-total-label {
+  font-size: 28rpx;
+  color: #8c8c8c;
+}
+
+.qty-total-value {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1a1a1a;
 }
 
 .date-chips {

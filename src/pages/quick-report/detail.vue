@@ -20,8 +20,16 @@
         <text class="val">{{ record.routeName }}</text>
       </view>
       <view class="info-row">
-        <text class="label">完工数量</text>
-        <text class="val primary">{{ record.finishedQty }} 件</text>
+        <text class="label">良品数</text>
+        <text class="val primary">{{ record.goodQty ?? record.finishedQty }} 件</text>
+      </view>
+      <view class="info-row">
+        <text class="label">不良品数</text>
+        <text class="val defect">{{ record.defectQty || 0 }} 件</text>
+      </view>
+      <view class="info-row">
+        <text class="label">合计完工</text>
+        <text class="val">{{ record.finishedQty }} 件</text>
       </view>
       <view class="info-row">
         <text class="label">工序数</text>
@@ -161,6 +169,11 @@ $primary: #1677ff;
 
 .val.primary {
   color: $primary;
+  font-weight: 600;
+}
+
+.val.defect {
+  color: #ff4d4f;
   font-weight: 600;
 }
 

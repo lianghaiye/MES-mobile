@@ -46,6 +46,39 @@ function calcFinishedQty(processes, fallback) {
   return Math.max(...active.map((p) => Number(p.qty) || 0))
 }
 
+function resolveReportQuantities(row = {}) {
+  const legacyFinished = Number(row.finishedQty) || 0
+  const hasSplit =
+    (row.goodQty != null && row.goodQty !== '') ||
+    (row.defectQty != null && row.defectQty !== '')
+  if (!hasSplit) {
+    return {
+      goodQty: legacyFinished,
+      defectQty: 0,
+      finishedQty: legacyFinished,
+    }
+  }
+  const goodQty = Math.max(0, Number(row.goodQty) || 0)
+  const defectQty = Math.max(0, Number(row.defectQty) || 0)
+  return {
+    goodQty,
+    defectQty,
+    finishedQty: goodQty + defectQty,
+  }
+}
+
+function parseSubmitQuantities(payload = {}) {
+  const goodQty = Number(payload.goodQty) || 0
+  const defectQty = Number(payload.defectQty) || 0
+  if (goodQty < 0 || defectQty < 0) {
+    return { ok: false, message: '数量不能为负数' }
+  }
+  if (goodQty + defectQty <= 0) {
+    return { ok: false, message: '请填写良品数或不良品数' }
+  }
+  return { ok: true, goodQty, defectQty, finishedQty: goodQty + defectQty }
+}
+
 function flattenOperators(processes, overallOperators, perProcessMode) {
   if (!perProcessMode) return overallOperators || []
   const set = new Set()
@@ -64,11 +97,15 @@ function normalizeRecord(row) {
   const operators = row.operators?.length
     ? row.operators
     : flattenOperators(processes, [], row.perProcessMode)
+  const qty = resolveReportQuantities({
+    ...row,
+    finishedQty: row.finishedQty ?? calcFinishedQty(processes, row.finishedQty),
+  })
   return {
     ...row,
     processes,
     processCount: processes.filter((p) => !p.deleted).length,
-    finishedQty: row.finishedQty ?? calcFinishedQty(processes),
+    ...qty,
     operators,
     status: row.materialConfirmed ? '已确认' : row.status || '待确认',
     workOrderStatus: row.workOrderStatus || '已报工',
@@ -108,6 +145,8 @@ function createSeed() {
       productCode: 'DJ-2024-B',
       reportDate: today,
       finishedQty: 18,
+      goodQty: 16,
+      defectQty: 2,
       routeId: 'route-2a',
       routeName: '冲压工艺 v1',
       perProcessMode: false,
@@ -260,10 +299,8 @@ function validateSubmit(payload) {
   if (!payload.productId && !payload.productName?.trim()) {
     return '请选择产品'
   }
-  const finishedQty = Number(payload.finishedQty)
-  if (!finishedQty || finishedQty <= 0) {
-    return '请填写完工数量'
-  }
+  const qtyCheck = parseSubmitQuantities(payload)
+  if (!qtyCheck.ok) return qtyCheck.message
   if (!payload.reportDate) {
     return '请选择生产日期'
   }
@@ -303,9 +340,10 @@ export function submitQuickReport(payload) {
 
   const product =
     getProductById(payload.productId) || getProductByCode(payload.productCode)
-  const materialItems = product
-    ? calcMaterialList(product, payload.finishedQty)
-    : []
+  const qtyCheck = parseSubmitQuantities(payload)
+  const { goodQty, defectQty, finishedQty } = qtyCheck
+
+  const materialItems = product ? calcMaterialList(product, finishedQty) : []
 
   const isEdit = !!payload.id
   const existing = isEdit ? cache.find((r) => r.id === payload.id) : null
@@ -322,7 +360,9 @@ export function submitQuickReport(payload) {
     productName: payload.productName.trim(),
     productCode: payload.productCode?.trim() || '',
     reportDate: payload.reportDate,
-    finishedQty: Number(payload.finishedQty),
+    goodQty,
+    defectQty,
+    finishedQty,
     routeId: payload.routeId,
     routeName: payload.routeName,
     perProcessMode: !!payload.perProcessMode,
@@ -351,6 +391,8 @@ export function submitQuickReport(payload) {
     workOrderNo: record.workOrderNo,
     productName: record.productName,
     productCode: record.productCode,
+    goodQty: record.goodQty,
+    defectQty: record.defectQty,
     finishedQty: record.finishedQty,
     status: '待确认',
     items: materialItems,
