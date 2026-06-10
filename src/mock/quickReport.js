@@ -288,7 +288,9 @@ export function submitQuickReport(payload) {
     .filter((p) => !p.deleted && p.name?.trim())
     .map((p) => ({
       id: p.id || `proc-${Date.now()}-${Math.random()}`,
+      processConfigId: p.processConfigId || '',
       name: p.name.trim(),
+      code: p.code || '',
       qty: Number(p.qty) || 0,
       deleted: false,
       manual: !!p.manual,

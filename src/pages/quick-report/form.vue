@@ -117,13 +117,7 @@
             <template v-if="!p.deleted">
               <view class="proc-left">
                 <view class="status-dot" />
-                <input
-                  v-if="p.manual"
-                  v-model="p.name"
-                  class="proc-name-input"
-                  placeholder="工序名称"
-                />
-                <text v-else class="proc-name">{{ p.name }}</text>
+                <text class="proc-name">{{ p.name }}</text>
               </view>
               <view class="proc-right">
                 <input
@@ -141,7 +135,7 @@
             </template>
           </view>
 
-          <text class="add-process" @tap="addManualProcess">+ 添加工序</text>
+          <text class="add-process" @tap="openProcessSelect">+ 添加工序</text>
         </view>
       </view>
 
@@ -201,6 +195,13 @@
       @view-material="onViewMaterial"
       @done="onSuccessDone"
     />
+
+    <ProcessSelectModal
+      v-model:visible="processSelectVisible"
+      :exclude-process-ids="excludeProcessIds"
+      :exclude-names="excludeProcessNames"
+      @confirm="onProcessesSelected"
+    />
   </view>
 </template>
 
@@ -208,6 +209,8 @@
 import { ref, reactive, computed } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import SubmitSuccessModal from '@/components/quick-report/SubmitSuccessModal.vue'
+import ProcessSelectModal from '@/components/quick-report/ProcessSelectModal.vue'
+import { resolveDefaultExecutors } from '@/mock/processConfig'
 import {
   buildProcessesFromRoute,
   getProductById,
@@ -229,6 +232,7 @@ const dateChip = ref('today')
 const finishedQtyStr = ref('')
 const showSuccess = ref(false)
 const successData = ref({})
+const processSelectVisible = ref(false)
 
 const selectedProduct = ref(null)
 const routeOptions = ref([])
@@ -256,6 +260,16 @@ const productDisplay = computed(() => {
 
 const activeProcesses = computed(() =>
   form.processes.filter((p) => !p.deleted),
+)
+
+const excludeProcessIds = computed(() =>
+  form.processes
+    .filter((p) => !p.deleted && p.processConfigId)
+    .map((p) => p.processConfigId),
+)
+
+const excludeProcessNames = computed(() =>
+  form.processes.filter((p) => !p.deleted).map((p) => p.name),
 )
 
 const routeIndex = computed(() => {
@@ -383,15 +397,23 @@ function undoDeleteProcess(index) {
   form.processes[index].deleted = false
 }
 
-function addManualProcess() {
+function openProcessSelect() {
+  processSelectVisible.value = true
+}
+
+function onProcessesSelected(rows) {
   const qty = Number(form.finishedQty) || Number(finishedQtyStr.value) || 0
-  form.processes.push({
-    id: `manual-${Date.now()}`,
-    name: '',
-    qty,
-    deleted: false,
-    manual: true,
-    operators: [],
+  rows.forEach((proc) => {
+    form.processes.push({
+      id: `cfg-${proc.id}-${Date.now()}`,
+      processConfigId: proc.id,
+      name: proc.name,
+      code: proc.code,
+      qty,
+      deleted: false,
+      manual: true,
+      operators: [...resolveDefaultExecutors(proc)],
+    })
   })
   processExpanded.value = true
 }
