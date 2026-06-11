@@ -18,9 +18,8 @@
       class="item"
       @tap="onSelect(item)"
     >
-      <text class="name">{{ item.name }} · {{ item.code }}</text>
+      <text class="name">{{ item.itemType }} · {{ item.name }} · {{ item.code }}</text>
       <text v-if="item.spec" class="spec">{{ item.spec }}</text>
-      <text class="route">{{ item.routes[0]?.name }}</text>
     </view>
   </view>
 </template>
@@ -28,21 +27,21 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { searchProducts } from '@/mock/quickReportProducts'
+import { searchProductMaterials } from '@/mock/productMaterialInfo'
 import { setSelectionResult } from '@/utils/selection'
 
 const keyword = ref('')
-const results = ref(searchProducts())
+const results = ref(searchProductMaterials())
 
 onLoad((query) => {
   if (query.keyword) {
     keyword.value = query.keyword
-    results.value = searchProducts(keyword.value)
+    results.value = searchProductMaterials(keyword.value)
   }
 })
 
 function onSearch() {
-  results.value = searchProducts(keyword.value)
+  results.value = searchProductMaterials(keyword.value)
 }
 
 function onSelect(product) {

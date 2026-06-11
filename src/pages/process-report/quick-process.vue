@@ -1,0 +1,271 @@
+<template>
+  <view v-if="product" class="step-page">
+    <view class="stepper">
+      <view class="step done"><text class="num">1</text><text>选择产品</text></view>
+      <view class="line active" />
+      <view class="step active"><text class="num">2</text><text>选择工序</text></view>
+      <view class="line" />
+      <view class="step"><text class="num">3</text><text>填写报工</text></view>
+    </view>
+
+    <view class="product-card">
+      <view class="pc-head">
+        <text class="pc-name">{{ product.name }} · {{ product.code }}</text>
+        <text class="pc-edit" @tap="goBack">修改 ›</text>
+      </view>
+      <text class="pc-spec">规格: {{ product.spec }}</text>
+    </view>
+
+    <text class="hint-title">选择要报工的工序</text>
+    <text class="hint-sub">该产品有 {{ processes.length }} 道工序，请选择本次要报工的工序</text>
+
+    <view
+      v-for="p in processes"
+      :key="p.name"
+      class="proc-card"
+      :class="{ selected: selectedName === p.name }"
+      @tap="selectedName = p.name"
+    >
+      <view class="proc-left">
+        <text class="proc-name">{{ p.name }}</text>
+        <text class="proc-sub">{{ p.reportMode }}报工{{ p.estimate ? ` · ${p.estimate}` : '' }}</text>
+      </view>
+      <text v-if="selectedName === p.name" class="selected-tag">已选</text>
+      <view v-else class="radio" />
+    </view>
+
+    <view class="foot">
+      <button class="btn outline" @tap="goBack">上一步</button>
+      <button class="btn primary" :disabled="!selectedName" @tap="goNext">下一步</button>
+    </view>
+  </view>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { getQuickProductById } from '@/mock/processReportProducts'
+import { getProcessReportMode } from '@/utils/iodomsStorage'
+
+const product = ref(null)
+const selectedName = ref('')
+
+const ESTIMATE = {
+  车削: '预计 30分钟/件',
+  热处理: '预计 4小时/批',
+}
+
+const processes = computed(() => {
+  if (!product.value) return []
+  return product.value.processNames.map((name) => ({
+    name,
+    reportMode: getProcessReportMode(name),
+    estimate: ESTIMATE[name] || '',
+  }))
+})
+
+onLoad((query) => {
+  product.value = getQuickProductById(query.productId)
+  if (!product.value) {
+    uni.showToast({ title: '产品不存在', icon: 'none' })
+    setTimeout(() => uni.navigateBack(), 1500)
+  }
+})
+
+function goBack() {
+  uni.navigateBack()
+}
+
+function goNext() {
+  if (!selectedName.value || !product.value) return
+  const mode = getProcessReportMode(selectedName.value)
+  const q = [
+    `processName=${encodeURIComponent(selectedName.value)}`,
+    `productName=${encodeURIComponent(product.value.name)}`,
+    `productCode=${product.value.code}`,
+    `reportMode=${encodeURIComponent(mode)}`,
+    'source=quick',
+  ].join('&')
+  uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
+}
+</script>
+
+<style lang="scss" scoped>
+$primary: #1677ff;
+
+.step-page {
+  min-height: 100vh;
+  background: #f5f6f8;
+  padding: 24rpx;
+  padding-bottom: 160rpx;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 28rpx;
+  gap: 8rpx;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 22rpx;
+  color: #8c8c8c;
+}
+
+.step.active,
+.step.done {
+  color: $primary;
+}
+
+.num {
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #e8e8e8;
+  margin-bottom: 6rpx;
+  font-size: 24rpx;
+}
+
+.step.active .num,
+.step.done .num {
+  background: $primary;
+  color: #fff;
+}
+
+.line {
+  width: 60rpx;
+  height: 4rpx;
+  background: #e8e8e8;
+  margin-bottom: 24rpx;
+}
+
+.line.active {
+  background: $primary;
+}
+
+.product-card {
+  background: #f0f0f0;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.pc-head {
+  display: flex;
+  justify-content: space-between;
+}
+
+.pc-name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.pc-edit {
+  color: $primary;
+  font-size: 26rpx;
+}
+
+.pc-spec {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
+.hint-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.hint-sub {
+  display: block;
+  font-size: 24rpx;
+  color: #8c8c8c;
+  margin-bottom: 20rpx;
+}
+
+.proc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 2rpx solid #f0f0f0;
+  border-radius: 16rpx;
+  padding: 28rpx;
+  margin-bottom: 16rpx;
+}
+
+.proc-card.selected {
+  border-color: $primary;
+  background: #f0f7ff;
+}
+
+.proc-name {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.proc-sub {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
+.selected-tag {
+  color: $primary;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.radio {
+  width: 36rpx;
+  height: 36rpx;
+  border: 2rpx solid #d9d9d9;
+  border-radius: 50%;
+}
+
+.foot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 20rpx;
+  padding: 20rpx 24rpx 40rpx;
+  background: #fff;
+}
+
+.btn {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  margin: 0;
+  border: none;
+}
+
+.btn.outline {
+  background: #fff;
+  border: 2rpx solid #d9d9d9;
+}
+
+.btn.primary {
+  background: $primary;
+  color: #fff;
+}
+
+.btn.primary[disabled] {
+  opacity: 0.5;
+}
+</style>

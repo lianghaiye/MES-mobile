@@ -1,6 +1,10 @@
 /** 快速报工 mock */
 
 import { calcMaterialList, getProductByCode, getProductById } from './quickReportProducts'
+import { getProductMaterialById } from './productMaterialInfo'
+import { resolveProcessQuantities } from './quickReportProcess'
+import { updateFrequentRegistration } from './outputRegistrationHub'
+import { getProcessDefectItems } from '../utils/iodomsStorage'
 
 export const reportStatusOptions = ['待确认', '已确认']
 
@@ -88,12 +92,31 @@ function flattenOperators(processes, overallOperators, perProcessMode) {
   return [...set]
 }
 
-function normalizeRecord(row) {
-  const processes = (row.processes || []).map((p) => ({
+function resolveProcessDefectNames(process = {}) {
+  const ids = process.defectItemIds || []
+  if (!ids.length) return process.defectItemNames || []
+  return getProcessDefectItems(process.name)
+    .filter((d) => ids.includes(d.id))
+    .map((d) => d.name)
+}
+
+function normalizeProcess(p) {
+  const qty = resolveProcessQuantities(p)
+  const defectItemIds = [...(p.defectItemIds || [])]
+  return {
     ...p,
     deleted: !!p.deleted,
     operators: p.operators || [],
-  }))
+    goodQty: qty.goodQty,
+    defectQty: qty.defectQty,
+    qty: qty.qty,
+    defectItemIds,
+    defectItemNames: resolveProcessDefectNames({ ...p, defectItemIds }),
+  }
+}
+
+function normalizeRecord(row) {
+  const processes = (row.processes || []).map((p) => normalizeProcess(p))
   const operators = row.operators?.length
     ? row.operators
     : flattenOperators(processes, [], row.perProcessMode)
@@ -323,23 +346,22 @@ export function submitQuickReport(payload) {
 
   const activeProcesses = payload.processes
     .filter((p) => !p.deleted && p.name?.trim())
-    .map((p) => ({
-      id: p.id || `proc-${Date.now()}-${Math.random()}`,
-      processConfigId: p.processConfigId || '',
-      name: p.name.trim(),
-      code: p.code || '',
-      qty: Number(p.qty) || 0,
-      deleted: false,
-      manual: !!p.manual,
-      operators: p.operators || [],
-    }))
+    .map((p) =>
+      normalizeProcess({
+        ...p,
+        name: p.name.trim(),
+        deleted: false,
+      }),
+    )
 
   const operators = payload.perProcessMode
     ? flattenOperators(activeProcesses, [], true)
     : payload.operators
 
   const product =
-    getProductById(payload.productId) || getProductByCode(payload.productCode)
+    getProductMaterialById(payload.productId) ||
+    getProductById(payload.productId) ||
+    getProductByCode(payload.productCode)
   const qtyCheck = parseSubmitQuantities(payload)
   const { goodQty, defectQty, finishedQty } = qtyCheck
 
@@ -352,7 +374,9 @@ export function submitQuickReport(payload) {
   }
 
   const workOrderNo =
-    existing?.workOrderNo || generateWorkOrderNo(payload.reportDate)
+    payload.sourceWorkOrderNo ||
+    existing?.workOrderNo ||
+    generateWorkOrderNo(payload.reportDate)
 
   const record = normalizeRecord({
     id: payload.id || `qr-${Date.now()}`,
@@ -386,27 +410,22 @@ export function submitQuickReport(payload) {
     cache.unshift(record)
   }
 
-  materialLists[record.id] = {
-    reportId: record.id,
-    workOrderNo: record.workOrderNo,
-    productName: record.productName,
-    productCode: record.productCode,
-    goodQty: record.goodQty,
-    defectQty: record.defectQty,
-    finishedQty: record.finishedQty,
-    status: '待确认',
-    items: materialItems,
-    createdAt: record.createdAt,
-  }
-  saveMaterialLists()
   save()
   saveLastOperators(operators)
 
+  updateFrequentRegistration({
+    productId: record.productId,
+    productName: record.productName,
+    productCode: record.productCode,
+    routeName: record.routeName,
+    goodQty: record.goodQty,
+    defectQty: record.defectQty,
+  })
+
   return {
     ok: true,
-    message: '报工成功',
+    message: '登记成功',
     record,
-    materialList: materialLists[record.id],
   }
 }
 

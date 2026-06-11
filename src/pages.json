@@ -65,21 +65,53 @@
       }
     },
     {
+      "path": "pages/process-report/index",
+      "style": {
+        "navigationBarTitleText": "工序报工",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/process-report/execute",
+      "style": {
+        "navigationBarTitleText": "工序报工"
+      }
+    },
+    {
+      "path": "pages/process-report/quick-product",
+      "style": {
+        "navigationBarTitleText": "新增快速报工"
+      }
+    },
+    {
+      "path": "pages/process-report/quick-process",
+      "style": {
+        "navigationBarTitleText": "新增快速报工"
+      }
+    },
+    {
+      "path": "pages/process-report/record-detail",
+      "style": {
+        "navigationBarTitleText": "报工详情"
+      }
+    },
+    {
       "path": "pages/quick-report/list",
       "style": {
-        "navigationBarTitleText": "快速报工"
+        "navigationBarTitleText": "登记产出",
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/quick-report/form",
       "style": {
-        "navigationBarTitleText": "快速报工"
+        "navigationBarTitleText": "登记产出"
       }
     },
     {
       "path": "pages/quick-report/detail",
       "style": {
-        "navigationBarTitleText": "报工详情"
+        "navigationBarTitleText": "登记详情"
       }
     },
     {

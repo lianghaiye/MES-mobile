@@ -2,12 +2,12 @@
   <view v-if="visible" class="modal-mask">
     <view class="modal-box" @tap.stop>
       <view class="success-icon">✓</view>
-      <text class="modal-title">报工成功</text>
-      <text class="modal-sub">工单已生成，领料清单已推送至仓库待确认</text>
+      <text class="modal-title">登记成功</text>
+      <text class="modal-sub">产出登记已提交</text>
 
       <view class="info-card">
         <view class="info-row">
-          <text class="label">工单号</text>
+          <text class="label">工单编号</text>
           <text class="val primary">{{ data.workOrderNo }}</text>
         </view>
         <view class="info-row">
@@ -37,8 +37,7 @@
       </view>
 
       <view class="modal-foot">
-        <button class="btn outline" @tap="onViewMaterial">查看领料清单</button>
-        <button class="btn primary" @tap="onDone">完成</button>
+        <button class="btn primary full" @tap="onDone">完成</button>
       </view>
     </view>
   </view>
@@ -65,17 +64,13 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:visible', 'view-material', 'done'])
+const emit = defineEmits(['update:visible', 'done'])
 
 const processText = computed(() =>
   (props.data.processes || []).map((p) => `${p.name} ${p.qty}件`).join('、'),
 )
 
 const operatorText = computed(() => (props.data.operators || []).join('、'))
-
-function onViewMaterial() {
-  emit('view-material', props.data.reportId)
-}
 
 function onDone() {
   emit('update:visible', false)
@@ -168,13 +163,10 @@ $primary: #1677ff;
 }
 
 .modal-foot {
-  display: flex;
-  gap: 20rpx;
   margin-top: 36rpx;
 }
 
 .btn {
-  flex: 1;
   height: 80rpx;
   line-height: 80rpx;
   border-radius: 40rpx;
@@ -183,14 +175,12 @@ $primary: #1677ff;
   border: none;
 }
 
-.btn.outline {
-  background: #fff;
-  color: $primary;
-  border: 1rpx solid $primary;
-}
-
 .btn.primary {
   background: $primary;
   color: #fff;
+}
+
+.btn.full {
+  width: 100%;
 }
 </style>

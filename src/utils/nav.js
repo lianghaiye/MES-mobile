@@ -23,6 +23,9 @@ export function statusColor(status) {
     执行中: '#07c160',
     已确认: '#52c41a',
     待确认: '#fa8c16',
+    待审核: '#fa8c16',
+    已审核: '#52c41a',
+    已拒绝: '#ff4d4f',
   }
   return map[status] || '#8c8c8c'
 }

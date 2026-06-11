@@ -1,13 +1,32 @@
 <template>
   <view class="form-page">
-    <!-- 卡片1：产品信息 -->
+    <!-- 工单登记：顶部工单信息 -->
+    <view v-if="fromWorkOrder" class="card wo-info-card">
+      <view class="card-title">
+        <text>工单信息</text>
+      </view>
+      <view class="wo-info-row">
+        <text class="wo-info-label">工单编号</text>
+        <text class="wo-info-val primary">{{ sourceWorkOrderNo }}</text>
+      </view>
+      <view class="wo-info-row">
+        <text class="wo-info-label">产品</text>
+        <text class="wo-info-val">{{ productDisplay }}</text>
+      </view>
+      <view class="wo-info-row">
+        <text class="wo-info-label">排产数量</text>
+        <text class="wo-info-val">{{ planQty }} 件</text>
+      </view>
+    </view>
+
+    <!-- 卡片1：产品信息 / 登记数量 -->
     <view class="card">
       <view class="card-title">
-        <text>产品信息</text>
+        <text>{{ fromWorkOrder ? '登记数量' : '产品信息' }}</text>
         <text class="badge required-badge">必填</text>
       </view>
 
-      <view class="field-row" @tap="goProductSearch">
+      <view v-if="!fromWorkOrder" class="field-row" @tap="goProductSearch">
         <text class="field-label required">产品</text>
         <view class="field-value picker-like">
           <text :class="{ placeholder: !form.productName }">
@@ -17,31 +36,33 @@
         </view>
       </view>
 
-      <view class="field-row qty-row">
-        <text class="field-label required">良品数</text>
-        <view class="qty-input-wrap">
+      <text v-if="fromWorkOrder" class="qty-hint">报工数量可小于排产数量</text>
+
+      <view class="qty-field">
+        <text class="qty-label required">良品数量</text>
+        <view class="stepper">
+          <view class="step-btn" @tap="changeFormQty('good', -1)">−</view>
           <input
-            v-model="goodQtyStr"
-            class="qty-input"
+            v-model.number="form.goodQty"
+            class="step-val"
             type="digit"
-            placeholder="0"
-            @blur="onReportQtyBlur"
+            @blur="syncProcessQtyFromForm"
           />
-          <text class="qty-unit">件</text>
+          <view class="step-btn primary" @tap="changeFormQty('good', 1)">+</view>
         </view>
       </view>
 
-      <view class="field-row qty-row">
-        <text class="field-label required">不良品数</text>
-        <view class="qty-input-wrap">
+      <view class="qty-field">
+        <text class="qty-label">不良品数量</text>
+        <view class="stepper">
+          <view class="step-btn" @tap="changeFormQty('defect', -1)">−</view>
           <input
-            v-model="defectQtyStr"
-            class="qty-input"
+            v-model.number="form.defectQty"
+            class="step-val"
             type="digit"
-            placeholder="0"
-            @blur="onReportQtyBlur"
+            @blur="syncProcessQtyFromForm"
           />
-          <text class="qty-unit">件</text>
+          <view class="step-btn primary" @tap="changeFormQty('defect', 1)">+</view>
         </view>
       </view>
 
@@ -130,22 +151,57 @@
           <view
             v-for="(p, i) in form.processes"
             :key="p.id"
-            class="process-item"
+            class="process-block"
             :class="{ deleted: p.deleted }"
           >
             <template v-if="!p.deleted">
-              <view class="proc-left">
-                <view class="status-dot" />
-                <text class="proc-name">{{ p.name }}</text>
-              </view>
-              <view class="proc-right">
-                <input
-                  v-model.number="p.qty"
-                  class="proc-qty"
-                  type="digit"
-                />
-                <text class="proc-unit">件</text>
+              <view class="proc-header">
+                <view class="proc-left">
+                  <view class="status-dot" />
+                  <text class="proc-name">{{ p.name }}</text>
+                </view>
                 <text class="proc-del" @tap="softDeleteProcess(i)">×</text>
+              </view>
+
+              <view class="qty-field">
+                <text class="qty-label required">良品数量</text>
+                <view class="stepper">
+                  <view class="step-btn" @tap="changeProcessQty(p, 'good', -1)">−</view>
+                  <input
+                    v-model.number="p.goodQty"
+                    class="step-val"
+                    type="digit"
+                    @blur="onProcessQtyBlur(p)"
+                  />
+                  <view class="step-btn primary" @tap="changeProcessQty(p, 'good', 1)">+</view>
+                </view>
+              </view>
+
+              <view class="qty-field">
+                <text class="qty-label">不良品数量</text>
+                <view class="stepper">
+                  <view class="step-btn" @tap="changeProcessQty(p, 'defect', -1)">−</view>
+                  <input
+                    v-model.number="p.defectQty"
+                    class="step-val"
+                    type="digit"
+                    @blur="onProcessQtyBlur(p)"
+                  />
+                  <view class="step-btn primary" @tap="changeProcessQty(p, 'defect', 1)">+</view>
+                </view>
+              </view>
+
+              <view v-if="getDefectItemsForProcess(p.name).length" class="qty-field">
+                <text class="qty-label">不良原因（选填）</text>
+                <view class="defect-chips">
+                  <view
+                    v-for="item in getDefectItemsForProcess(p.name)"
+                    :key="item.id"
+                    class="defect-chip"
+                    :class="{ active: (p.defectItemIds || []).includes(item.id) }"
+                    @tap="toggleProcessDefect(p, item.id)"
+                  >{{ item.name }}</view>
+                </view>
               </view>
             </template>
             <template v-else>
@@ -205,13 +261,12 @@
     <!-- 底部操作栏 -->
     <view class="foot-bar">
       <button class="foot-btn cancel" @tap="onCancel">取消</button>
-      <button class="foot-btn submit" :loading="submitting" @tap="onSubmit">提交报工</button>
+      <button class="foot-btn submit" :loading="submitting" @tap="onSubmit">提交登记</button>
     </view>
 
     <SubmitSuccessModal
       v-model:visible="showSuccess"
       :data="successData"
-      @view-material="onViewMaterial"
       @done="onSuccessDone"
     />
 
@@ -230,10 +285,13 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import SubmitSuccessModal from '@/components/quick-report/SubmitSuccessModal.vue'
 import ProcessSelectModal from '@/components/quick-report/ProcessSelectModal.vue'
 import { resolveDefaultExecutors } from '@/mock/processConfig'
+import { getProductMaterialById } from '@/mock/productMaterialInfo'
+import { getProductByCode, getProductById } from '@/mock/quickReportProducts'
 import {
-  buildProcessesFromRoute,
-  getProductById,
-} from '@/mock/quickReportProducts'
+  buildQuickReportProcessesFromRoute,
+  getActiveRouteNames,
+  resolveProcessQuantities,
+} from '@/mock/quickReportProcess'
 import {
   formatReportDate,
   getLastOperators,
@@ -243,16 +301,17 @@ import {
 } from '@/mock/quickReport'
 import { consumeSelectionResult } from '@/utils/selection'
 import { getUser } from '@/utils/auth'
+import { getProcessDefectItems } from '@/utils/iodomsStorage'
 
 const submitting = ref(false)
 const editId = ref('')
 const processExpanded = ref(true)
 const dateChip = ref('today')
-const goodQtyStr = ref('')
-const defectQtyStr = ref('0')
 const showSuccess = ref(false)
 const successData = ref({})
 const processSelectVisible = ref(false)
+const sourceWorkOrderNo = ref('')
+const planQty = ref(null)
 
 const selectedProduct = ref(null)
 const routeOptions = ref([])
@@ -262,7 +321,7 @@ const form = reactive({
   productName: '',
   productCode: '',
   reportDate: formatReportDate(),
-  goodQty: null,
+  goodQty: 0,
   defectQty: 0,
   routeId: '',
   routeName: '',
@@ -305,12 +364,29 @@ const customChipLabel = computed(() =>
 )
 
 const totalReportQty = computed(
-  () => (Number(goodQtyStr.value) || 0) + (Number(defectQtyStr.value) || 0),
+  () => (Number(form.goodQty) || 0) + (Number(form.defectQty) || 0),
 )
+
+const fromWorkOrder = computed(() => !!sourceWorkOrderNo.value)
 
 onLoad((query) => {
   if (!query.id) {
     form.operators = [...getLastOperators()]
+    if (query.workOrderNo) {
+      sourceWorkOrderNo.value = decodeURIComponent(query.workOrderNo)
+    }
+    if (query.productId) {
+      const product =
+        getProductById(query.productId) || getProductMaterialById(query.productId)
+      if (product) applyProduct(product)
+    } else if (query.productCode) {
+      const product = getProductByCode(decodeURIComponent(query.productCode))
+      if (product) applyProduct(product)
+    }
+    if (query.targetQty) {
+      const qty = Number(query.targetQty)
+      if (qty > 0) planQty.value = qty
+    }
     return
   }
   editId.value = query.id
@@ -329,8 +405,10 @@ onLoad((query) => {
 })
 
 onShow(() => {
-  const product = consumeSelectionResult('product')
-  if (product) applyProduct(product)
+  if (!fromWorkOrder.value) {
+    const product = consumeSelectionResult('product')
+    if (product) applyProduct(product)
+  }
 
   const personnel = consumeSelectionResult('personnel')
   if (personnel) applyPersonnel(personnel)
@@ -341,14 +419,16 @@ function loadFromRecord(row) {
   form.productName = row.productName
   form.productCode = row.productCode
   form.reportDate = row.reportDate
-  form.goodQty = row.goodQty ?? row.finishedQty
+  form.goodQty = row.goodQty ?? row.finishedQty ?? 0
   form.defectQty = row.defectQty || 0
-  goodQtyStr.value = String(form.goodQty || '')
-  defectQtyStr.value = String(form.defectQty || 0)
   form.routeId = row.routeId || ''
   form.routeName = row.routeName || ''
   form.perProcessMode = !!row.perProcessMode
-  form.processes = row.processes.map((p) => ({ ...p, id: p.id || `proc-${Date.now()}` }))
+  form.processes = row.processes.map((p) => ({
+    ...p,
+    id: p.id || `proc-${Date.now()}`,
+    defectItemIds: [...(p.defectItemIds || [])],
+  }))
   form.operators = [...(row.operators || [])]
   form.remark = row.remark || ''
 
@@ -359,8 +439,11 @@ function loadFromRecord(row) {
   else dateChip.value = 'custom'
 
   if (row.productId) {
-    selectedProduct.value = getProductById(row.productId)
-    routeOptions.value = selectedProduct.value?.routes || []
+    selectedProduct.value = getProductMaterialById(row.productId)
+    routeOptions.value = getActiveRouteNames(row.productName).map((name) => ({
+      id: name,
+      name,
+    }))
   }
 }
 
@@ -369,7 +452,7 @@ function applyProduct(product) {
   form.productId = product.id
   form.productName = product.name
   form.productCode = product.code
-  routeOptions.value = product.routes || []
+  routeOptions.value = getActiveRouteNames(product.name).map((name) => ({ id: name, name }))
 
   const route = routeOptions.value[0]
   if (route) applyRoute(route)
@@ -378,7 +461,11 @@ function applyProduct(product) {
 function applyRoute(route) {
   form.routeId = route.id
   form.routeName = route.name
-  form.processes = buildProcessesFromRoute(route, totalReportQty.value)
+  form.processes = buildQuickReportProcessesFromRoute(route.name, {
+    goodQty: form.goodQty,
+    defectQty: form.defectQty,
+    finishedQty: totalReportQty.value,
+  })
 }
 
 function onRouteChange(e) {
@@ -403,13 +490,40 @@ function onCustomDate(e) {
   form.reportDate = val
 }
 
-function onReportQtyBlur() {
-  form.goodQty = Number(goodQtyStr.value) || 0
-  form.defectQty = Number(defectQtyStr.value) || 0
-  const qty = totalReportQty.value
+function changeFormQty(field, delta) {
+  const key = field === 'good' ? 'goodQty' : 'defectQty'
+  form[key] = Math.max(0, (Number(form[key]) || 0) + delta)
+  syncProcessQtyFromForm()
+}
+
+function syncProcessQtyFromForm() {
+  form.goodQty = Math.max(0, Number(form.goodQty) || 0)
+  form.defectQty = Math.max(0, Number(form.defectQty) || 0)
+  const qtys = { goodQty: form.goodQty, defectQty: form.defectQty }
   form.processes.forEach((p) => {
-    if (!p.deleted) p.qty = qty
+    if (!p.deleted) Object.assign(p, resolveProcessQuantities(qtys))
   })
+}
+
+function changeProcessQty(record, field, delta) {
+  const key = field === 'good' ? 'goodQty' : 'defectQty'
+  record[key] = Math.max(0, (Number(record[key]) || 0) + delta)
+  onProcessQtyBlur(record)
+}
+
+function onProcessQtyBlur(record) {
+  Object.assign(record, resolveProcessQuantities(record))
+}
+
+function getDefectItemsForProcess(processName) {
+  return getProcessDefectItems(processName)
+}
+
+function toggleProcessDefect(process, itemId) {
+  if (!process.defectItemIds) process.defectItemIds = []
+  const i = process.defectItemIds.indexOf(itemId)
+  if (i >= 0) process.defectItemIds.splice(i, 1)
+  else process.defectItemIds.push(itemId)
 }
 
 function onPerProcessToggle(e) {
@@ -429,17 +543,25 @@ function openProcessSelect() {
 }
 
 function onProcessesSelected(rows) {
-  const qty = totalReportQty.value
+  const qtys = resolveProcessQuantities({
+    goodQty: form.goodQty,
+    defectQty: form.defectQty,
+    finishedQty: totalReportQty.value,
+  })
   rows.forEach((proc) => {
     form.processes.push({
       id: `cfg-${proc.id}-${Date.now()}`,
       processConfigId: proc.id,
       name: proc.name,
       code: proc.code,
-      qty,
+      goodQty: qtys.goodQty,
+      defectQty: qtys.defectQty,
+      qty: qtys.qty,
       deleted: false,
       manual: true,
       operators: [...resolveDefaultExecutors(proc)],
+      defectItemIds: [],
+      defectItemNames: [],
     })
   })
   processExpanded.value = true
@@ -484,8 +606,7 @@ function onCancel() {
 
 function onSubmit() {
   if (submitting.value) return
-  form.goodQty = Number(goodQtyStr.value) || 0
-  form.defectQty = Number(defectQtyStr.value) || 0
+  syncProcessQtyFromForm()
 
   submitting.value = true
   const user = getUser()
@@ -504,6 +625,7 @@ function onSubmit() {
     operators: form.operators,
     reporter: user?.displayName || '当前用户',
     remark: form.remark,
+    sourceWorkOrderNo: sourceWorkOrderNo.value || undefined,
   })
   submitting.value = false
 
@@ -526,11 +648,6 @@ function onSubmit() {
   showSuccess.value = true
 }
 
-function onViewMaterial(reportId) {
-  showSuccess.value = false
-  uni.navigateTo({ url: `/pages/quick-report/material-list?reportId=${reportId}` })
-}
-
 function onSuccessDone() {
   uni.navigateBack()
 }
@@ -551,6 +668,48 @@ $primary: #1677ff;
   border-radius: 20rpx;
   padding: 28rpx;
   margin-bottom: 20rpx;
+}
+
+.wo-info-card {
+  background: linear-gradient(180deg, #e6f4ff 0%, #fff 100%);
+}
+
+.wo-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.wo-info-row:last-child {
+  border-bottom: none;
+}
+
+.wo-info-label {
+  font-size: 26rpx;
+  color: #8c8c8c;
+  flex-shrink: 0;
+}
+
+.wo-info-val {
+  font-size: 28rpx;
+  color: #1a1a1a;
+  text-align: right;
+  flex: 1;
+}
+
+.wo-info-val.primary {
+  color: $primary;
+  font-weight: 600;
+}
+
+.qty-hint {
+  display: block;
+  margin-bottom: 20rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
 }
 
 .card-title {
@@ -626,25 +785,72 @@ $primary: #1677ff;
   font-size: 22rpx;
 }
 
-.qty-input-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 12rpx;
+.qty-field {
+  margin-bottom: 28rpx;
 }
 
-.qty-input {
-  font-size: 72rpx;
+.qty-label {
+  display: block;
+  font-size: 26rpx;
+  color: #595959;
+  margin-bottom: 12rpx;
+}
+
+.qty-label.required::before {
+  content: '*';
+  color: #ff4d4f;
+  margin-right: 4rpx;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.step-btn {
+  width: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  font-size: 36rpx;
+  color: #595959;
+}
+
+.step-btn.primary {
+  background: $primary;
+  color: #fff;
+}
+
+.step-val {
+  flex: 1;
+  text-align: center;
+  font-size: 56rpx;
   font-weight: 700;
   color: $primary;
-  width: 200rpx;
-  height: 88rpx;
-  line-height: 88rpx;
-  border-bottom: 4rpx solid $primary;
+  height: 80rpx;
 }
 
-.qty-unit {
-  font-size: 28rpx;
-  color: #8c8c8c;
+.defect-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.defect-chip {
+  padding: 12rpx 28rpx;
+  border: 2rpx solid #d9d9d9;
+  border-radius: 32rpx;
+  font-size: 26rpx;
+  color: #595959;
+}
+
+.defect-chip.active {
+  border-color: $primary;
+  color: $primary;
+  background: #e6f4ff;
 }
 
 .qty-total-row {
@@ -767,20 +973,31 @@ $primary: #1677ff;
   color: #8c8c8c;
 }
 
-.process-item {
+.process-block {
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.process-block:last-of-type {
+  border-bottom: none;
+}
+
+.process-block.deleted {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #f5f5f5;
-}
-
-.process-item.deleted {
   background: #fff1f0;
   margin: 0 -16rpx;
   padding: 20rpx 16rpx;
   border-radius: 8rpx;
   border-bottom: none;
+}
+
+.proc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
 }
 
 .proc-left {
@@ -807,26 +1024,6 @@ $primary: #1677ff;
   flex: 1;
   font-size: 28rpx;
   border-bottom: 1rpx solid #d9d9d9;
-}
-
-.proc-right {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-}
-
-.proc-qty {
-  width: 80rpx;
-  text-align: center;
-  font-size: 32rpx;
-  font-weight: 600;
-  color: $primary;
-  border-bottom: 2rpx solid $primary;
-}
-
-.proc-unit {
-  font-size: 24rpx;
-  color: #8c8c8c;
 }
 
 .proc-del {

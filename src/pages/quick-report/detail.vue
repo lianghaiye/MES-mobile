@@ -3,16 +3,13 @@
     <view class="card">
       <view class="head-row">
         <text class="title">{{ record.productName }} · {{ record.productCode }}</text>
-        <view class="status-badge" :class="record.status === '已确认' ? 'confirmed' : 'pending'">
-          {{ record.status }}
-        </view>
       </view>
       <view v-if="record.workOrderNo" class="info-row">
-        <text class="label">工单号</text>
+        <text class="label">工单编号</text>
         <text class="val primary">{{ record.workOrderNo }}</text>
       </view>
       <view class="info-row">
-        <text class="label">报工日期</text>
+        <text class="label">登记日期</text>
         <text class="val">{{ record.reportDate }}</text>
       </view>
       <view v-if="record.routeName" class="info-row">
@@ -40,7 +37,7 @@
         <text class="val">{{ record.operators.join('、') }}</text>
       </view>
       <view class="info-row">
-        <text class="label">报工人</text>
+        <text class="label">登记人</text>
         <text class="val">{{ record.reporter }}</text>
       </view>
       <view v-if="record.remark" class="info-row">
@@ -52,31 +49,30 @@
     <view class="card">
       <text class="section-title">工序明细</text>
       <view v-for="(p, i) in record.processes" :key="i" class="process-item">
-        <text class="p-name">{{ p.name }}</text>
-        <text class="p-qty">{{ p.qty }} 件</text>
+        <view class="p-main">
+          <text class="p-name">{{ p.name }}</text>
+          <text class="p-qty">良 {{ p.goodQty ?? p.qty }} / 不良 {{ p.defectQty || 0 }}</text>
+        </view>
+        <text v-if="p.defectItemNames?.length" class="p-defect">
+          不良原因：{{ p.defectItemNames.join('、') }}
+        </text>
       </view>
     </view>
 
-    <view v-if="record.status === '待确认'" class="tip">
-      待确认：仓库尚未确认领料
-    </view>
-
     <view class="foot-actions">
-      <button class="btn outline" @tap="goMaterial">查看领料清单</button>
-      <button v-if="editable" class="btn primary" @tap="goEdit">编辑</button>
+      <button class="btn outline" @tap="goBack">返回</button>
+      <button class="btn primary" @tap="goEdit">编辑</button>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getQuickReportById } from '@/mock/quickReport'
 
 const record = ref(null)
 const recordId = ref('')
-
-const editable = computed(() => record.value?.status === '待确认')
 
 onLoad((query) => {
   recordId.value = query.id
@@ -97,8 +93,8 @@ function goEdit() {
   uni.navigateTo({ url: `/pages/quick-report/form?id=${recordId.value}` })
 }
 
-function goMaterial() {
-  uni.navigateTo({ url: `/pages/quick-report/material-list?reportId=${recordId.value}` })
+function goBack() {
+  uni.navigateBack()
 }
 </script>
 
@@ -131,22 +127,6 @@ $primary: #1677ff;
   flex: 1;
   font-size: 32rpx;
   font-weight: 600;
-}
-
-.status-badge {
-  padding: 6rpx 16rpx;
-  border-radius: 20rpx;
-  font-size: 22rpx;
-}
-
-.status-badge.confirmed {
-  background: #f6ffed;
-  color: #52c41a;
-}
-
-.status-badge.pending {
-  background: #fff7e6;
-  color: #fa8c16;
 }
 
 .info-row {
@@ -185,8 +165,6 @@ $primary: #1677ff;
 }
 
 .process-item {
-  display: flex;
-  justify-content: space-between;
   padding: 16rpx 20rpx;
   background: #f5f5f5;
   border-radius: 8rpx;
@@ -194,16 +172,22 @@ $primary: #1677ff;
   font-size: 26rpx;
 }
 
+.p-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .p-qty {
   color: $primary;
   font-weight: 600;
 }
 
-.tip {
-  text-align: center;
+.p-defect {
+  display: block;
+  margin-top: 8rpx;
   font-size: 24rpx;
-  color: #fa8c16;
-  padding: 16rpx;
+  color: #8c8c8c;
 }
 
 .foot-actions {

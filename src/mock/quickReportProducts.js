@@ -59,6 +59,38 @@ export const productList = [
     ],
   },
   {
+    id: 'prod-5',
+    name: '泵轴',
+    code: 'BX-2024-03',
+    spec: 'Φ50×L800 45#',
+    routes: [
+      {
+        id: 'route-5',
+        name: '车铣加工路线',
+        processes: ['车削', '铣削', '热处理'],
+      },
+    ],
+    bom: [
+      { materialName: '圆钢', spec: '45# Φ50', unitQty: 2.0, unit: 'kg' },
+    ],
+  },
+  {
+    id: 'prod-6',
+    name: '泵壳',
+    code: 'BK-2024-01',
+    spec: 'HT200 铸铁',
+    routes: [
+      {
+        id: 'route-6',
+        name: '铸造加工路线',
+        processes: ['粗车', '热处理', '精车'],
+      },
+    ],
+    bom: [
+      { materialName: '铸铁件', spec: 'HT200', unitQty: 3.5, unit: 'kg' },
+    ],
+  },
+  {
     id: 'prod-4',
     name: '密封圈',
     code: 'SEAL-2024-D',
