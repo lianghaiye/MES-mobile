@@ -3,6 +3,7 @@ import {
   PROCESS_CONFIG_KEY,
   ensureIodomsSeed,
 } from '@/mock/iodomsSeed'
+import { normalizeReportMode, resolveReportMode } from '@/utils/reportMode'
 
 ensureIodomsSeed()
 
@@ -43,5 +44,7 @@ export function getProcessDefectItems(processName) {
 
 export function getProcessReportMode(processName) {
   const proc = getProcessByName(processName)
-  return proc?.reportMode || '按件数'
+  return resolveReportMode(proc?.reportMode)
 }
+
+export { normalizeReportMode }

@@ -5,10 +5,13 @@ import { getProductMaterialById } from './productMaterialInfo'
 import { resolveProcessQuantities } from './quickReportProcess'
 import { updateFrequentRegistration } from './outputRegistrationHub'
 import { getProcessDefectItems } from '../utils/iodomsStorage'
+import { createWorkOrderLinkedQuickReportSeed } from './quickReportWorkOrderSeed'
 
 export const reportStatusOptions = ['待确认', '已确认']
 
 const STORAGE_KEY = 'i_doms_mobile_quick_reports'
+const SEED_VERSION_KEY = 'i_doms_quick_reports_seed_v'
+const SEED_VERSION = '2'
 const MATERIAL_KEY = 'i_doms_mobile_quick_material_lists'
 const OPERATOR_MEMORY_KEY = 'i_doms_mobile_qr_last_operators'
 
@@ -137,7 +140,7 @@ function normalizeRecord(row) {
 
 function createSeed() {
   const today = formatDate()
-  return [
+  const legacy = [
     normalizeRecord({
       id: 'qr-1',
       productId: 'prod-1',
@@ -230,16 +233,26 @@ function createSeed() {
       remark: '',
     }),
   ]
+  return [...createWorkOrderLinkedQuickReportSeed(formatDate, normalizeRecord), ...legacy]
 }
 
 function load() {
+  if (uni.getStorageSync(SEED_VERSION_KEY) !== SEED_VERSION) {
+    const seed = createSeed()
+    uni.setStorageSync(STORAGE_KEY, JSON.stringify(seed))
+    uni.setStorageSync(SEED_VERSION_KEY, SEED_VERSION)
+    return seed
+  }
   try {
     const raw = uni.getStorageSync(STORAGE_KEY)
     if (raw) return JSON.parse(raw).map(normalizeRecord)
   } catch {
     /* ignore */
   }
-  return createSeed()
+  const seed = createSeed()
+  uni.setStorageSync(STORAGE_KEY, JSON.stringify(seed))
+  uni.setStorageSync(SEED_VERSION_KEY, SEED_VERSION)
+  return seed
 }
 
 let cache = load()

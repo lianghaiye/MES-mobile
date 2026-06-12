@@ -74,7 +74,8 @@
     {
       "path": "pages/process-report/execute",
       "style": {
-        "navigationBarTitleText": "工序报工"
+        "navigationBarTitleText": "填写报工",
+        "navigationStyle": "custom"
       }
     },
     {

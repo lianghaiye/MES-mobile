@@ -23,41 +23,47 @@
     <!-- 今日待报工 -->
     <view v-if="activeTab === 'today'" class="panel">
       <text class="panel-sub">共 {{ pendingCount }} 项待报工</text>
-      <view v-for="wo in assignments" :key="wo.id" class="wo-card">
-        <view class="wo-head">
-          <text class="wo-title">{{ wo.productName }} · {{ wo.productCode }}</text>
-          <text class="wo-tag">{{ wo.workOrderNo }}</text>
+      <view
+        v-for="task in reportTasks"
+        :key="task.id"
+        class="task-card"
+        :class="task.status"
+      >
+        <view class="task-head">
+          <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
+          <text class="task-tag">{{ task.taskNo }}</text>
         </view>
-        <view v-for="p in wo.processes" :key="p.id" class="proc-row" :class="p.status">
+        <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+        <view class="task-body">
           <view class="proc-info">
-            <text class="proc-seq">{{ p.seq }}</text>
+            <text class="proc-seq">{{ task.processSeq }}</text>
             <view>
-              <text class="proc-name">{{ p.name }}</text>
+              <text class="proc-name">{{ task.processName }}</text>
               <text class="proc-meta">
-                目标: {{ p.targetQty }}件 · {{ p.reportMode }}
-                <text v-if="p.lockReason"> · {{ p.lockReason }}</text>
-                <text v-if="p.status === 'reported'">
-                  · 已报工 {{ (p.reportedGoodQty || 0) + (p.reportedDefectQty || 0) }}件
-                  · 良品{{ p.reportedGoodQty || 0 }} 不良{{ p.reportedDefectQty || 0 }}
-                  · {{ p.reportStatus }}
+                目标: {{ task.targetQty }}件 · {{ task.reportMode }}
+                <text v-if="task.lockReason"> · {{ task.lockReason }}</text>
+                <text v-if="task.status === 'reported'">
+                  · 已报工 {{ (task.reportedGoodQty || 0) + (task.reportedDefectQty || 0) }}件
+                  · 良品{{ task.reportedGoodQty || 0 }} 不良{{ task.reportedDefectQty || 0 }}
+                  · {{ task.reportStatus }}
                 </text>
               </text>
             </view>
           </view>
           <text
-            v-if="p.status === 'pending'"
+            v-if="task.status === 'pending'"
             class="action go"
-            @tap="goWorkReport(wo, p)"
+            @tap="goWorkReport(task)"
           >去报工 ›</text>
           <text
-            v-else-if="p.status === 'reported'"
+            v-else-if="task.status === 'reported'"
             class="action view"
-            @tap="goRecordFromProcess(wo, p)"
+            @tap="goRecordFromTask(task)"
           >查看 ›</text>
           <text v-else class="action lock">未开始</text>
         </view>
       </view>
-      <view v-if="!assignments.length" class="empty">今日暂无指派工单</view>
+      <view v-if="!reportTasks.length" class="empty">今日暂无待报工任务</view>
     </view>
 
     <!-- 快速报工 -->
@@ -67,7 +73,7 @@
       <view v-for="f in frequentList" :key="f.id" class="freq-card">
         <view class="freq-head">
           <text class="freq-name">{{ f.processName }}</text>
-          <text class="mode-tag" :class="f.reportMode === '按时长' ? 'duration' : ''">
+          <text class="mode-tag" :class="isDurationReportMode(f.reportMode) ? 'duration' : ''">
             {{ f.reportMode }}
           </text>
         </view>
@@ -106,7 +112,7 @@
         </view>
         <text class="rc-meta">{{ r.workOrderNo ? r.workOrderNo + ' · ' : '' }}{{ r.timeLabel }}</text>
         <view class="rc-metrics">
-          <template v-if="r.reportMode === '按时长'">
+          <template v-if="isDurationReportMode(r.reportMode)">
             <text>时长: {{ r.workHours }}h</text>
           </template>
           <text>良品: {{ r.goodQty }}</text>
@@ -125,10 +131,10 @@ import { ref, computed } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getUser } from '@/utils/auth'
 import {
-  getTodayAssignments,
-  hasTodayAssignments,
-  getPendingAssignmentCount,
-} from '@/mock/processReportAssignments'
+  getTodayReportTasks,
+  hasTodayReportTasks,
+  getPendingReportTaskCount,
+} from '@/mock/processReportTasks'
 import {
   getDateHeader,
   getFrequentReports,
@@ -136,6 +142,7 @@ import {
   getRecordStats,
 } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
+import { isDurationReportMode } from '@/utils/reportMode'
 
 const tabs = [
   { key: 'today', label: '今日待报工' },
@@ -157,14 +164,14 @@ const recordFilters = [
 
 const user = computed(() => getUser())
 
-const assignments = computed(() => {
+const reportTasks = computed(() => {
   refreshKey.value
-  return getTodayAssignments(user.value)
+  return getTodayReportTasks(user.value)
 })
 
 const pendingCount = computed(() => {
   refreshKey.value
-  return getPendingAssignmentCount(user.value)
+  return getPendingReportTaskCount(user.value)
 })
 
 const frequentList = computed(() => {
@@ -185,7 +192,7 @@ const records = computed(() => {
 onLoad((query) => {
   if (query.tab === 'records') activeTab.value = 'records'
   else if (query.tab === 'quick') activeTab.value = 'quick'
-  else activeTab.value = hasTodayAssignments(user.value) ? 'today' : 'quick'
+  else activeTab.value = hasTodayReportTasks(user.value) ? 'today' : 'quick'
 })
 
 onShow(() => {
@@ -206,17 +213,19 @@ function buildExecuteQuery(params) {
     .join('&')
 }
 
-function goWorkReport(wo, proc) {
+function goWorkReport(task) {
   const q = buildExecuteQuery({
     source: 'workorder',
-    workOrderNo: wo.workOrderNo,
-    workOrderId: wo.id,
-    processId: proc.id,
-    processName: proc.name,
-    productName: wo.productName,
-    productCode: wo.productCode,
-    targetQty: proc.targetQty,
-    reportMode: proc.reportMode || getProcessReportMode(proc.name),
+    taskId: task.id,
+    taskNo: task.taskNo,
+    workOrderNo: task.workOrderNo,
+    workOrderId: task.workOrderId,
+    processId: task.id,
+    processName: task.processName,
+    productName: task.productName,
+    productCode: task.productCode,
+    targetQty: task.targetQty,
+    reportMode: task.reportMode || getProcessReportMode(task.processName),
   })
   uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
 }
@@ -240,10 +249,16 @@ function goRecordDetail(r) {
   uni.navigateTo({ url: `/pages/process-report/record-detail?id=${r.id}` })
 }
 
-function goRecordFromProcess(wo, proc) {
+function goRecordFromTask(task) {
+  if (task.reportRecordId) {
+    goRecordDetail({ id: task.reportRecordId })
+    return
+  }
   const list = getMyRecords(user.value, 'all')
   const found = list.find(
-    (r) => r.workOrderNo === wo.workOrderNo && r.processName === proc.name,
+    (r) =>
+      r.taskId === task.id ||
+      (r.workOrderNo === task.workOrderNo && r.processName === task.processName),
   )
   if (found) goRecordDetail(found)
   else uni.showToast({ title: '暂无报工记录', icon: 'none' })
@@ -342,7 +357,7 @@ $primary: #1677ff;
   margin-bottom: 16rpx;
 }
 
-.wo-card,
+.task-card,
 .freq-card,
 .record-card {
   background: #fff;
@@ -351,38 +366,46 @@ $primary: #1677ff;
   margin-bottom: 20rpx;
 }
 
-.wo-head {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 16rpx;
+.task-card.reported {
+  background: #f6ffed;
 }
 
-.wo-title {
+.task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.task-title {
+  flex: 1;
   font-size: 30rpx;
   font-weight: 700;
 }
 
-.wo-tag {
+.task-tag {
   font-size: 22rpx;
   color: $primary;
   background: #e6f4ff;
   padding: 4rpx 12rpx;
   border-radius: 8rpx;
+  flex-shrink: 0;
 }
 
-.proc-row {
+.task-wo {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
+.task-body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20rpx 0;
+  padding-top: 20rpx;
+  margin-top: 16rpx;
   border-top: 1rpx solid #f5f5f5;
-}
-
-.proc-row.reported {
-  background: #f6ffed;
-  margin: 0 -16rpx;
-  padding: 20rpx 16rpx;
-  border-radius: 8rpx;
 }
 
 .proc-info {

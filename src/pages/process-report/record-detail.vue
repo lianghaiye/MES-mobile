@@ -14,10 +14,10 @@
         <text class="val">{{ record.timeLabel }}</text>
       </view>
       <view class="row">
-        <text class="label">报工方式</text>
+        <text class="label">报工类型</text>
         <text class="val">{{ record.reportMode }}</text>
       </view>
-      <template v-if="record.reportMode === '按件数'">
+      <template v-if="!isDurationReportMode(record.reportMode)">
         <view class="row">
           <text class="label">良品数</text>
           <text class="val primary">{{ record.goodQty }} 件</text>
@@ -75,6 +75,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getRecordById } from '@/mock/processReportRecords'
+import { isDurationReportMode } from '@/utils/reportMode'
 
 const record = ref(null)
 

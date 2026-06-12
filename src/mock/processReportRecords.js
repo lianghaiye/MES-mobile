@@ -1,6 +1,7 @@
 /** 工序报工记录（工单报工 + 快速报工合并） */
 
 import { getUser } from '@/utils/auth'
+import { isDurationReportMode } from '@/utils/reportMode'
 
 export const RECORD_STATUS = ['待审核', '已审核', '已拒绝']
 
@@ -33,7 +34,7 @@ function createSeed() {
       processName: '点焊',
       productName: '货架支架',
       productCode: 'SJ-2024-A',
-      reportMode: '按件数',
+      reportMode: '批量计件',
       goodQty: 23,
       defectQty: 2,
       finishedQty: 25,
@@ -56,7 +57,7 @@ function createSeed() {
       processName: '热处理',
       productName: '泵壳',
       productCode: 'BK-2024-01',
-      reportMode: '按时长',
+      reportMode: '时长报工',
       goodQty: 12,
       defectQty: 0,
       finishedQty: 12,
@@ -75,11 +76,13 @@ function createSeed() {
     {
       id: 'pr-3',
       source: 'workorder',
+      taskId: 'pt-004',
+      taskNo: 'T20260602014',
       workOrderNo: 'WO-058',
       processName: '车削',
       productName: '泵轴',
       productCode: 'BX-2024-03',
-      reportMode: '按件数',
+      reportMode: '批量计件',
       goodQty: 14,
       defectQty: 1,
       finishedQty: 15,
@@ -100,7 +103,7 @@ function createSeed() {
       processName: '装配',
       productName: '货架支架',
       productCode: 'SJ-2024-A',
-      reportMode: '按时长',
+      reportMode: '时长报工',
       goodQty: 0,
       defectQty: 0,
       finishedQty: 0,
@@ -135,9 +138,19 @@ function save() {
   uni.setStorageSync(STORAGE_KEY, JSON.stringify(cache))
 }
 
+function resolveReporterNames(user) {
+  const displayName = user?.displayName || ''
+  const username = user?.username || ''
+  if (displayName === '管理员' || username === 'admin') {
+    return ['管理员', 'admin', '张三']
+  }
+  if (!displayName && !username) return ['张三']
+  return [...new Set([displayName, username].filter(Boolean))]
+}
+
 export function getMyRecords(user, filter = 'all') {
-  const name = user?.displayName || '张三'
-  let list = cache.filter((r) => r.reporter === name)
+  const names = resolveReporterNames(user)
+  let list = cache.filter((r) => names.includes(r.reporter))
   if (filter !== 'all') list = list.filter((r) => r.status === filter)
   return list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 }
@@ -169,7 +182,7 @@ export function submitProcessReport(payload) {
   const defect = Number(payload.defectQty) || 0
   if (good + defect <= 0) return { ok: false, message: '请填写良品数或不良品数' }
 
-  if (payload.reportMode === '按时长') {
+  if (isDurationReportMode(payload.reportMode)) {
     const hours = Number(payload.workHours)
     if (!hours || hours <= 0) return { ok: false, message: '请填写工作时长' }
   }
@@ -177,6 +190,8 @@ export function submitProcessReport(payload) {
   const record = {
     id: `pr-${Date.now()}`,
     source: payload.source || 'quick',
+    taskId: payload.taskId || '',
+    taskNo: payload.taskNo || '',
     workOrderNo: payload.workOrderNo || '',
     workOrderId: payload.workOrderId || '',
     processId: payload.processId || '',
@@ -188,7 +203,7 @@ export function submitProcessReport(payload) {
     goodQty: good,
     defectQty: defect,
     finishedQty: good + defect,
-    workHours: payload.reportMode === '按时长' ? Number(payload.workHours) : null,
+    workHours: isDurationReportMode(payload.reportMode) ? Number(payload.workHours) : null,
     startTime: payload.startTime || nowTime(),
     endTime: payload.endTime || nowTime(),
     defectItemIds: payload.defectItemIds || [],
@@ -214,7 +229,7 @@ function defaultFrequent() {
       processName: '点焊',
       productName: '货架支架',
       productCode: 'SJ-2024-A',
-      reportMode: '按件数',
+      reportMode: '批量计件',
       lastSummary: '昨天 23件 · 良品21 不良2',
     },
     {
@@ -222,7 +237,7 @@ function defaultFrequent() {
       processName: '车削',
       productName: '泵轴',
       productCode: 'BX-2024-03',
-      reportMode: '按件数',
+      reportMode: '批量计件',
       lastSummary: '前天 15件 · 良品14 不良1',
     },
     {
@@ -230,7 +245,7 @@ function defaultFrequent() {
       processName: '热处理',
       productName: '泵壳',
       productCode: 'BK-2024-01',
-      reportMode: '按时长',
+      reportMode: '时长报工',
       lastSummary: '3天前 4.5小时 · 良品12 不良0',
     },
   ]
@@ -258,7 +273,7 @@ function updateFrequentReport(payload) {
   const mode = payload.reportMode
   let summary = ''
   const total = (Number(payload.goodQty) || 0) + (Number(payload.defectQty) || 0)
-  if (mode === '按件数') {
+  if (!isDurationReportMode(mode)) {
     summary = `今天 ${total}件 · 良品${payload.goodQty || 0} 不良${payload.defectQty || 0}`
   } else {
     summary = `今天 ${payload.workHours}小时 · ${total}件 · 良品${payload.goodQty || 0} 不良${payload.defectQty || 0}`

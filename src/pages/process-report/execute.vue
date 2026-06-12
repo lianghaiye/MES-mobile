@@ -1,19 +1,27 @@
 <template>
   <view class="execute-page">
+    <view class="custom-nav">
+      <view class="nav-back" @tap="onNavBack">
+        <text class="back-arrow">‹</text>
+      </view>
+      <text class="nav-title">填写报工</text>
+      <view class="nav-placeholder" />
+    </view>
+
     <view class="sub-title">{{ processName }} · {{ productName }} {{ productCode }}</view>
 
     <view class="mode-tag">{{ reportMode }}</view>
 
     <view class="card">
-      <text class="card-title">报工信息{{ reportMode === '按时长' ? '（时长型）' : '' }}</text>
+      <text class="card-title">报工信息{{ isDurationReportMode(reportMode) ? '（时长型）' : '' }}</text>
 
       <view v-if="targetQty" class="target-bar">
         <text>今日目标</text>
         <text class="target-num">{{ targetQty }} 件</text>
       </view>
 
-      <!-- 按件数 -->
-      <template v-if="reportMode === '按件数'">
+      <!-- 批量计件 -->
+      <template v-if="!isDurationReportMode(reportMode)">
         <view class="field">
           <text class="label required">良品数量</text>
           <view class="stepper">
@@ -44,7 +52,7 @@
         </view>
       </template>
 
-      <!-- 按时长 -->
+      <!-- 时长报工 -->
       <template v-else>
         <view class="field">
           <text class="label required">工作时长（小时）</text>
@@ -105,7 +113,9 @@
     </view>
 
     <view class="foot">
-      <button class="btn cancel" @tap="onCancel">取消</button>
+      <button class="btn cancel" @tap="onPrevStep">
+        {{ context.source === 'quick' ? '上一步' : '取消' }}
+      </button>
       <button class="btn submit" :loading="submitting" @tap="onSubmit">提交报工</button>
     </view>
   </view>
@@ -113,23 +123,27 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onBackPress } from '@dcloudio/uni-app'
 import {
   getProcessDefectItems,
   getProcessReportMode,
 } from '@/utils/iodomsStorage'
+import { isDurationReportMode } from '@/utils/reportMode'
 import { submitProcessReport } from '@/mock/processReportRecords'
-import { markProcessReported } from '@/mock/processReportAssignments'
+import { markTaskReported } from '@/mock/processReportTasks'
 
 const submitting = ref(false)
 const processName = ref('')
 const productName = ref('')
 const productCode = ref('')
-const reportMode = ref('按件数')
+const reportMode = ref('批量计件')
 const targetQty = ref(null)
 const defectItems = ref([])
 const context = reactive({
   source: 'quick',
+  productId: '',
+  taskId: '',
+  taskNo: '',
   workOrderNo: '',
   workOrderId: '',
   processId: '',
@@ -157,6 +171,9 @@ onLoad((query) => {
   productCode.value = query.productCode || ''
   targetQty.value = query.targetQty ? Number(query.targetQty) : null
   context.source = query.source || 'quick'
+  context.productId = query.productId || ''
+  context.taskId = query.taskId || ''
+  context.taskNo = query.taskNo || ''
   context.workOrderNo = query.workOrderNo || ''
   context.workOrderId = query.workOrderId || ''
   context.processId = query.processId || ''
@@ -194,9 +211,33 @@ function onEndChange(e) {
   form.endTime = e.detail.value
 }
 
-function onCancel() {
+function onNavBack() {
+  if (context.source === 'quick') {
+    uni.redirectTo({ url: '/pages/process-report/index?tab=quick' })
+    return
+  }
   uni.navigateBack()
 }
+
+function onPrevStep() {
+  if (context.source === 'quick' && context.productId) {
+    const q = [
+      `productId=${encodeURIComponent(context.productId)}`,
+      `processName=${encodeURIComponent(processName.value)}`,
+    ].join('&')
+    uni.redirectTo({ url: `/pages/process-report/quick-process?${q}` })
+    return
+  }
+  uni.navigateBack()
+}
+
+onBackPress(() => {
+  if (context.source === 'quick') {
+    onNavBack()
+    return true
+  }
+  return false
+})
 
 function onSubmit() {
   if (submitting.value) return
@@ -226,8 +267,11 @@ function onSubmit() {
     uni.showToast({ title: res.message, icon: 'none' })
     return
   }
-  if (context.workOrderId && context.processId) {
-    markProcessReported(context.workOrderId, context.processId)
+  if (context.taskId) {
+    markTaskReported(context.taskId, {
+      goodQty: form.goodQty,
+      defectQty: form.defectQty,
+    })
   }
   uni.showToast({ title: res.message, icon: 'none', duration: 2000 })
   setTimeout(() => {
@@ -246,8 +290,43 @@ $primary: #1677ff;
 .execute-page {
   min-height: 100vh;
   background: #f5f6f8;
-  padding: 24rpx;
-  padding-bottom: 160rpx;
+  padding: 0 24rpx 160rpx;
+}
+
+.custom-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 12rpx) 0 20rpx;
+  background: #f5f6f8;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nav-back {
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-arrow {
+  font-size: 52rpx;
+  color: $primary;
+  line-height: 1;
+  font-weight: 300;
+}
+
+.nav-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.nav-placeholder {
+  width: 72rpx;
 }
 
 .sub-title {

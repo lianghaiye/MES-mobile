@@ -23,6 +23,13 @@ export const taskStatusOptions = ['待领取', '待分发', '待开始', '执行
 /** 拆解工艺路线工序（一张工单拆成多条任务） */
 const DISASSEMBLY_PROCESSES = ['拆解', '拆解质检', '入库']
 
+function formatTaskDate(d = new Date()) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 const seedTasks = [
   // 工单1：一批一码 — 拆解待分发
   taskSeed({
@@ -177,6 +184,136 @@ const seedTasks = [
     createdAt: '2026-06-01 08:00:00',
     finishedAt: '2026-06-01 12:00:00',
   }),
+  // —— 生产工单任务（工序报工） ——
+  taskSeed({
+    id: 'pt-001',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-1',
+    workOrderCode: 'WO-062',
+    workOrderName: '货架支架生产工单',
+    taskNo: 'T20260602011',
+    processName: '点焊',
+    processSeq: 1,
+    productName: '货架支架',
+    itemCode: 'SJ-2024-A',
+    specModel: '1200×600mm',
+    barcodeType: '一批一码',
+    processRoute: '标准焊接工艺 v2',
+    executor: '张三',
+    expectedQty: 25,
+    taskStatus: '待开始',
+    placement: 'todo',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 08:00:00`,
+  }),
+  taskSeed({
+    id: 'pt-002',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-1',
+    workOrderCode: 'WO-062',
+    workOrderName: '货架支架生产工单',
+    taskNo: 'T20260602012',
+    processName: '打磨',
+    processSeq: 2,
+    productName: '货架支架',
+    itemCode: 'SJ-2024-A',
+    specModel: '1200×600mm',
+    barcodeType: '一批一码',
+    processRoute: '标准焊接工艺 v2',
+    executor: '张三',
+    expectedQty: 25,
+    taskStatus: '待开始',
+    placement: 'todo',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 08:00:00`,
+  }),
+  taskSeed({
+    id: 'pt-003',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-1',
+    workOrderCode: 'WO-062',
+    workOrderName: '货架支架生产工单',
+    taskNo: 'T20260602013',
+    processName: '装配',
+    processSeq: 3,
+    productName: '货架支架',
+    itemCode: 'SJ-2024-A',
+    specModel: '1200×600mm',
+    barcodeType: '一批一码',
+    processRoute: '标准焊接工艺 v2',
+    executor: '张三',
+    expectedQty: 25,
+    taskStatus: '待开始',
+    placement: 'todo',
+    serialLocked: true,
+    createdAt: `${formatTaskDate()} 08:00:00`,
+  }),
+  taskSeed({
+    id: 'pt-004',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-2',
+    workOrderCode: 'WO-058',
+    workOrderName: '泵轴生产工单',
+    taskNo: 'T20260602014',
+    processName: '车削',
+    processSeq: 1,
+    productName: '泵轴',
+    itemCode: 'BX-2024-03',
+    specModel: 'Φ50×L800 45#',
+    barcodeType: '一批一码',
+    processRoute: '车铣加工路线',
+    executor: '张三',
+    expectedQty: 15,
+    taskStatus: '执行中',
+    placement: 'todo',
+    serialLocked: false,
+    reportStatus: '待审核',
+    reportedGoodQty: 14,
+    reportedDefectQty: 1,
+    createdAt: `${formatTaskDate()} 09:00:00`,
+  }),
+  taskSeed({
+    id: 'pt-005',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-2',
+    workOrderCode: 'WO-058',
+    workOrderName: '泵轴生产工单',
+    taskNo: 'T20260602015',
+    processName: '铣削',
+    processSeq: 2,
+    productName: '泵轴',
+    itemCode: 'BX-2024-03',
+    specModel: 'Φ50×L800 45#',
+    barcodeType: '一批一码',
+    processRoute: '车铣加工路线',
+    executor: '张三',
+    expectedQty: 15,
+    taskStatus: '待开始',
+    placement: 'todo',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 09:00:00`,
+  }),
+  taskSeed({
+    id: 'pt-006',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-3',
+    workOrderCode: 'WO-055',
+    workOrderName: '泵壳生产工单',
+    taskNo: 'T20260602016',
+    processName: '热处理',
+    processSeq: 1,
+    productName: '泵壳',
+    itemCode: 'BK-2024-01',
+    specModel: 'HT200 铸铁',
+    barcodeType: '一批一码',
+    processRoute: '铸造加工路线',
+    executor: '张三',
+    expectedQty: 12,
+    taskStatus: '待开始',
+    placement: 'todo',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 10:00:00`,
+  }),
   // 工单5 — 深井泵拆解待开始
   taskSeed({
     id: 'dt-007',
@@ -225,7 +362,28 @@ function getNextProcess(current) {
   return DISASSEMBLY_PROCESSES[idx + 1]
 }
 
+const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
+const TASK_SEED_VERSION = '3'
+
+function buildSeedTasks() {
+  const today = formatTaskDate()
+  const fresh = JSON.parse(JSON.stringify(seedTasks))
+  fresh.forEach((t) => {
+    if (typeof t.id === 'string' && t.id.startsWith('pt-') && t.createdAt) {
+      const timePart = t.createdAt.split(' ').slice(1).join(' ') || '08:00:00'
+      t.createdAt = `${today} ${timePart}`
+    }
+  })
+  return fresh
+}
+
 function load() {
+  if (uni.getStorageSync(TASK_SEED_VERSION_KEY) !== TASK_SEED_VERSION) {
+    const fresh = buildSeedTasks()
+    uni.setStorageSync(STORAGE_KEY, JSON.stringify(fresh))
+    uni.setStorageSync(TASK_SEED_VERSION_KEY, TASK_SEED_VERSION)
+    return fresh
+  }
   try {
     const raw = uni.getStorageSync(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
@@ -630,7 +788,21 @@ function unlockNextSerialTask(workOrderId, completedProcessSeq) {
 }
 
 export function getTaskById(id) {
+  mergePcSyncedTasks()
   return cache.find((t) => t.id === id) || null
+}
+
+export function getAllTasks() {
+  mergePcSyncedTasks()
+  return [...cache]
+}
+
+export function updateTaskById(id, patch) {
+  const task = cache.find((t) => t.id === id)
+  if (!task) return null
+  Object.assign(task, patch)
+  save()
+  return task
 }
 
 export function getPendingTaskCount() {

@@ -30,14 +30,18 @@ const PROCESS_DEFECT_MAP = {
 }
 
 const PROCESS_REPORT_MODE = {
-  点焊: '按件数',
-  打磨: '按件数',
-  装配: '按时长',
-  车削: '按件数',
-  铣削: '按件数',
-  热处理: '按时长',
-  粗车: '按件数',
-  精车: '按件数',
+  点焊: '批量计件',
+  打磨: '批量计件',
+  装配: '时长报工',
+  车削: '批量计件',
+  铣削: '批量计件',
+  热处理: '时长报工',
+  粗车: '批量计件',
+  精车: '批量计件',
+  机加工: '批量计件',
+  调试: '时长报工',
+  检验: '时长报工',
+  领料: '批量计件',
 }
 
 function padCode(n) {
@@ -57,7 +61,7 @@ export function createProcessConfigSeed() {
     resourceType: '工人',
     position: '机加工岗',
     status: '使用中',
-    reportMode: PROCESS_REPORT_MODE[name] || '按件数',
+    reportMode: PROCESS_REPORT_MODE[name] || '',
     defectItemIds: [...(PROCESS_DEFECT_MAP[name] || [])],
     defaultExecutors: [],
     createdAt: '2026-05-01',
@@ -70,8 +74,8 @@ export function ensureIodomsSeed() {
     uni.setStorageSync(DEFECT_ITEMS_KEY, JSON.stringify({ items: createDefectItemSeed() }))
     uni.setStorageSync(DEFECT_SEED_VERSION, '1')
   }
-  if (uni.getStorageSync(PROCESS_SEED_VERSION) !== '4') {
+  if (uni.getStorageSync(PROCESS_SEED_VERSION) !== '5') {
     uni.setStorageSync(PROCESS_CONFIG_KEY, JSON.stringify({ processes: createProcessConfigSeed() }))
-    uni.setStorageSync(PROCESS_SEED_VERSION, '4')
+    uni.setStorageSync(PROCESS_SEED_VERSION, '5')
   }
 }

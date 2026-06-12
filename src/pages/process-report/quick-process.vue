@@ -66,6 +66,9 @@ const processes = computed(() => {
 
 onLoad((query) => {
   product.value = getQuickProductById(query.productId)
+  if (query.processName) {
+    selectedName.value = decodeURIComponent(query.processName)
+  }
   if (!product.value) {
     uni.showToast({ title: '产品不存在', icon: 'none' })
     setTimeout(() => uni.navigateBack(), 1500)
@@ -80,6 +83,7 @@ function goNext() {
   if (!selectedName.value || !product.value) return
   const mode = getProcessReportMode(selectedName.value)
   const q = [
+    `productId=${product.value.id}`,
     `processName=${encodeURIComponent(selectedName.value)}`,
     `productName=${encodeURIComponent(product.value.name)}`,
     `productCode=${product.value.code}`,
