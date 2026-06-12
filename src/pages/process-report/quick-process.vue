@@ -28,7 +28,7 @@
     >
       <view class="proc-left">
         <text class="proc-name">{{ p.name }}</text>
-        <text class="proc-sub">{{ p.reportMode }}报工{{ p.estimate ? ` · ${p.estimate}` : '' }}</text>
+        <text class="proc-sub">{{ displayReportMode(p.reportMode) }}{{ p.estimate ? ` · ${p.estimate}` : '' }}</text>
       </view>
       <text v-if="selectedName === p.name" class="selected-tag">已选</text>
       <view v-else class="radio" />
@@ -46,6 +46,11 @@ import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getQuickProductById } from '@/mock/processReportProducts'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
+import { resolveReportMode } from '@/utils/reportMode'
+
+function displayReportMode(mode) {
+  return resolveReportMode(mode)
+}
 
 const product = ref(null)
 const selectedName = ref('')

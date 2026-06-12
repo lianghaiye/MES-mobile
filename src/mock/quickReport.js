@@ -127,12 +127,15 @@ function normalizeRecord(row) {
     ...row,
     finishedQty: row.finishedQty ?? calcFinishedQty(processes, row.finishedQty),
   })
+  const perProcessRegister = row.perProcessRegister !== false
   return {
     ...row,
     processes,
     processCount: processes.filter((p) => !p.deleted).length,
     ...qty,
     operators,
+    perProcessRegister,
+    perProcessMode: perProcessRegister,
     status: row.materialConfirmed ? '已确认' : row.status || '待确认',
     workOrderStatus: row.workOrderStatus || '已报工',
   }
@@ -340,15 +343,11 @@ function validateSubmit(payload) {
   if (!payload.reportDate) {
     return '请选择生产日期'
   }
-  const activeProcesses = (payload.processes || []).filter((p) => !p.deleted && p.name?.trim())
-  if (!activeProcesses.length) {
-    return '请至少保留一道工序'
-  }
-  if (payload.perProcessMode) {
-    const missing = activeProcesses.find((p) => !p.operators?.length)
-    if (missing) return `请为「${missing.name}」指定操作人员`
-  } else if (!payload.operators?.length) {
-    return '请选择操作人员'
+  if (payload.perProcessRegister !== false) {
+    const activeProcesses = (payload.processes || []).filter((p) => !p.deleted && p.name?.trim())
+    if (!activeProcesses.length) {
+      return '请至少保留一道工序'
+    }
   }
   return null
 }
@@ -357,19 +356,22 @@ export function submitQuickReport(payload) {
   const err = validateSubmit(payload)
   if (err) return { ok: false, message: err }
 
-  const activeProcesses = payload.processes
-    .filter((p) => !p.deleted && p.name?.trim())
-    .map((p) =>
-      normalizeProcess({
-        ...p,
-        name: p.name.trim(),
-        deleted: false,
-      }),
-    )
+  const perProcessRegister = payload.perProcessRegister !== false
+  const activeProcesses = perProcessRegister
+    ? payload.processes
+        .filter((p) => !p.deleted && p.name?.trim())
+        .map((p) =>
+          normalizeProcess({
+            ...p,
+            name: p.name.trim(),
+            deleted: false,
+          }),
+        )
+    : []
 
-  const operators = payload.perProcessMode
+  const operators = perProcessRegister
     ? flattenOperators(activeProcesses, [], true)
-    : payload.operators
+    : payload.operators || []
 
   const product =
     getProductMaterialById(payload.productId) ||
@@ -402,7 +404,8 @@ export function submitQuickReport(payload) {
     finishedQty,
     routeId: payload.routeId,
     routeName: payload.routeName,
-    perProcessMode: !!payload.perProcessMode,
+    perProcessRegister,
+    perProcessMode: perProcessRegister,
     processes: activeProcesses,
     operators,
     materialConfirmed: false,

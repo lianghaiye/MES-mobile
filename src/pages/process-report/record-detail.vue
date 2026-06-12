@@ -15,7 +15,7 @@
       </view>
       <view class="row">
         <text class="label">报工类型</text>
-        <text class="val">{{ record.reportMode }}</text>
+        <text class="val">{{ displayReportMode(record.reportMode) }}</text>
       </view>
       <template v-if="!isDurationReportMode(record.reportMode)">
         <view class="row">
@@ -75,7 +75,11 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getRecordById } from '@/mock/processReportRecords'
-import { isDurationReportMode } from '@/utils/reportMode'
+import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+
+function displayReportMode(mode) {
+  return resolveReportMode(mode)
+}
 
 const record = ref(null)
 

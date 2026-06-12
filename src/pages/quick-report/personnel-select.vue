@@ -1,5 +1,29 @@
 <template>
   <view class="select-page">
+    <view class="filter-section">
+      <text class="filter-label">加工中心</text>
+      <scroll-view scroll-x class="center-scroll" :show-scrollbar="false">
+        <view class="center-row">
+          <text
+            class="center-chip"
+            :class="{ active: !activeWorkCenter }"
+            @tap="setWorkCenter('')"
+          >
+            全部
+          </text>
+          <text
+            v-for="center in workCenters"
+            :key="center"
+            class="center-chip"
+            :class="{ active: activeWorkCenter === center }"
+            @tap="setWorkCenter(center)"
+          >
+            {{ center }}
+          </text>
+        </view>
+      </scroll-view>
+    </view>
+
     <view class="search-bar">
       <input
         v-model="keyword"
@@ -42,10 +66,12 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { searchPersonnel } from '@/mock/personnel'
+import { getWorkCenterOptions, searchPersonnel } from '@/mock/personnel'
 import { setSelectionResult } from '@/utils/selection'
 
 const keyword = ref('')
+const activeWorkCenter = ref('')
+const workCenters = ref(getWorkCenterOptions())
 const results = ref(searchPersonnel())
 const selected = ref([])
 const processId = ref('')
@@ -61,8 +87,17 @@ onLoad((query) => {
   }
 })
 
+function refreshList() {
+  results.value = searchPersonnel(keyword.value, activeWorkCenter.value)
+}
+
 function onSearch() {
-  results.value = searchPersonnel(keyword.value)
+  refreshList()
+}
+
+function setWorkCenter(center) {
+  activeWorkCenter.value = center
+  refreshList()
 }
 
 function toggle(name) {
@@ -88,6 +123,44 @@ $primary: #1677ff;
   background: #f5f6f8;
   padding: 24rpx;
   padding-bottom: 140rpx;
+}
+
+.filter-section {
+  margin-bottom: 20rpx;
+  padding: 20rpx;
+  background: #fff;
+  border-radius: 12rpx;
+}
+
+.filter-label {
+  display: block;
+  margin-bottom: 16rpx;
+  font-size: 26rpx;
+  color: #595959;
+}
+
+.center-scroll {
+  white-space: nowrap;
+}
+
+.center-row {
+  display: inline-flex;
+  gap: 16rpx;
+}
+
+.center-chip {
+  display: inline-block;
+  padding: 10rpx 24rpx;
+  border-radius: 28rpx;
+  background: #f5f6f8;
+  font-size: 24rpx;
+  color: #595959;
+}
+
+.center-chip.active {
+  background: #e6f4ff;
+  color: $primary;
+  font-weight: 600;
 }
 
 .search-input {

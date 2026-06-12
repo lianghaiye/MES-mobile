@@ -10,7 +10,7 @@
 
     <view class="sub-title">{{ processName }} · {{ productName }} {{ productCode }}</view>
 
-    <view class="mode-tag">{{ reportMode }}</view>
+    <view class="mode-tag">{{ displayReportMode(reportMode) }}</view>
 
     <view class="card">
       <text class="card-title">报工信息{{ isDurationReportMode(reportMode) ? '（时长型）' : '' }}</text>
@@ -128,7 +128,11 @@ import {
   getProcessDefectItems,
   getProcessReportMode,
 } from '@/utils/iodomsStorage'
-import { isDurationReportMode } from '@/utils/reportMode'
+import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+
+function displayReportMode(mode) {
+  return resolveReportMode(mode)
+}
 import { submitProcessReport } from '@/mock/processReportRecords'
 import { markTaskReported } from '@/mock/processReportTasks'
 

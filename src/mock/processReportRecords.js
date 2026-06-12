@@ -1,7 +1,19 @@
 /** 工序报工记录（工单报工 + 快速报工合并） */
 
 import { getUser } from '@/utils/auth'
-import { isDurationReportMode } from '@/utils/reportMode'
+import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+
+const MIGRATE_KEY = 'i_doms_process_report_mode_migrate_v'
+const MIGRATE_VERSION = '1'
+
+function withNormalizedMode(row) {
+  if (!row) return row
+  return { ...row, reportMode: resolveReportMode(row.reportMode) }
+}
+
+function migrateStoredList(list) {
+  return (list || []).map(withNormalizedMode)
+}
 
 export const RECORD_STATUS = ['待审核', '已审核', '已拒绝']
 
@@ -123,13 +135,21 @@ function createSeed() {
 }
 
 function load() {
+  let list = null
   try {
     const raw = uni.getStorageSync(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) list = JSON.parse(raw)
   } catch {
     /* ignore */
   }
-  return createSeed()
+  if (!list) return createSeed()
+  if (uni.getStorageSync(MIGRATE_KEY) !== MIGRATE_VERSION) {
+    list = migrateStoredList(list)
+    uni.setStorageSync(STORAGE_KEY, JSON.stringify(list))
+    migrateFrequentReports()
+    uni.setStorageSync(MIGRATE_KEY, MIGRATE_VERSION)
+  }
+  return list
 }
 
 let cache = load()
@@ -199,7 +219,7 @@ export function submitProcessReport(payload) {
     productName: payload.productName,
     productCode: payload.productCode,
     targetQty: payload.targetQty || null,
-    reportMode: payload.reportMode,
+    reportMode: resolveReportMode(payload.reportMode),
     goodQty: good,
     defectQty: defect,
     finishedQty: good + defect,
@@ -253,6 +273,19 @@ function defaultFrequent() {
 
 const FREQ_LIMIT = 10
 
+function migrateFrequentReports() {
+  let list = []
+  try {
+    const raw = uni.getStorageSync(FREQ_KEY)
+    if (raw) list = JSON.parse(raw)
+  } catch {
+    /* ignore */
+  }
+  if (!list.length) return
+  const migrated = migrateStoredList(list)
+  uni.setStorageSync(FREQ_KEY, JSON.stringify(migrated))
+}
+
 export function getFrequentReports() {
   let list = []
   try {
@@ -262,7 +295,7 @@ export function getFrequentReports() {
     /* ignore */
   }
   if (!list.length) list = defaultFrequent()
-  return list.slice(0, FREQ_LIMIT)
+  return migrateStoredList(list).slice(0, FREQ_LIMIT)
 }
 
 function updateFrequentReport(payload) {
@@ -270,7 +303,7 @@ function updateFrequentReport(payload) {
   const idx = list.findIndex(
     (f) => f.processName === payload.processName && f.productCode === payload.productCode,
   )
-  const mode = payload.reportMode
+  const mode = resolveReportMode(payload.reportMode)
   let summary = ''
   const total = (Number(payload.goodQty) || 0) + (Number(payload.defectQty) || 0)
   if (!isDurationReportMode(mode)) {

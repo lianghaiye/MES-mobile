@@ -40,7 +40,7 @@
             <view>
               <text class="proc-name">{{ task.processName }}</text>
               <text class="proc-meta">
-                目标: {{ task.targetQty }}件 · {{ task.reportMode }}
+                目标: {{ task.targetQty }}件 · {{ displayReportMode(task.reportMode) }}
                 <text v-if="task.lockReason"> · {{ task.lockReason }}</text>
                 <text v-if="task.status === 'reported'">
                   · 已报工 {{ (task.reportedGoodQty || 0) + (task.reportedDefectQty || 0) }}件
@@ -74,7 +74,7 @@
         <view class="freq-head">
           <text class="freq-name">{{ f.processName }}</text>
           <text class="mode-tag" :class="isDurationReportMode(f.reportMode) ? 'duration' : ''">
-            {{ f.reportMode }}
+            {{ displayReportMode(f.reportMode) }}
           </text>
         </view>
         <text class="freq-product">{{ f.productName }} · {{ f.productCode }}</text>
@@ -117,7 +117,7 @@
           </template>
           <text>良品: {{ r.goodQty }}</text>
           <text>不良: {{ r.defectQty }}</text>
-          <text>方式: {{ r.reportMode }}</text>
+          <text>报工类型: {{ displayReportMode(r.reportMode) }}</text>
         </view>
         <view v-if="r.status === '已拒绝'" class="reject-box">{{ r.rejectReason }}</view>
       </view>
@@ -142,7 +142,11 @@ import {
   getRecordStats,
 } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
-import { isDurationReportMode } from '@/utils/reportMode'
+import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+
+function displayReportMode(mode) {
+  return resolveReportMode(mode)
+}
 
 const tabs = [
   { key: 'today', label: '今日待报工' },

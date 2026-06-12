@@ -21,6 +21,20 @@
 
     <!-- 卡片1：产品信息 / 登记数量 -->
     <view class="card">
+      <view class="toggle-row">
+        <view class="toggle-info">
+          <text class="toggle-title">按工序登记</text>
+          <text class="toggle-hint">
+            {{ form.perProcessRegister ? '各工序分别登记数量与人员' : '整体登记完工数量' }}
+          </text>
+        </view>
+        <switch
+          :checked="form.perProcessRegister"
+          color="#07c160"
+          @change="onPerProcessRegisterToggle"
+        />
+      </view>
+
       <view class="card-title">
         <text>{{ fromWorkOrder ? '登记数量' : '产品信息' }}</text>
         <text class="badge required-badge">必填</text>
@@ -36,40 +50,61 @@
         </view>
       </view>
 
-      <text v-if="fromWorkOrder" class="qty-hint">报工数量可小于排产数量</text>
+      <view v-if="!form.perProcessRegister" class="overall-warning">
+        <text class="warning-icon">!</text>
+        <text>整体登记不支持工时工资的核算</text>
+      </view>
 
-      <view class="qty-field">
-        <text class="qty-label required">良品数量</text>
-        <view class="stepper">
-          <view class="step-btn" @tap="changeFormQty('good', -1)">−</view>
-          <input
-            v-model.number="form.goodQty"
-            class="step-val"
-            type="digit"
-            @blur="syncProcessQtyFromForm"
-          />
-          <view class="step-btn primary" @tap="changeFormQty('good', 1)">+</view>
+      <text v-if="fromWorkOrder && !form.perProcessRegister" class="qty-hint">
+        报工数量可小于排产数量
+      </text>
+
+      <!-- 整体登记：可编辑数量 -->
+      <template v-if="!form.perProcessRegister">
+        <view class="qty-field">
+          <text class="qty-label required">良品数量</text>
+          <view class="stepper">
+            <view class="step-btn" @tap="changeFormQty('good', -1)">−</view>
+            <input
+              v-model.number="form.goodQty"
+              class="step-val"
+              type="digit"
+              @blur="normalizeFormQty"
+            />
+            <view class="step-btn primary" @tap="changeFormQty('good', 1)">+</view>
+          </view>
         </view>
-      </view>
 
-      <view class="qty-field">
-        <text class="qty-label">不良品数量</text>
-        <view class="stepper">
-          <view class="step-btn" @tap="changeFormQty('defect', -1)">−</view>
-          <input
-            v-model.number="form.defectQty"
-            class="step-val"
-            type="digit"
-            @blur="syncProcessQtyFromForm"
-          />
-          <view class="step-btn primary" @tap="changeFormQty('defect', 1)">+</view>
+        <view class="qty-field">
+          <text class="qty-label">不良品数量</text>
+          <view class="stepper">
+            <view class="step-btn" @tap="changeFormQty('defect', -1)">−</view>
+            <input
+              v-model.number="form.defectQty"
+              class="step-val"
+              type="digit"
+              @blur="normalizeFormQty"
+            />
+            <view class="step-btn primary" @tap="changeFormQty('defect', 1)">+</view>
+          </view>
         </view>
-      </view>
 
-      <view class="qty-total-row">
-        <text class="qty-total-label">合计完工</text>
-        <text class="qty-total-value">{{ totalReportQty }} 件</text>
-      </view>
+        <view class="qty-total-row">
+          <text class="qty-total-label">合计完工</text>
+          <text class="qty-total-value">{{ totalReportQty }} 件</text>
+        </view>
+
+        <view class="qty-field operator-field">
+          <text class="qty-label">操作人员（选填）</text>
+          <view class="operator-tags">
+            <view v-for="name in form.operators" :key="name" class="op-tag">
+              <text>{{ name }}</text>
+              <text class="op-x" @tap.stop="removeOverallOperator(name)">×</text>
+            </view>
+            <text class="op-add" @tap="goSelectOverallOperators">+ 添加</text>
+          </view>
+        </view>
+      </template>
 
       <view class="field-row date-row">
         <text class="field-label required">生产日期</text>
@@ -101,23 +136,11 @@
       </view>
     </view>
 
-    <!-- 卡片2：生产详情 -->
-    <view class="card">
+    <!-- 卡片2：生产详情（按工序登记时展示） -->
+    <view v-if="form.perProcessRegister" class="card">
       <view class="card-title">
         <text>生产详情</text>
         <text class="badge optional-badge">可选</text>
-      </view>
-
-      <view class="toggle-row">
-        <view class="toggle-info">
-          <text class="toggle-title">按工序指定人员</text>
-          <text class="toggle-hint">关闭：所有工序统一人员 · 打开：每道工序单独指定</text>
-        </view>
-        <switch
-          :checked="form.perProcessMode"
-          color="#07c160"
-          @change="onPerProcessToggle"
-        />
       </view>
 
       <view v-if="form.routeName" class="field-row">
@@ -203,6 +226,16 @@
                   >{{ item.name }}</view>
                 </view>
               </view>
+
+              <view class="field-row operator-picker-row" @tap="goSelectOperators(p.id)">
+                <text class="qty-label">操作人员（选填）</text>
+                <view class="operator-picker">
+                  <text :class="{ placeholder: !p.operators?.length }">
+                    {{ p.operators?.length ? p.operators.join('、') : '指定人员' }}
+                  </text>
+                  <text class="arrow">›</text>
+                </view>
+              </view>
             </template>
             <template v-else>
               <text class="proc-deleted-name">{{ p.name }}</text>
@@ -213,35 +246,21 @@
           <text class="add-process" @tap="openProcessSelect">+ 添加工序</text>
         </view>
       </view>
+    </view>
 
-      <!-- 操作人员：整体模式 -->
-      <view v-if="!form.perProcessMode" class="operator-section">
-        <text class="operator-title">操作人员（整体）</text>
-        <view class="operator-tags">
-          <view v-for="name in form.operators" :key="name" class="op-tag">
-            <text>{{ name }}</text>
-            <text class="op-x" @tap="removeOperator(name)">×</text>
-          </view>
-          <text class="op-add" @tap="goSelectOperators()">+ 添加</text>
-        </view>
-      </view>
-
-      <!-- 操作人员：按工序模式 -->
-      <view v-else class="operator-section">
-        <text class="operator-title">操作人员（按工序）</text>
-        <text class="operator-hint">每道工序可单独指定操作人员</text>
-        <view
-          v-for="p in activeProcesses"
-          :key="p.id"
-          class="proc-operator-row"
-          @tap="goSelectOperators(p.id)"
-        >
-          <text class="proc-op-name">{{ p.name }}</text>
-          <text class="proc-op-link">
-            {{ p.operators?.length ? p.operators.join('、') : '指定人员' }} ›
-          </text>
-        </view>
-      </view>
+    <!-- 按工序登记：数量汇总（生产详情与备注之间） -->
+    <view v-if="form.perProcessRegister" class="qty-summary-bar">
+      <text class="qty-summary-text">
+        良品
+        <text class="qty-good">{{ form.goodQty }}</text>
+        <text class="qty-sep">·</text>
+        不良
+        <text class="qty-defect">{{ form.defectQty }}</text>
+        <text class="qty-sep">·</text>
+        合计
+        <text class="qty-total">{{ totalReportQty }}</text>
+        件
+      </text>
     </view>
 
     <!-- 卡片3：备注 -->
@@ -325,7 +344,7 @@ const form = reactive({
   defectQty: 0,
   routeId: '',
   routeName: '',
-  perProcessMode: false,
+  perProcessRegister: true,
   processes: [],
   operators: [],
   remark: '',
@@ -337,10 +356,6 @@ const productDisplay = computed(() => {
     ? `${form.productName} · ${form.productCode}`
     : form.productName
 })
-
-const activeProcesses = computed(() =>
-  form.processes.filter((p) => !p.deleted),
-)
 
 const excludeProcessIds = computed(() =>
   form.processes
@@ -423,13 +438,19 @@ function loadFromRecord(row) {
   form.defectQty = row.defectQty || 0
   form.routeId = row.routeId || ''
   form.routeName = row.routeName || ''
-  form.perProcessMode = !!row.perProcessMode
+  form.perProcessRegister = row.perProcessRegister !== false
+  const legacyOperators = [...(row.operators || [])]
+  form.operators = form.perProcessRegister ? [] : [...legacyOperators]
   form.processes = row.processes.map((p) => ({
     ...p,
     id: p.id || `proc-${Date.now()}`,
     defectItemIds: [...(p.defectItemIds || [])],
+    operators: p.operators?.length
+      ? [...p.operators]
+      : form.perProcessRegister && legacyOperators.length
+        ? [...legacyOperators]
+        : [],
   }))
-  form.operators = [...(row.operators || [])]
   form.remark = row.remark || ''
 
   const today = formatReportDate()
@@ -461,11 +482,16 @@ function applyProduct(product) {
 function applyRoute(route) {
   form.routeId = route.id
   form.routeName = route.name
+  const lastOps = getLastOperators()
   form.processes = buildQuickReportProcessesFromRoute(route.name, {
     goodQty: form.goodQty,
     defectQty: form.defectQty,
     finishedQty: totalReportQty.value,
-  })
+  }).map((p) => ({
+    ...p,
+    operators: p.operators?.length ? p.operators : [...lastOps],
+  }))
+  if (form.perProcessRegister) syncFormQtyFromProcesses()
 }
 
 function onRouteChange(e) {
@@ -490,19 +516,53 @@ function onCustomDate(e) {
   form.reportDate = val
 }
 
+function normalizeFormQty() {
+  form.goodQty = Math.max(0, Number(form.goodQty) || 0)
+  form.defectQty = Math.max(0, Number(form.defectQty) || 0)
+}
+
 function changeFormQty(field, delta) {
   const key = field === 'good' ? 'goodQty' : 'defectQty'
   form[key] = Math.max(0, (Number(form[key]) || 0) + delta)
-  syncProcessQtyFromForm()
+  normalizeFormQty()
 }
 
 function syncProcessQtyFromForm() {
-  form.goodQty = Math.max(0, Number(form.goodQty) || 0)
-  form.defectQty = Math.max(0, Number(form.defectQty) || 0)
+  normalizeFormQty()
   const qtys = { goodQty: form.goodQty, defectQty: form.defectQty }
   form.processes.forEach((p) => {
     if (!p.deleted) Object.assign(p, resolveProcessQuantities(qtys))
   })
+}
+
+function syncFormQtyFromProcesses() {
+  const active = form.processes.filter((p) => !p.deleted)
+  if (!active.length) {
+    normalizeFormQty()
+    return
+  }
+  form.goodQty = Math.max(...active.map((p) => Number(p.goodQty) || 0), 0)
+  form.defectQty = Math.max(...active.map((p) => Number(p.defectQty) || 0), 0)
+}
+
+function onPerProcessRegisterToggle(e) {
+  const on = e.detail.value
+  form.perProcessRegister = on
+  if (on) {
+    if (!form.processes.length && form.routeName) {
+      const route = routeOptions.value.find((r) => r.id === form.routeId) || {
+        id: form.routeId,
+        name: form.routeName,
+      }
+      applyRoute(route)
+    } else if (form.processes.length) {
+      syncProcessQtyFromForm()
+    }
+    syncFormQtyFromProcesses()
+  } else {
+    syncFormQtyFromProcesses()
+    if (!form.operators.length) form.operators = [...getLastOperators()]
+  }
 }
 
 function changeProcessQty(record, field, delta) {
@@ -513,6 +573,7 @@ function changeProcessQty(record, field, delta) {
 
 function onProcessQtyBlur(record) {
   Object.assign(record, resolveProcessQuantities(record))
+  syncFormQtyFromProcesses()
 }
 
 function getDefectItemsForProcess(processName) {
@@ -526,16 +587,14 @@ function toggleProcessDefect(process, itemId) {
   else process.defectItemIds.push(itemId)
 }
 
-function onPerProcessToggle(e) {
-  form.perProcessMode = e.detail.value
-}
-
 function softDeleteProcess(index) {
   form.processes[index].deleted = true
+  syncFormQtyFromProcesses()
 }
 
 function undoDeleteProcess(index) {
   form.processes[index].deleted = false
+  syncFormQtyFromProcesses()
 }
 
 function openProcessSelect() {
@@ -565,25 +624,27 @@ function onProcessesSelected(rows) {
     })
   })
   processExpanded.value = true
+  syncFormQtyFromProcesses()
 }
 
 function goProductSearch() {
   uni.navigateTo({ url: '/pages/quick-report/product-search' })
 }
 
-function goSelectOperators(processId = '') {
-  let selected = []
-  if (processId) {
-    const proc = form.processes.find((p) => p.id === processId)
-    selected = proc?.operators || []
-  } else {
-    selected = form.operators
-  }
+function goSelectOperators(processId) {
+  const proc = form.processes.find((p) => p.id === processId)
+  const selected = proc?.operators || []
   const encoded = encodeURIComponent(JSON.stringify(selected))
-  const url = processId
-    ? `/pages/quick-report/personnel-select?processId=${processId}&selected=${encoded}`
-    : `/pages/quick-report/personnel-select?selected=${encoded}`
-  uni.navigateTo({ url })
+  uni.navigateTo({
+    url: `/pages/quick-report/personnel-select?processId=${processId}&selected=${encoded}`,
+  })
+}
+
+function goSelectOverallOperators() {
+  const encoded = encodeURIComponent(JSON.stringify(form.operators))
+  uni.navigateTo({
+    url: `/pages/quick-report/personnel-select?selected=${encoded}`,
+  })
 }
 
 function applyPersonnel({ processId, operators }) {
@@ -595,7 +656,7 @@ function applyPersonnel({ processId, operators }) {
   }
 }
 
-function removeOperator(name) {
+function removeOverallOperator(name) {
   const i = form.operators.indexOf(name)
   if (i >= 0) form.operators.splice(i, 1)
 }
@@ -606,7 +667,11 @@ function onCancel() {
 
 function onSubmit() {
   if (submitting.value) return
-  syncProcessQtyFromForm()
+  if (form.perProcessRegister) {
+    syncFormQtyFromProcesses()
+  } else {
+    normalizeFormQty()
+  }
 
   submitting.value = true
   const user = getUser()
@@ -620,9 +685,10 @@ function onSubmit() {
     defectQty: form.defectQty,
     routeId: form.routeId,
     routeName: form.routeName,
-    perProcessMode: form.perProcessMode,
-    processes: form.processes,
-    operators: form.operators,
+    perProcessRegister: form.perProcessRegister,
+    perProcessMode: form.perProcessRegister,
+    processes: form.perProcessRegister ? form.processes : [],
+    operators: form.perProcessRegister ? [] : form.operators,
     reporter: user?.displayName || '当前用户',
     remark: form.remark,
     sourceWorkOrderNo: sourceWorkOrderNo.value || undefined,
@@ -937,6 +1003,91 @@ $primary: #1677ff;
   line-height: 1.4;
 }
 
+.overall-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  margin-bottom: 24rpx;
+  padding: 20rpx;
+  background: #fff7e6;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+  color: #d46b08;
+  line-height: 1.5;
+}
+
+.warning-icon {
+  width: 32rpx;
+  height: 32rpx;
+  line-height: 32rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #ffa940;
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.qty-summary-bar {
+  margin-bottom: 20rpx;
+  padding: 20rpx 28rpx;
+  background: #fff;
+  border-radius: 20rpx;
+}
+
+.qty-summary-text {
+  font-size: 26rpx;
+  color: #595959;
+  line-height: 1.5;
+}
+
+.qty-good {
+  margin: 0 4rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #52c41a;
+}
+
+.qty-defect {
+  margin: 0 4rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #ff4d4f;
+}
+
+.qty-total {
+  margin: 0 4rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: $primary;
+}
+
+.qty-sep {
+  margin: 0 12rpx;
+  color: #d9d9d9;
+}
+
+.operator-picker-row {
+  margin-bottom: 0;
+}
+
+.operator-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 80rpx;
+  padding: 0 24rpx;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: #1a1a1a;
+}
+
+.operator-picker .placeholder {
+  color: #bfbfbf;
+}
+
 .route-picker {
   margin-top: 0;
 }
@@ -1052,33 +1203,11 @@ $primary: #1677ff;
   color: $primary;
 }
 
-.operator-section {
-  margin-top: 28rpx;
-  padding-top: 28rpx;
-  border-top: 1rpx solid #f0f0f0;
-}
-
-.operator-title {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.operator-hint {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #8c8c8c;
-  margin-bottom: 16rpx;
-}
-
-.operator-tags {
+.operator-field .operator-tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 16rpx;
-  margin-top: 16rpx;
 }
 
 .op-tag {
@@ -1099,29 +1228,6 @@ $primary: #1677ff;
 .op-add {
   font-size: 28rpx;
   color: $primary;
-}
-
-.proc-operator-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #f5f5f5;
-}
-
-.proc-op-name {
-  font-size: 28rpx;
-  color: #1a1a1a;
-}
-
-.proc-op-link {
-  font-size: 26rpx;
-  color: $primary;
-  max-width: 360rpx;
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .remark-area {
