@@ -1,4 +1,57 @@
 import { resolveDefaultExecutors } from './processConfig'
+import { getProcessDefectItems, getProcessReportMode } from '@/utils/iodomsStorage'
+import { breakdownToLegacy, syncDefectBreakdownOnQtyChange } from '@/utils/defectBreakdown'
+import {
+  createScheduledProcessQuantities,
+  resolveScheduleQty,
+} from '@/utils/processReportQuantities'
+import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+
+function defaultProcessTimes() {
+  const d = new Date()
+  const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return { startTime: t, endTime: t }
+}
+
+export function enrichQuickReportProcess(process = {}, qtys = {}) {
+  const quantities = resolveProcessQuantities({ ...process, ...qtys })
+  const reportMode = resolveReportMode(process.reportMode || getProcessReportMode(process.name))
+  const duration = isDurationReportMode(reportMode)
+  const times = defaultProcessTimes()
+  const items = getProcessDefectItems(process.name)
+  const defectQty = quantities.defectQty
+  let defectBreakdown = [...(process.defectBreakdown || [])]
+  if (defectQty > 0) {
+    defectBreakdown = syncDefectBreakdownOnQtyChange(
+      { defectQty, defectBreakdown },
+      items,
+    )
+  } else {
+    defectBreakdown = []
+  }
+  const legacy = breakdownToLegacy(defectBreakdown)
+  return {
+    id: process.id || `proc-${Date.now()}`,
+    name: process.name,
+    code: process.code || '',
+    processConfigId: process.processConfigId || '',
+    deleted: !!process.deleted,
+    manual: !!process.manual,
+    goodQty: quantities.goodQty,
+    defectQty: quantities.defectQty,
+    qty: quantities.qty,
+    reportMode,
+    workHours: duration ? Number(process.workHours) || 0 : null,
+    startTime: duration ? process.startTime || times.startTime : '',
+    endTime: duration ? process.endTime || times.endTime : '',
+    scheduleQty: process.scheduleQty ?? quantities.goodQty,
+    operators: process.operators || [],
+    defectBreakdown: legacy.defectBreakdown,
+    defectItemIds: legacy.defectItemIds,
+    defectItemNames: legacy.defectItemNames,
+    defectReasonLabel: legacy.defectReasonLabel,
+  }
+}
 
 const ROUTE_KEY = 'i_doms_process_routes'
 
@@ -70,19 +123,22 @@ function extractProcessNames(routeName) {
 }
 
 export function buildQuickReportProcessesFromRoute(routeName, qtys = {}) {
-  const quantities = resolveProcessQuantities(qtys)
-  return extractProcessNames(routeName).map((name, index) => ({
-    id: `proc-${index}-${Date.now()}`,
-    name,
-    code: '',
-    processConfigId: '',
-    goodQty: quantities.goodQty,
-    defectQty: quantities.defectQty,
-    qty: quantities.qty,
-    deleted: false,
-    manual: false,
-    operators: [...resolveDefaultExecutors({ name })],
-    defectItemIds: [],
-    defectItemNames: [],
-  }))
+  const scheduleQty = resolveScheduleQty(qtys)
+  const useScheduleDefault = qtys.useScheduleDefault !== false && scheduleQty > 0 && qtys.scheduleQty != null
+  const quantities = useScheduleDefault
+    ? createScheduledProcessQuantities(scheduleQty)
+    : resolveProcessQuantities(qtys)
+  return extractProcessNames(routeName).map((name, index) =>
+    enrichQuickReportProcess(
+      {
+        id: `proc-${index}-${Date.now()}`,
+        name,
+        deleted: false,
+        manual: false,
+        scheduleQty: useScheduleDefault ? scheduleQty : quantities.goodQty,
+        operators: resolveDefaultExecutors({ name }).slice(0, 1),
+      },
+      quantities,
+    ),
+  )
 }

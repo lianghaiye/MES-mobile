@@ -112,6 +112,8 @@
         </view>
         <text class="rc-meta">{{ r.workOrderNo ? r.workOrderNo + ' · ' : '' }}{{ r.timeLabel }}</text>
         <view class="rc-metrics">
+          <text>报工方式: {{ displayReportSource(r.source) }}</text>
+          <text v-if="r.source === 'workorder' && r.operator">操作人: {{ r.operator }}</text>
           <template v-if="isDurationReportMode(r.reportMode)">
             <text>时长: {{ r.workHours }}h</text>
           </template>
@@ -142,7 +144,8 @@ import {
   getRecordStats,
 } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
-import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+import { isDurationReportMode, resolveReportMode, displayReportSource } from '@/utils/reportMode'
+import { getQuickProductByCode } from '@/mock/processReportProducts'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -230,13 +233,16 @@ function goWorkReport(task) {
     productCode: task.productCode,
     targetQty: task.targetQty,
     reportMode: task.reportMode || getProcessReportMode(task.processName),
+    groupName: task.groupName || '',
   })
   uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
 }
 
 function goQuickFromFreq(f) {
+  const product = getQuickProductByCode(f.productCode)
   const q = buildExecuteQuery({
     source: 'quick',
+    productId: product?.id || '',
     processName: f.processName,
     productName: f.productName,
     productCode: f.productCode,
@@ -597,7 +603,8 @@ $primary: #1677ff;
 
 .rc-metrics {
   display: flex;
-  gap: 24rpx;
+  flex-wrap: wrap;
+  gap: 16rpx 24rpx;
   font-size: 26rpx;
   color: #595959;
 }

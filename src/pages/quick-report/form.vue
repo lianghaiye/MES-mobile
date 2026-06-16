@@ -83,11 +83,19 @@
               v-model.number="form.defectQty"
               class="step-val"
               type="digit"
-              @blur="normalizeFormQty"
+              @focus="onOverallDefectQtyFocus"
+              @blur="onOverallDefectQtyBlur"
             />
             <view class="step-btn primary" @tap="changeFormQty('defect', 1)">+</view>
           </view>
         </view>
+
+        <DefectBreakdownField
+          :defect-qty="Number(form.defectQty) || 0"
+          :items="overallDefectItems"
+          :model-value="form.defectBreakdown || []"
+          @update:model-value="onOverallDefectBreakdownChange"
+        />
 
         <view class="qty-total-row">
           <text class="qty-total-label">合计完工</text>
@@ -181,57 +189,126 @@
               <view class="proc-header">
                 <view class="proc-left">
                   <view class="status-dot" />
-                  <text class="proc-name">{{ p.name }}</text>
+                  <view class="proc-title-wrap">
+                    <text class="proc-name">{{ p.name }}</text>
+                    <text
+                      class="proc-mode-tag"
+                      :class="{ duration: isDurationReportMode(p.reportMode) }"
+                    >{{ displayReportMode(p.reportMode) }}</text>
+                  </view>
                 </view>
                 <text class="proc-del" @tap="softDeleteProcess(i)">×</text>
               </view>
 
-              <view class="qty-field">
-                <text class="qty-label required">良品数量</text>
-                <view class="stepper">
-                  <view class="step-btn" @tap="changeProcessQty(p, 'good', -1)">−</view>
-                  <input
-                    v-model.number="p.goodQty"
-                    class="step-val"
-                    type="digit"
-                    @blur="onProcessQtyBlur(p)"
-                  />
-                  <view class="step-btn primary" @tap="changeProcessQty(p, 'good', 1)">+</view>
+              <!-- 批量计件 -->
+              <template v-if="!isDurationReportMode(p.reportMode)">
+                <view class="qty-field">
+                  <text class="qty-label required">良品数量</text>
+                  <view class="stepper">
+                    <view class="step-btn" @tap="changeProcessQty(p, 'good', -1)">−</view>
+                    <input
+                      v-model.number="p.goodQty"
+                      class="step-val"
+                      type="digit"
+                      @focus="onProcessQtyFocus(p)"
+                      @blur="onProcessQtyBlur(p, 'good')"
+                    />
+                    <view class="step-btn primary" @tap="changeProcessQty(p, 'good', 1)">+</view>
+                  </view>
                 </view>
-              </view>
 
-              <view class="qty-field">
-                <text class="qty-label">不良品数量</text>
-                <view class="stepper">
-                  <view class="step-btn" @tap="changeProcessQty(p, 'defect', -1)">−</view>
-                  <input
-                    v-model.number="p.defectQty"
-                    class="step-val"
-                    type="digit"
-                    @blur="onProcessQtyBlur(p)"
-                  />
-                  <view class="step-btn primary" @tap="changeProcessQty(p, 'defect', 1)">+</view>
+                <view class="qty-field">
+                  <text class="qty-label">不良品数量</text>
+                  <view class="stepper">
+                    <view class="step-btn" @tap="changeProcessQty(p, 'defect', -1)">−</view>
+                    <input
+                      v-model.number="p.defectQty"
+                      class="step-val"
+                      type="digit"
+                      @focus="onProcessQtyFocus(p)"
+                      @blur="onProcessQtyBlur(p, 'defect')"
+                    />
+                    <view class="step-btn primary" @tap="changeProcessQty(p, 'defect', 1)">+</view>
+                  </view>
                 </view>
-              </view>
 
-              <view v-if="getDefectItemsForProcess(p.name).length" class="qty-field">
-                <text class="qty-label">不良原因（选填）</text>
-                <view class="defect-chips">
-                  <view
-                    v-for="item in getDefectItemsForProcess(p.name)"
-                    :key="item.id"
-                    class="defect-chip"
-                    :class="{ active: (p.defectItemIds || []).includes(item.id) }"
-                    @tap="toggleProcessDefect(p, item.id)"
-                  >{{ item.name }}</view>
+                <DefectBreakdownField
+                  :defect-qty="Number(p.defectQty) || 0"
+                  :items="getDefectItemsForProcess(p.name)"
+                  :model-value="p.defectBreakdown || []"
+                  @update:model-value="onDefectBreakdownChange(p, $event)"
+                />
+              </template>
+
+              <!-- 时长报工 -->
+              <template v-else>
+                <view class="qty-field">
+                  <text class="qty-label required">工作时长（小时）</text>
+                  <view class="stepper">
+                    <view class="step-btn" @tap="changeProcessHours(p, -0.5)">−</view>
+                    <input v-model="p.workHours" class="step-val" type="digit" />
+                    <view class="step-btn primary" @tap="changeProcessHours(p, 0.5)">+</view>
+                  </view>
                 </view>
-              </view>
+
+                <view class="qty-field">
+                  <text class="qty-label required">良品数量</text>
+                  <view class="stepper">
+                    <view class="step-btn" @tap="changeProcessQty(p, 'good', -1)">−</view>
+                    <input
+                      v-model.number="p.goodQty"
+                      class="step-val"
+                      type="digit"
+                      @focus="onProcessQtyFocus(p)"
+                      @blur="onProcessQtyBlur(p, 'good')"
+                    />
+                    <view class="step-btn primary" @tap="changeProcessQty(p, 'good', 1)">+</view>
+                  </view>
+                </view>
+
+                <view class="qty-field">
+                  <text class="qty-label">不良品数量</text>
+                  <view class="stepper">
+                    <view class="step-btn" @tap="changeProcessQty(p, 'defect', -1)">−</view>
+                    <input
+                      v-model.number="p.defectQty"
+                      class="step-val"
+                      type="digit"
+                      @focus="onProcessQtyFocus(p)"
+                      @blur="onProcessQtyBlur(p, 'defect')"
+                    />
+                    <view class="step-btn primary" @tap="changeProcessQty(p, 'defect', 1)">+</view>
+                  </view>
+                </view>
+
+                <DefectBreakdownField
+                  :defect-qty="Number(p.defectQty) || 0"
+                  :items="getDefectItemsForProcess(p.name)"
+                  :model-value="p.defectBreakdown || []"
+                  @update:model-value="onDefectBreakdownChange(p, $event)"
+                />
+
+                <view class="time-row">
+                  <view class="time-col">
+                    <text class="qty-label">开始时间</text>
+                    <picker mode="time" :value="p.startTime" @change="onProcessStartChange(p, $event)">
+                      <view class="time-box">{{ p.startTime || '选择时间' }}</view>
+                    </picker>
+                  </view>
+                  <view class="time-col">
+                    <text class="qty-label">结束时间</text>
+                    <picker mode="time" :value="p.endTime" @change="onProcessEndChange(p, $event)">
+                      <view class="time-box">{{ p.endTime || '选择时间' }}</view>
+                    </picker>
+                  </view>
+                </view>
+              </template>
 
               <view class="field-row operator-picker-row" @tap="goSelectOperators(p.id)">
                 <text class="qty-label">操作人员（选填）</text>
                 <view class="operator-picker">
                   <text :class="{ placeholder: !p.operators?.length }">
-                    {{ p.operators?.length ? p.operators.join('、') : '指定人员' }}
+                    {{ p.operators?.length ? p.operators[0] : '指定人员' }}
                   </text>
                   <text class="arrow">›</text>
                 </view>
@@ -303,11 +380,13 @@ import { ref, reactive, computed } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import SubmitSuccessModal from '@/components/quick-report/SubmitSuccessModal.vue'
 import ProcessSelectModal from '@/components/quick-report/ProcessSelectModal.vue'
+import DefectBreakdownField from '@/components/quick-report/DefectBreakdownField.vue'
 import { resolveDefaultExecutors } from '@/mock/processConfig'
 import { getProductMaterialById } from '@/mock/productMaterialInfo'
 import { getProductByCode, getProductById } from '@/mock/quickReportProducts'
 import {
   buildQuickReportProcessesFromRoute,
+  enrichQuickReportProcess,
   getActiveRouteNames,
   resolveProcessQuantities,
 } from '@/mock/quickReportProcess'
@@ -320,7 +399,27 @@ import {
 } from '@/mock/quickReport'
 import { consumeSelectionResult } from '@/utils/selection'
 import { getUser } from '@/utils/auth'
-import { getProcessDefectItems } from '@/utils/iodomsStorage'
+import { getProcessReportMode } from '@/utils/iodomsStorage'
+import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+import {
+  breakdownToLegacy,
+  ensureDefectBreakdown,
+  getProcessDefectItemsForForm,
+  resolveOverallDefectItems,
+  syncDefectBreakdownOnQtyChange,
+} from '@/utils/defectBreakdown'
+import {
+  applyLinkedProcessQtyChange,
+  applyLinkedProcessQtyStep,
+  applyLinkedSingleQtyChange,
+  applyLinkedSingleQtyFromDefect,
+  createScheduledProcessQuantities,
+  snapshotProcessQty,
+} from '@/utils/processReportQuantities'
+
+function displayReportMode(mode) {
+  return resolveReportMode(mode)
+}
 
 const submitting = ref(false)
 const editId = ref('')
@@ -347,6 +446,10 @@ const form = reactive({
   perProcessRegister: true,
   processes: [],
   operators: [],
+  defectBreakdown: [],
+  defectItemIds: [],
+  defectItemNames: [],
+  defectReasonLabel: '',
   remark: '',
 })
 
@@ -384,11 +487,37 @@ const totalReportQty = computed(
 
 const fromWorkOrder = computed(() => !!sourceWorkOrderNo.value)
 
+const useLinkedProcessQty = computed(
+  () => fromWorkOrder.value && form.perProcessRegister,
+)
+
+const useLinkedOverallQty = computed(
+  () => fromWorkOrder.value && !form.perProcessRegister,
+)
+
+const overallQtySnapshot = reactive({ goodQty: 0, defectQty: 0 })
+
+const overallDefectItems = computed(() => {
+  const names = form.processes.filter((p) => !p.deleted).map((p) => p.name)
+  if (names.length) return resolveOverallDefectItems(names)
+  if (form.routeName) {
+    const procs = buildQuickReportProcessesFromRoute(form.routeName, {})
+    return resolveOverallDefectItems(procs.map((p) => p.name))
+  }
+  return resolveOverallDefectItems([])
+})
+
 onLoad((query) => {
   if (!query.id) {
-    form.operators = [...getLastOperators()]
     if (query.workOrderNo) {
       sourceWorkOrderNo.value = decodeURIComponent(query.workOrderNo)
+      form.operators = [...getLastOperators()]
+    } else {
+      form.operators = [...getLastOperators()]
+    }
+    if (query.targetQty) {
+      const qty = Number(query.targetQty)
+      if (qty > 0) planQty.value = qty
     }
     if (query.productId) {
       const product =
@@ -397,11 +526,10 @@ onLoad((query) => {
     } else if (query.productCode) {
       const product = getProductByCode(decodeURIComponent(query.productCode))
       if (product) applyProduct(product)
+    } else if (planQty.value && form.routeName && useLinkedProcessQty.value) {
+      applyRoute({ id: form.routeId, name: form.routeName })
     }
-    if (query.targetQty) {
-      const qty = Number(query.targetQty)
-      if (qty > 0) planQty.value = qty
-    }
+    initOverallScheduleDefault()
     return
   }
   editId.value = query.id
@@ -440,17 +568,38 @@ function loadFromRecord(row) {
   form.routeName = row.routeName || ''
   form.perProcessRegister = row.perProcessRegister !== false
   const legacyOperators = [...(row.operators || [])]
-  form.operators = form.perProcessRegister ? [] : [...legacyOperators]
-  form.processes = row.processes.map((p) => ({
-    ...p,
-    id: p.id || `proc-${Date.now()}`,
-    defectItemIds: [...(p.defectItemIds || [])],
-    operators: p.operators?.length
-      ? [...p.operators]
-      : form.perProcessRegister && legacyOperators.length
-        ? [...legacyOperators]
-        : [],
-  }))
+  const isWoRecord = !!row.workOrderNo && !String(row.workOrderNo).startsWith('QK-')
+  if (isWoRecord) sourceWorkOrderNo.value = row.workOrderNo
+  if (form.perProcessRegister) {
+    form.operators = []
+  } else if (isWoRecord || sourceWorkOrderNo.value) {
+    form.operators = [...legacyOperators]
+  } else {
+    form.operators = [...legacyOperators]
+  }
+  if (!form.perProcessRegister && row.defectBreakdown?.length) {
+    form.defectBreakdown = [...row.defectBreakdown]
+    applyOverallDefectLegacy()
+  } else {
+    form.defectBreakdown = []
+    form.defectItemIds = []
+    form.defectItemNames = []
+    form.defectReasonLabel = ''
+  }
+  form.processes = row.processes.map((p) => {
+    const items = getProcessDefectItemsForForm(p.name)
+    const defectBreakdown = ensureDefectBreakdown(p, items)
+    return enrichQuickReportProcess({
+      ...p,
+      ...breakdownToLegacy(defectBreakdown),
+      id: p.id || `proc-${Date.now()}`,
+      operators: p.operators?.length
+        ? [p.operators[0]]
+        : form.perProcessRegister && legacyOperators.length
+          ? [legacyOperators[0]]
+          : [],
+    })
+  })
   form.remark = row.remark || ''
 
   const today = formatReportDate()
@@ -479,18 +628,29 @@ function applyProduct(product) {
   if (route) applyRoute(route)
 }
 
+function buildRouteQtyOptions() {
+  if (useLinkedProcessQty.value && planQty.value > 0) {
+    return { scheduleQty: planQty.value, useScheduleDefault: true }
+  }
+  return {
+    goodQty: form.goodQty,
+    defectQty: form.defectQty,
+    finishedQty: totalReportQty.value,
+    useScheduleDefault: false,
+  }
+}
+
 function applyRoute(route) {
   form.routeId = route.id
   form.routeName = route.name
   const lastOps = getLastOperators()
-  form.processes = buildQuickReportProcessesFromRoute(route.name, {
-    goodQty: form.goodQty,
-    defectQty: form.defectQty,
-    finishedQty: totalReportQty.value,
-  }).map((p) => ({
-    ...p,
-    operators: p.operators?.length ? p.operators : [...lastOps],
-  }))
+  form.processes = buildQuickReportProcessesFromRoute(route.name, buildRouteQtyOptions()).map(
+    (p) =>
+      enrichQuickReportProcess({
+        ...p,
+        operators: p.operators?.length ? [p.operators[0]] : lastOps.length ? [lastOps[0]] : [],
+      }),
+  )
   if (form.perProcessRegister) syncFormQtyFromProcesses()
 }
 
@@ -516,22 +676,84 @@ function onCustomDate(e) {
   form.reportDate = val
 }
 
+function initOverallScheduleDefault() {
+  if (!fromWorkOrder.value || form.perProcessRegister || editId.value) return
+  if (planQty.value > 0) {
+    form.goodQty = planQty.value
+    form.defectQty = 0
+    refreshOverallQtySnapshot()
+  }
+}
+
 function normalizeFormQty() {
   form.goodQty = Math.max(0, Number(form.goodQty) || 0)
   form.defectQty = Math.max(0, Number(form.defectQty) || 0)
 }
 
+function onOverallDefectQtyFocus() {
+  if (!useLinkedOverallQty.value) return
+  refreshOverallQtySnapshot()
+}
+
+function refreshOverallQtySnapshot() {
+  overallQtySnapshot.goodQty = Math.max(0, Number(form.goodQty) || 0)
+  overallQtySnapshot.defectQty = Math.max(0, Number(form.defectQty) || 0)
+}
+
+function syncOverallDefectBreakdown() {
+  if (form.perProcessRegister) return
+  const items = overallDefectItems.value
+  if (Number(form.defectQty) <= 0) {
+    form.defectBreakdown = []
+  } else {
+    form.defectBreakdown = syncDefectBreakdownOnQtyChange(
+      { defectQty: form.defectQty, defectBreakdown: form.defectBreakdown },
+      items,
+    )
+  }
+  applyOverallDefectLegacy()
+}
+
 function changeFormQty(field, delta) {
+  if (useLinkedOverallQty.value) {
+    applyLinkedSingleQtyChange(form, field, delta)
+    refreshOverallQtySnapshot()
+    if (field === 'defect') syncOverallDefectBreakdown()
+    return
+  }
   const key = field === 'good' ? 'goodQty' : 'defectQty'
   form[key] = Math.max(0, (Number(form[key]) || 0) + delta)
   normalizeFormQty()
+  if (field === 'defect') syncOverallDefectBreakdown()
+}
+
+function onOverallDefectQtyBlur() {
+  if (useLinkedOverallQty.value) {
+    applyLinkedSingleQtyFromDefect(form, overallQtySnapshot)
+    refreshOverallQtySnapshot()
+  } else {
+    normalizeFormQty()
+  }
+  syncOverallDefectBreakdown()
+}
+
+function onOverallDefectBreakdownChange(breakdown) {
+  form.defectBreakdown = breakdown
+  applyOverallDefectLegacy()
+}
+
+function applyOverallDefectLegacy() {
+  Object.assign(form, breakdownToLegacy(form.defectBreakdown || []))
 }
 
 function syncProcessQtyFromForm() {
   normalizeFormQty()
   const qtys = { goodQty: form.goodQty, defectQty: form.defectQty }
   form.processes.forEach((p) => {
-    if (!p.deleted) Object.assign(p, resolveProcessQuantities(qtys))
+    if (!p.deleted) {
+      Object.assign(p, resolveProcessQuantities(qtys))
+      onProcessQtyBlur(p)
+    }
   })
 }
 
@@ -561,30 +783,57 @@ function onPerProcessRegisterToggle(e) {
     syncFormQtyFromProcesses()
   } else {
     syncFormQtyFromProcesses()
-    if (!form.operators.length) form.operators = [...getLastOperators()]
+    if (!form.operators.length) {
+      form.operators = [...getLastOperators()]
+    }
+    initOverallScheduleDefault()
+    if (fromWorkOrder.value) onOverallDefectQtyBlur()
   }
 }
 
 function changeProcessQty(record, field, delta) {
+  if (useLinkedProcessQty.value) {
+    applyLinkedProcessQtyStep(record, field, delta)
+    onProcessQtyBlur(record, field)
+    return
+  }
   const key = field === 'good' ? 'goodQty' : 'defectQty'
   record[key] = Math.max(0, (Number(record[key]) || 0) + delta)
   onProcessQtyBlur(record)
 }
 
-function onProcessQtyBlur(record) {
-  Object.assign(record, resolveProcessQuantities(record))
+function onProcessQtyFocus(record) {
+  if (useLinkedProcessQty.value) snapshotProcessQty(record)
+}
+
+function onProcessQtyBlur(record, changedField) {
+  if (useLinkedProcessQty.value) {
+    applyLinkedProcessQtyChange(record, changedField || 'good', record._qtySnapshot)
+  } else {
+    Object.assign(record, resolveProcessQuantities(record))
+  }
+  const items = getDefectItemsForProcess(record.name)
+  if (Number(record.defectQty) <= 0) {
+    record.defectBreakdown = []
+    applyDefectLegacy(record)
+  } else {
+    record.defectBreakdown = syncDefectBreakdownOnQtyChange(record, items)
+    applyDefectLegacy(record)
+  }
   syncFormQtyFromProcesses()
 }
 
-function getDefectItemsForProcess(processName) {
-  return getProcessDefectItems(processName)
+function onDefectBreakdownChange(process, breakdown) {
+  process.defectBreakdown = breakdown
+  applyDefectLegacy(process)
 }
 
-function toggleProcessDefect(process, itemId) {
-  if (!process.defectItemIds) process.defectItemIds = []
-  const i = process.defectItemIds.indexOf(itemId)
-  if (i >= 0) process.defectItemIds.splice(i, 1)
-  else process.defectItemIds.push(itemId)
+function applyDefectLegacy(process) {
+  Object.assign(process, breakdownToLegacy(process.defectBreakdown || []))
+}
+
+function getDefectItemsForProcess(processName) {
+  return getProcessDefectItemsForForm(processName)
 }
 
 function softDeleteProcess(index) {
@@ -601,27 +850,46 @@ function openProcessSelect() {
   processSelectVisible.value = true
 }
 
+function changeProcessHours(record, delta) {
+  record.workHours = Math.max(0, (Number(record.workHours) || 0) + delta)
+}
+
+function onProcessStartChange(record, e) {
+  record.startTime = e.detail?.value || record.startTime
+}
+
+function onProcessEndChange(record, e) {
+  record.endTime = e.detail?.value || record.endTime
+}
+
 function onProcessesSelected(rows) {
-  const qtys = resolveProcessQuantities({
-    goodQty: form.goodQty,
-    defectQty: form.defectQty,
-    finishedQty: totalReportQty.value,
-  })
+  const qtys =
+    useLinkedProcessQty.value && planQty.value > 0
+      ? createScheduledProcessQuantities(planQty.value)
+      : resolveProcessQuantities({
+          goodQty: form.goodQty,
+          defectQty: form.defectQty,
+          finishedQty: totalReportQty.value,
+        })
   rows.forEach((proc) => {
-    form.processes.push({
-      id: `cfg-${proc.id}-${Date.now()}`,
-      processConfigId: proc.id,
-      name: proc.name,
-      code: proc.code,
-      goodQty: qtys.goodQty,
-      defectQty: qtys.defectQty,
-      qty: qtys.qty,
-      deleted: false,
-      manual: true,
-      operators: [...resolveDefaultExecutors(proc)],
-      defectItemIds: [],
-      defectItemNames: [],
-    })
+    form.processes.push(
+      enrichQuickReportProcess(
+        {
+          id: `cfg-${proc.id}-${Date.now()}`,
+          processConfigId: proc.id,
+          name: proc.name,
+          code: proc.code,
+          reportMode: proc.reportMode || getProcessReportMode(proc.name),
+          deleted: false,
+          manual: true,
+          operators: resolveDefaultExecutors(proc).slice(0, 1),
+          defectBreakdown: [],
+          defectItemIds: [],
+          defectItemNames: [],
+        },
+        qtys,
+      ),
+    )
   })
   processExpanded.value = true
   syncFormQtyFromProcesses()
@@ -633,15 +901,16 @@ function goProductSearch() {
 
 function goSelectOperators(processId) {
   const proc = form.processes.find((p) => p.id === processId)
-  const selected = proc?.operators || []
+  const selected = proc?.operators?.length ? [proc.operators[0]] : []
   const encoded = encodeURIComponent(JSON.stringify(selected))
   uni.navigateTo({
-    url: `/pages/quick-report/personnel-select?processId=${processId}&selected=${encoded}`,
+    url: `/pages/quick-report/personnel-select?processId=${processId}&mode=single&selected=${encoded}`,
   })
 }
 
 function goSelectOverallOperators() {
-  const encoded = encodeURIComponent(JSON.stringify(form.operators))
+  const selected = [...(form.operators || [])]
+  const encoded = encodeURIComponent(JSON.stringify(selected))
   uni.navigateTo({
     url: `/pages/quick-report/personnel-select?selected=${encoded}`,
   })
@@ -650,8 +919,10 @@ function goSelectOverallOperators() {
 function applyPersonnel({ processId, operators }) {
   if (processId) {
     const proc = form.processes.find((p) => p.id === processId)
-    if (proc) proc.operators = [...operators]
-  } else {
+    if (proc) proc.operators = operators.length ? [operators[0]] : []
+    return
+  }
+  if (!form.perProcessRegister) {
     form.operators = [...operators]
   }
 }
@@ -671,6 +942,8 @@ function onSubmit() {
     syncFormQtyFromProcesses()
   } else {
     normalizeFormQty()
+    if (useLinkedOverallQty.value) onOverallDefectQtyBlur()
+    else syncOverallDefectBreakdown()
   }
 
   submitting.value = true
@@ -683,6 +956,10 @@ function onSubmit() {
     reportDate: form.reportDate,
     goodQty: form.goodQty,
     defectQty: form.defectQty,
+    defectBreakdown: form.perProcessRegister ? [] : form.defectBreakdown,
+    defectItemIds: form.perProcessRegister ? [] : form.defectItemIds,
+    defectItemNames: form.perProcessRegister ? [] : form.defectItemNames,
+    defectReasonLabel: form.perProcessRegister ? '' : form.defectReasonLabel,
     routeId: form.routeId,
     routeName: form.routeName,
     perProcessRegister: form.perProcessRegister,
@@ -1166,7 +1443,47 @@ $primary: #1677ff;
   flex-shrink: 0;
 }
 
+.proc-title-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
 .proc-name {
+  font-size: 28rpx;
+  color: #1a1a1a;
+}
+
+.proc-mode-tag {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  background: #f6ffed;
+  color: #52c41a;
+  border-radius: 8rpx;
+}
+
+.proc-mode-tag.duration {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.time-row {
+  display: flex;
+  gap: 24rpx;
+  margin-bottom: 28rpx;
+}
+
+.time-col {
+  flex: 1;
+}
+
+.time-box {
+  margin-top: 12rpx;
+  padding: 20rpx;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  text-align: center;
   font-size: 28rpx;
   color: #1a1a1a;
 }

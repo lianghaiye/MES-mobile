@@ -1,6 +1,6 @@
 <template>
-  <view class="select-page">
-    <view class="filter-section">
+  <view class="select-page" :class="{ single: singleMode }">
+    <view v-if="!groupScope" class="filter-section">
       <text class="filter-label">加工中心</text>
       <scroll-view scroll-x class="center-scroll" :show-scrollbar="false">
         <view class="center-row">
@@ -24,7 +24,12 @@
       </scroll-view>
     </view>
 
-    <view class="search-bar">
+    <view v-if="groupScope" class="group-hint">
+      <text class="group-hint-label">工人小组</text>
+      <text class="group-hint-name">{{ groupName }}</text>
+    </view>
+
+    <view class="search-bar" v-if="!groupScope">
       <input
         v-model="keyword"
         class="search-input"
@@ -34,11 +39,11 @@
     </view>
 
     <view class="selected-bar" v-if="selected.length">
-      <text class="selected-label">已选 {{ selected.length }} 人</text>
+      <text class="selected-label">{{ singleMode ? '已选人员' : `已选 ${selected.length} 人` }}</text>
       <view class="tags">
         <view v-for="name in selected" :key="name" class="tag">
           <text>{{ name }}</text>
-          <text class="tag-x" @tap.stop="toggle(name)">×</text>
+          <text v-if="!singleMode" class="tag-x" @tap.stop="toggle(name)">×</text>
         </view>
       </view>
     </view>
@@ -67,6 +72,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getWorkCenterOptions, searchPersonnel } from '@/mock/personnel'
+import { getGroupWorkers } from '@/mock/employeeGroups'
 import { setSelectionResult } from '@/utils/selection'
 
 const keyword = ref('')
@@ -75,19 +81,44 @@ const workCenters = ref(getWorkCenterOptions())
 const results = ref(searchPersonnel())
 const selected = ref([])
 const processId = ref('')
+const singleMode = ref(false)
+const groupScope = ref(false)
+const groupName = ref('')
+const selectionType = ref('personnel')
 
 onLoad((query) => {
   processId.value = query.processId || ''
+  singleMode.value = query.mode === 'single'
+  groupScope.value = query.scope === 'group'
+  groupName.value = query.groupName ? decodeURIComponent(query.groupName) : ''
+  selectionType.value = query.selectionType || 'personnel'
   if (query.selected) {
     try {
-      selected.value = JSON.parse(decodeURIComponent(query.selected))
+      const parsed = JSON.parse(decodeURIComponent(query.selected))
+      selected.value = singleMode.value ? parsed.slice(0, 1) : parsed
     } catch {
-      selected.value = query.selected.split(',').filter(Boolean)
+      const parsed = query.selected.split(',').filter(Boolean)
+      selected.value = singleMode.value ? parsed.slice(0, 1) : parsed
     }
   }
+  refreshList()
 })
 
 function refreshList() {
+  if (groupScope.value) {
+    const kw = keyword.value.trim().toLowerCase()
+    let list = getGroupWorkers(groupName.value)
+    if (kw) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(kw) ||
+          p.dept.toLowerCase().includes(kw) ||
+          p.workCenter.toLowerCase().includes(kw),
+      )
+    }
+    results.value = list
+    return
+  }
   results.value = searchPersonnel(keyword.value, activeWorkCenter.value)
 }
 
@@ -101,12 +132,23 @@ function setWorkCenter(center) {
 }
 
 function toggle(name) {
+  if (singleMode.value) {
+    selected.value = selected.value[0] === name ? [] : [name]
+    return
+  }
   const i = selected.value.indexOf(name)
   if (i >= 0) selected.value.splice(i, 1)
   else selected.value.push(name)
 }
 
 function onConfirm() {
+  if (selectionType.value === 'processOperator') {
+    setSelectionResult('processOperator', {
+      operator: selected.value[0] || '',
+    })
+    uni.navigateBack()
+    return
+  }
   setSelectionResult('personnel', {
     processId: processId.value,
     operators: [...selected.value],
@@ -130,6 +172,27 @@ $primary: #1677ff;
   padding: 20rpx;
   background: #fff;
   border-radius: 12rpx;
+}
+
+.group-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+  padding: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 12rpx;
+}
+
+.group-hint-label {
+  font-size: 26rpx;
+  color: #8c8c8c;
+}
+
+.group-hint-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1a1a;
 }
 
 .filter-label {
@@ -232,9 +295,18 @@ $primary: #1677ff;
   color: $primary;
 }
 
+.select-page.single .check {
+  border-radius: 50%;
+}
+
 .item.active .check {
   border-color: $primary;
   background: #e6f4ff;
+}
+
+.select-page.single .item.active .check {
+  background: $primary;
+  color: #fff;
 }
 
 .name {

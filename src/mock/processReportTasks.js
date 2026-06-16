@@ -66,6 +66,7 @@ function enrichTask(task, user) {
     workOrderNo: task.workOrderCode,
     productCode: task.itemCode || task.productCode || '',
     targetQty: task.expectedQty ?? task.targetQty ?? 0,
+    groupName: task.groupName || '',
     reportMode,
     status,
     lockReason: task.serialLocked ? '等待前序工序' : '',

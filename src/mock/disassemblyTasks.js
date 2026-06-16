@@ -200,6 +200,7 @@ const seedTasks = [
     barcodeType: '一批一码',
     processRoute: '标准焊接工艺 v2',
     executor: '张三',
+    groupName: '焊接小组',
     expectedQty: 25,
     taskStatus: '待开始',
     placement: 'todo',
@@ -221,6 +222,7 @@ const seedTasks = [
     barcodeType: '一批一码',
     processRoute: '标准焊接工艺 v2',
     executor: '张三',
+    groupName: '焊接小组',
     expectedQty: 25,
     taskStatus: '待开始',
     placement: 'todo',
@@ -242,6 +244,7 @@ const seedTasks = [
     barcodeType: '一批一码',
     processRoute: '标准焊接工艺 v2',
     executor: '张三',
+    groupName: '加工小组',
     expectedQty: 25,
     taskStatus: '待开始',
     placement: 'todo',
@@ -263,6 +266,7 @@ const seedTasks = [
     barcodeType: '一批一码',
     processRoute: '车铣加工路线',
     executor: '张三',
+    groupName: '加工小组',
     expectedQty: 15,
     taskStatus: '执行中',
     placement: 'todo',
@@ -287,6 +291,7 @@ const seedTasks = [
     barcodeType: '一批一码',
     processRoute: '车铣加工路线',
     executor: '张三',
+    groupName: '加工小组',
     expectedQty: 15,
     taskStatus: '待开始',
     placement: 'todo',
@@ -308,6 +313,7 @@ const seedTasks = [
     barcodeType: '一批一码',
     processRoute: '铸造加工路线',
     executor: '张三',
+    groupName: '加工小组',
     expectedQty: 12,
     taskStatus: '待开始',
     placement: 'todo',
@@ -363,7 +369,7 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '3'
+const TASK_SEED_VERSION = '4'
 
 function buildSeedTasks() {
   const today = formatTaskDate()

@@ -9,9 +9,17 @@
         <text class="label">工单号</text>
         <text class="val">{{ record.workOrderNo }}</text>
       </view>
+      <view v-if="record.source === 'workorder' && record.operator" class="row">
+        <text class="label">操作人</text>
+        <text class="val">{{ record.operator }}</text>
+      </view>
       <view class="row">
         <text class="label">报工时间</text>
         <text class="val">{{ record.timeLabel }}</text>
+      </view>
+      <view class="row">
+        <text class="label">报工方式</text>
+        <text class="val">{{ displayReportSource(record.source) }}</text>
       </view>
       <view class="row">
         <text class="label">报工类型</text>
@@ -26,9 +34,9 @@
           <text class="label">不良品数</text>
           <text class="val defect">{{ record.defectQty }} 件</text>
         </view>
-        <view v-if="record.defectItemNames?.length" class="row">
+        <view v-if="record.defectReasonLabel || record.defectItemNames?.length" class="row">
           <text class="label">不良原因</text>
-          <text class="val">{{ record.defectItemNames.join('、') }}</text>
+          <text class="val">{{ record.defectReasonLabel || record.defectItemNames.join('、') }}</text>
         </view>
       </template>
       <template v-else>
@@ -44,9 +52,9 @@
           <text class="label">不良品数</text>
           <text class="val defect">{{ record.defectQty }} 件</text>
         </view>
-        <view v-if="record.defectItemNames?.length" class="row">
+        <view v-if="record.defectReasonLabel || record.defectItemNames?.length" class="row">
           <text class="label">不良原因</text>
-          <text class="val">{{ record.defectItemNames.join('、') }}</text>
+          <text class="val">{{ record.defectReasonLabel || record.defectItemNames.join('、') }}</text>
         </view>
         <view class="row">
           <text class="label">合计完工</text>
@@ -65,8 +73,9 @@
         退回原因：{{ record.rejectReason }}
       </view>
     </view>
-    <view class="foot">
-      <button class="btn" @tap="goBack">返回</button>
+    <view class="foot" :class="{ dual: record.status === '已拒绝' }">
+      <button v-if="record.status === '已拒绝'" class="btn primary" @tap="goEdit">重新编辑</button>
+      <button class="btn" :class="{ ghost: record.status === '已拒绝' }" @tap="goBack">返回</button>
     </view>
   </view>
 </template>
@@ -75,7 +84,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getRecordById } from '@/mock/processReportRecords'
-import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+import { isDurationReportMode, resolveReportMode, displayReportSource } from '@/utils/reportMode'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -101,6 +110,11 @@ onLoad((query) => {
 
 function goBack() {
   uni.navigateBack()
+}
+
+function goEdit() {
+  if (!record.value || record.value.status !== '已拒绝') return
+  uni.navigateTo({ url: `/pages/process-report/execute?editId=${record.value.id}` })
 }
 </script>
 
@@ -165,14 +179,31 @@ $primary: #1677ff;
   left: 24rpx;
   right: 24rpx;
   bottom: 48rpx;
+  display: flex;
+  gap: 20rpx;
+}
+
+.foot.dual {
+  flex-direction: row-reverse;
 }
 
 .btn {
+  flex: 1;
   height: 88rpx;
   line-height: 88rpx;
   background: #fff;
   color: $primary;
   border: 2rpx solid $primary;
   border-radius: 44rpx;
+}
+
+.btn.primary {
+  background: $primary;
+  color: #fff;
+  border-color: $primary;
+}
+
+.btn.ghost {
+  background: #fff;
 }
 </style>

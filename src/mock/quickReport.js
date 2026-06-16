@@ -2,9 +2,19 @@
 
 import { calcMaterialList, getProductByCode, getProductById } from './quickReportProducts'
 import { getProductMaterialById } from './productMaterialInfo'
-import { resolveProcessQuantities } from './quickReportProcess'
+import { buildQuickReportProcessesFromRoute, resolveProcessQuantities } from './quickReportProcess'
 import { updateFrequentRegistration } from './outputRegistrationHub'
-import { getProcessDefectItems } from '../utils/iodomsStorage'
+import { getProcessDefectItems, getProcessReportMode } from '../utils/iodomsStorage'
+import { isDurationReportMode, resolveReportMode } from '../utils/reportMode'
+import {
+  aggregateProcessesDefectLabel,
+  breakdownToLegacy,
+  ensureDefectBreakdown,
+  formatBreakdownLabel,
+  getProcessDefectItemsForForm,
+  resolveOverallDefectItems,
+  validateDefectBreakdown,
+} from '../utils/defectBreakdown'
 import { createWorkOrderLinkedQuickReportSeed } from './quickReportWorkOrderSeed'
 
 export const reportStatusOptions = ['待确认', '已确认']
@@ -96,6 +106,10 @@ function flattenOperators(processes, overallOperators, perProcessMode) {
 }
 
 function resolveProcessDefectNames(process = {}) {
+  if (process.defectReasonLabel) return process.defectReasonLabel.split('、').filter(Boolean)
+  if (process.defectBreakdown?.length) {
+    return process.defectBreakdown.filter((row) => row.qty > 0).map((row) => `${row.name}×${row.qty}`)
+  }
   const ids = process.defectItemIds || []
   if (!ids.length) return process.defectItemNames || []
   return getProcessDefectItems(process.name)
@@ -105,7 +119,11 @@ function resolveProcessDefectNames(process = {}) {
 
 function normalizeProcess(p) {
   const qty = resolveProcessQuantities(p)
-  const defectItemIds = [...(p.defectItemIds || [])]
+  const items = getProcessDefectItemsForForm(p.name)
+  const defectBreakdown = ensureDefectBreakdown(p, items)
+  const legacy = breakdownToLegacy(defectBreakdown)
+  const reportMode = resolveReportMode(p.reportMode || getProcessReportMode(p.name))
+  const duration = isDurationReportMode(reportMode)
   return {
     ...p,
     deleted: !!p.deleted,
@@ -113,8 +131,14 @@ function normalizeProcess(p) {
     goodQty: qty.goodQty,
     defectQty: qty.defectQty,
     qty: qty.qty,
-    defectItemIds,
-    defectItemNames: resolveProcessDefectNames({ ...p, defectItemIds }),
+    reportMode,
+    workHours: duration ? Number(p.workHours) || 0 : null,
+    startTime: duration ? p.startTime || '' : '',
+    endTime: duration ? p.endTime || '' : '',
+    defectBreakdown: legacy.defectBreakdown,
+    defectItemIds: legacy.defectItemIds,
+    defectItemNames: legacy.defectItemNames,
+    defectReasonLabel: legacy.defectReasonLabel,
   }
 }
 
@@ -128,6 +152,12 @@ function normalizeRecord(row) {
     finishedQty: row.finishedQty ?? calcFinishedQty(processes, row.finishedQty),
   })
   const perProcessRegister = row.perProcessRegister !== false
+  let defectReasonLabel = row.defectReasonLabel
+  if (!perProcessRegister && row.defectBreakdown?.length) {
+    defectReasonLabel = formatBreakdownLabel(row.defectBreakdown) || defectReasonLabel
+  } else if (!defectReasonLabel) {
+    defectReasonLabel = aggregateProcessesDefectLabel(processes)
+  }
   return {
     ...row,
     processes,
@@ -138,6 +168,10 @@ function normalizeRecord(row) {
     perProcessMode: perProcessRegister,
     status: row.materialConfirmed ? '已确认' : row.status || '待确认',
     workOrderStatus: row.workOrderStatus || '已报工',
+    defectBreakdown: row.defectBreakdown || [],
+    defectItemIds: row.defectItemIds || [],
+    defectItemNames: row.defectItemNames || [],
+    defectReasonLabel,
   }
 }
 
@@ -294,7 +328,7 @@ export function filterReports(list, filter = 'today') {
 }
 
 export function getQuickReportList(filter = 'today') {
-  return filterReports(cache, filter)
+  return filterReports(cache, filter).map((row) => normalizeRecord(row))
 }
 
 export function getQuickReportCount(filter = 'today') {
@@ -334,6 +368,16 @@ function generateWorkOrderNo(reportDate) {
   return `QK-${datePart}-${String(seq).padStart(3, '0')}`
 }
 
+function resolveOverallDefectItemsForPayload(payload = {}) {
+  const names = (payload.processes || []).filter((p) => !p.deleted).map((p) => p.name)
+  if (names.length) return resolveOverallDefectItems(names)
+  if (payload.routeName) {
+    const procs = buildQuickReportProcessesFromRoute(payload.routeName, {})
+    return resolveOverallDefectItems(procs.map((p) => p.name))
+  }
+  return resolveOverallDefectItems([])
+}
+
 function validateSubmit(payload) {
   if (!payload.productId && !payload.productName?.trim()) {
     return '请选择产品'
@@ -343,10 +387,26 @@ function validateSubmit(payload) {
   if (!payload.reportDate) {
     return '请选择生产日期'
   }
+  if (payload.perProcessRegister === false) {
+    const items = resolveOverallDefectItemsForPayload(payload)
+    const defectErr = validateDefectBreakdown(payload.defectQty, payload.defectBreakdown, items)
+    if (defectErr) return defectErr
+  }
   if (payload.perProcessRegister !== false) {
     const activeProcesses = (payload.processes || []).filter((p) => !p.deleted && p.name?.trim())
     if (!activeProcesses.length) {
       return '请至少保留一道工序'
+    }
+    for (const p of activeProcesses) {
+      const mode = resolveReportMode(p.reportMode || getProcessReportMode(p.name))
+      const hasQty = (Number(p.goodQty) || 0) + (Number(p.defectQty) || 0) > 0
+      if (isDurationReportMode(mode) && hasQty) {
+        const hours = Number(p.workHours)
+        if (!hours || hours <= 0) return `请填写「${p.name}」的工作时长`
+      }
+      const items = getProcessDefectItemsForForm(p.name)
+      const defectErr = validateDefectBreakdown(p.defectQty, p.defectBreakdown, items)
+      if (defectErr) return `「${p.name}」${defectErr}`
     }
   }
   return null
@@ -408,6 +468,10 @@ export function submitQuickReport(payload) {
     perProcessMode: perProcessRegister,
     processes: activeProcesses,
     operators,
+    defectBreakdown: perProcessRegister ? [] : payload.defectBreakdown || [],
+    defectItemIds: perProcessRegister ? [] : payload.defectItemIds || [],
+    defectItemNames: perProcessRegister ? [] : payload.defectItemNames || [],
+    defectReasonLabel: perProcessRegister ? '' : payload.defectReasonLabel || '',
     materialConfirmed: false,
     status: '待确认',
     workOrderNo,

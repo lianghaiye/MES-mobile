@@ -95,6 +95,10 @@
           </text>
         </view>
 
+        <text v-if="item.defectReasonLabel" class="defect-reason">
+          不良原因：{{ item.defectReasonLabel }}
+        </text>
+
         <text class="operators">操作人员：{{ item.operators.join('、') }}</text>
       </view>
     </view>
@@ -451,6 +455,13 @@ $primary: #1677ff;
   border-radius: 8rpx;
   font-size: 24rpx;
   color: #595959;
+}
+
+.defect-reason {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
 }
 
 .operators {

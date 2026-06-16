@@ -54,6 +54,7 @@ function displayReportMode(mode) {
 
 const product = ref(null)
 const selectedName = ref('')
+const editId = ref('')
 
 const ESTIMATE = {
   车削: '预计 30分钟/件',
@@ -71,6 +72,7 @@ const processes = computed(() => {
 
 onLoad((query) => {
   product.value = getQuickProductById(query.productId)
+  editId.value = query.editId || ''
   if (query.processName) {
     selectedName.value = decodeURIComponent(query.processName)
   }
@@ -94,8 +96,9 @@ function goNext() {
     `productCode=${product.value.code}`,
     `reportMode=${encodeURIComponent(mode)}`,
     'source=quick',
-  ].join('&')
-  uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
+  ]
+  if (editId.value) q.push(`editId=${encodeURIComponent(editId.value)}`)
+  uni.navigateTo({ url: `/pages/process-report/execute?${q.join('&')}` })
 }
 </script>
 

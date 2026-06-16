@@ -24,6 +24,10 @@
         <text class="label">不良品数</text>
         <text class="val defect">{{ record.defectQty || 0 }} 件</text>
       </view>
+      <view v-if="record.defectReasonLabel" class="info-row">
+        <text class="label">不良原因</text>
+        <text class="val">{{ record.defectReasonLabel }}</text>
+      </view>
       <view class="info-row">
         <text class="label">合计完工</text>
         <text class="val">{{ record.finishedQty }} 件</text>
@@ -50,11 +54,15 @@
       <text class="section-title">工序明细</text>
       <view v-for="(p, i) in record.processes" :key="i" class="process-item">
         <view class="p-main">
-          <text class="p-name">{{ p.name }}</text>
+          <view class="p-head">
+            <text class="p-name">{{ p.name }}</text>
+            <text v-if="p.reportMode" class="p-mode">{{ p.reportMode }}</text>
+          </view>
           <text class="p-qty">良 {{ p.goodQty ?? p.qty }} / 不良 {{ p.defectQty || 0 }}</text>
         </view>
-        <text v-if="p.defectItemNames?.length" class="p-defect">
-          不良原因：{{ p.defectItemNames.join('、') }}
+        <text v-if="p.workHours" class="p-hours">工作时长：{{ p.workHours }}h</text>
+        <text v-if="p.defectReasonLabel || p.defectItemNames?.length" class="p-defect">
+          不良原因：{{ p.defectReasonLabel || p.defectItemNames.join('、') }}
         </text>
       </view>
     </view>
@@ -176,6 +184,27 @@ $primary: #1677ff;
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.p-head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.p-mode {
+  font-size: 22rpx;
+  padding: 2rpx 10rpx;
+  background: #e6f4ff;
+  color: $primary;
+  border-radius: 6rpx;
+}
+
+.p-hours {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #595959;
 }
 
 .p-qty {

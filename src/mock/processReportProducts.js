@@ -45,3 +45,9 @@ export function searchQuickProducts(keyword = '') {
 export function getQuickProductById(id) {
   return quickReportProducts.find((p) => p.id === id) || null
 }
+
+export function getQuickProductByCode(code = '') {
+  const normalized = String(code).trim().toLowerCase()
+  if (!normalized) return null
+  return quickReportProducts.find((p) => p.code.toLowerCase() === normalized) || null
+}

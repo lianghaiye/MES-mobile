@@ -2,6 +2,8 @@
 
 import { getUser } from '@/utils/auth'
 import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
+import { breakdownToLegacy, validateDefectBreakdown } from '@/utils/defectBreakdown'
+import { getProcessDefectItems } from '@/utils/iodomsStorage'
 
 const MIGRATE_KEY = 'i_doms_process_report_mode_migrate_v'
 const MIGRATE_VERSION = '1'
@@ -47,14 +49,18 @@ function createSeed() {
       productName: '货架支架',
       productCode: 'SJ-2024-A',
       reportMode: '批量计件',
+      operator: '张三',
+      groupName: '焊接小组',
       goodQty: 23,
       defectQty: 2,
       finishedQty: 25,
       workHours: null,
       startTime: '',
       endTime: '',
+      defectBreakdown: [{ id: 'di-5', name: '气孔', qty: 2 }],
       defectItemIds: ['di-5'],
       defectItemNames: ['气孔'],
+      defectReasonLabel: '气孔×2',
       remark: '',
       status: '待审核',
       rejectReason: '',
@@ -65,6 +71,7 @@ function createSeed() {
     {
       id: 'pr-2',
       source: 'quick',
+      productId: 'prod-3',
       workOrderNo: '',
       processName: '热处理',
       productName: '泵壳',
@@ -95,6 +102,8 @@ function createSeed() {
       productName: '泵轴',
       productCode: 'BX-2024-03',
       reportMode: '批量计件',
+      operator: '张三',
+      groupName: '加工小组',
       goodQty: 14,
       defectQty: 1,
       finishedQty: 15,
@@ -111,6 +120,7 @@ function createSeed() {
     {
       id: 'pr-4',
       source: 'quick',
+      productId: 'prod-1',
       workOrderNo: '',
       processName: '装配',
       productName: '货架支架',
@@ -188,6 +198,70 @@ export function getRecordById(id) {
   return cache.find((r) => r.id === id) || null
 }
 
+function validateReportPayload(payload) {
+  const good = Number(payload.goodQty) || 0
+  const defect = Number(payload.defectQty) || 0
+  const durationMode = isDurationReportMode(payload.reportMode)
+
+  if (durationMode) {
+    const hours = Number(payload.workHours)
+    if (!hours || hours <= 0) return { ok: false, message: '请填写工作时长' }
+  } else if (good + defect <= 0) {
+    return { ok: false, message: '请填写良品数或不良品数' }
+  }
+
+  const defectItems = getProcessDefectItems(payload.processName)
+  const defectErr = validateDefectBreakdown(defect, payload.defectBreakdown, defectItems)
+  if (defectErr) return { ok: false, message: defectErr }
+
+  return { ok: true, good, defect, defectItems }
+}
+
+function buildRecordFromPayload(payload, base = {}) {
+  const check = validateReportPayload(payload)
+  if (!check.ok) return check
+
+  const { good, defect } = check
+  const legacy = breakdownToLegacy(payload.defectBreakdown || [])
+  const time = nowTime()
+
+  return {
+    ok: true,
+    record: {
+      ...base,
+      source: payload.source || base.source || 'quick',
+      taskId: payload.taskId || base.taskId || '',
+      taskNo: payload.taskNo || base.taskNo || '',
+      workOrderNo: payload.workOrderNo || base.workOrderNo || '',
+      workOrderId: payload.workOrderId || base.workOrderId || '',
+      processId: payload.processId || base.processId || '',
+      productId: payload.productId || base.productId || '',
+      processName: payload.processName,
+      productName: payload.productName,
+      productCode: payload.productCode,
+      targetQty: payload.targetQty ?? base.targetQty ?? null,
+      reportMode: resolveReportMode(payload.reportMode),
+      goodQty: good,
+      defectQty: defect,
+      finishedQty: good + defect,
+      workHours: isDurationReportMode(payload.reportMode) ? Number(payload.workHours) : null,
+      startTime: payload.startTime || nowTime(),
+      endTime: payload.endTime || nowTime(),
+      defectBreakdown: legacy.defectBreakdown,
+      defectItemIds: legacy.defectItemIds,
+      defectItemNames: legacy.defectItemNames,
+      defectReasonLabel: legacy.defectReasonLabel,
+      remark: payload.remark || '',
+      operator: payload.operator || base.operator || '',
+      groupName: payload.groupName || base.groupName || '',
+      status: '待审核',
+      rejectReason: '',
+      createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      timeLabel: `今天 ${time}`,
+    },
+  }
+}
+
 function nowTime() {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -196,50 +270,37 @@ function nowTime() {
 export function submitProcessReport(payload) {
   const user = getUser()
   const reporter = user?.displayName || '当前用户'
-  const today = formatReportDate()
-
-  const good = Number(payload.goodQty) || 0
-  const defect = Number(payload.defectQty) || 0
-  if (good + defect <= 0) return { ok: false, message: '请填写良品数或不良品数' }
-
-  if (isDurationReportMode(payload.reportMode)) {
-    const hours = Number(payload.workHours)
-    if (!hours || hours <= 0) return { ok: false, message: '请填写工作时长' }
-  }
-
-  const record = {
+  const built = buildRecordFromPayload(payload, {
     id: `pr-${Date.now()}`,
-    source: payload.source || 'quick',
-    taskId: payload.taskId || '',
-    taskNo: payload.taskNo || '',
-    workOrderNo: payload.workOrderNo || '',
-    workOrderId: payload.workOrderId || '',
-    processId: payload.processId || '',
-    processName: payload.processName,
-    productName: payload.productName,
-    productCode: payload.productCode,
-    targetQty: payload.targetQty || null,
-    reportMode: resolveReportMode(payload.reportMode),
-    goodQty: good,
-    defectQty: defect,
-    finishedQty: good + defect,
-    workHours: isDurationReportMode(payload.reportMode) ? Number(payload.workHours) : null,
-    startTime: payload.startTime || nowTime(),
-    endTime: payload.endTime || nowTime(),
-    defectItemIds: payload.defectItemIds || [],
-    defectItemNames: payload.defectItemNames || [],
-    remark: payload.remark || '',
-    status: '待审核',
-    rejectReason: '',
     reporter,
-    createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-    timeLabel: `今天 ${nowTime()}`,
-  }
+  })
+  if (!built.ok) return built
 
-  cache.unshift(record)
+  cache.unshift(built.record)
   save()
   updateFrequentReport(payload)
-  return { ok: true, message: '报工已提交，等待审核', record }
+  return { ok: true, message: '报工已提交，等待审核', record: built.record }
+}
+
+export function resubmitProcessReport(id, payload) {
+  const idx = cache.findIndex((r) => r.id === id)
+  if (idx < 0) return { ok: false, message: '记录不存在' }
+
+  const existing = cache[idx]
+  if (existing.status !== '已拒绝') {
+    return { ok: false, message: '仅已拒绝的记录可重新提交' }
+  }
+
+  const built = buildRecordFromPayload(payload, {
+    id: existing.id,
+    reporter: existing.reporter,
+  })
+  if (!built.ok) return built
+
+  cache[idx] = built.record
+  save()
+  updateFrequentReport(payload)
+  return { ok: true, message: '已重新提交，等待审核', record: built.record }
 }
 
 function defaultFrequent() {
@@ -316,6 +377,7 @@ function updateFrequentReport(payload) {
     processName: payload.processName,
     productName: payload.productName,
     productCode: payload.productCode,
+    productId: payload.productId || '',
     reportMode: mode,
     lastSummary: summary,
   }

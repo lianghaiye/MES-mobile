@@ -21,3 +21,12 @@ export function isDurationReportMode(mode) {
 export function resolveReportMode(mode) {
   return normalizeReportMode(mode) || defaultReportMode()
 }
+
+/** 报工来源：任务报工 / 快速报工 */
+export function displayReportSource(source) {
+  return source === 'workorder' ? '任务报工' : '快速报工'
+}
+
+export function isQuickReportSource(source) {
+  return source !== 'workorder'
+}
