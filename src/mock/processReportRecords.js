@@ -252,6 +252,7 @@ function buildRecordFromPayload(payload, base = {}) {
       defectItemNames: legacy.defectItemNames,
       defectReasonLabel: legacy.defectReasonLabel,
       remark: payload.remark || '',
+      images: Array.isArray(payload.images) ? [...payload.images] : [],
       operator: payload.operator || base.operator || '',
       groupName: payload.groupName || base.groupName || '',
       status: '待审核',

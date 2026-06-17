@@ -28,12 +28,12 @@ export const workbenchModules = [
     placeholder: false,
   },
   {
-    key: 'quick-report',
-    title: '登记产出',
-    desc: '车间批量产出登记',
-    icon: '📋',
+    key: 'report-confirm',
+    title: '报工确认',
+    desc: '核对报工数据并推送工人确认',
+    icon: '✅',
     color: '#1677ff',
-    path: '/pages/quick-report/list',
+    path: '/pages/report-confirm/list',
     placeholder: false,
   },
   {
@@ -44,7 +44,6 @@ export const workbenchModules = [
     color: '#fa8c16',
     path: '/pages/work-hours/index',
     placeholder: false,
-    stub: true,
   },
   {
     key: 'approval',

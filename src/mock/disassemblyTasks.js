@@ -5,6 +5,7 @@ import {
   flattenLeafNodes,
   initQcDisplayState,
 } from '@/mock/disassemblyEbom'
+import { generateLinesFromSyncedTasks } from '@/mock/reportConfirmStore'
 
 const STORAGE_KEY = 'i_doms_mobile_disassembly_tasks'
 const DRAFT_KEY = 'i_doms_mobile_disassembly_drafts'
@@ -320,6 +321,82 @@ const seedTasks = [
     serialLocked: false,
     createdAt: `${formatTaskDate()} 10:00:00`,
   }),
+  // —— 多人执行 · 待领取（工序报工） ——
+  taskSeed({
+    id: 'pt-claim-1',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-4',
+    workOrderCode: 'WO-071',
+    workOrderName: '法兰盘生产工单',
+    taskNo: 'T20260602021',
+    processName: '点焊',
+    processSeq: 1,
+    productName: '法兰盘',
+    itemCode: 'FL-2024-C',
+    specModel: 'DN150 PN16',
+    barcodeType: '一批一码',
+    processRoute: '标准焊接工艺 v2',
+    executor: '',
+    executors: ['张三', '王五'],
+    claimTargets: ['张三', '王五'],
+    groupName: '焊接小组',
+    expectedQty: 20,
+    taskStatus: '待领取',
+    placement: 'claim',
+    resourceType: '工人',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 07:30:00`,
+  }),
+  taskSeed({
+    id: 'pt-claim-2',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-5',
+    workOrderCode: 'WO-068',
+    workOrderName: '深井潜水泵生产工单',
+    taskNo: 'T20260602022',
+    processName: '精车',
+    processSeq: 2,
+    productName: '深井潜水泵',
+    itemCode: 'CP2610004',
+    specModel: 'QJ200-50/4',
+    barcodeType: '一批一码',
+    processRoute: '机加标准路线',
+    executor: '',
+    executors: ['李四', '赵六'],
+    claimTargets: ['李四', '赵六'],
+    groupName: '机加小组',
+    expectedQty: 8,
+    taskStatus: '待领取',
+    placement: 'claim',
+    resourceType: '工人',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 08:15:00`,
+  }),
+  taskSeed({
+    id: 'pt-claim-3',
+    orderCategory: '总装工单',
+    workOrderId: 'wo-asm-1',
+    workOrderCode: 'WO-ZZ-012',
+    workOrderName: '污水泵总装工单',
+    taskNo: 'T20260602023',
+    processName: '总装',
+    processSeq: 1,
+    productName: '污水泵',
+    itemCode: 'CP2610002',
+    specModel: 'ISG80-160(I)A',
+    barcodeType: '一批一码',
+    processRoute: '装配标准路线',
+    executor: '',
+    executors: ['张三', '李四'],
+    claimTargets: ['张三', '李四'],
+    groupName: '总装小组',
+    expectedQty: 6,
+    taskStatus: '待领取',
+    placement: 'claim',
+    resourceType: '工人',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 08:45:00`,
+  }),
   // 工单5 — 深井泵拆解待开始
   taskSeed({
     id: 'dt-007',
@@ -369,13 +446,13 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '4'
+const TASK_SEED_VERSION = '5'
 
 function buildSeedTasks() {
   const today = formatTaskDate()
   const fresh = JSON.parse(JSON.stringify(seedTasks))
   fresh.forEach((t) => {
-    if (typeof t.id === 'string' && t.id.startsWith('pt-') && t.createdAt) {
+    if (typeof t.id === 'string' && (t.id.startsWith('pt-') || t.id.startsWith('pt-claim-')) && t.createdAt) {
       const timePart = t.createdAt.split(' ').slice(1).join(' ') || '08:00:00'
       t.createdAt = `${today} ${timePart}`
     }
@@ -709,6 +786,7 @@ export function mergePcSyncedTasks() {
   const synced = readPcSyncQueue()
   if (!synced.length) return 0
   let merged = 0
+  const newTasks = []
   for (const task of synced) {
     if (!task?.id) continue
     const idx = cache.findIndex((t) => t.id === task.id)
@@ -717,10 +795,14 @@ export function mergePcSyncedTasks() {
       cache[idx] = { ...cache[idx], ...normalized }
     } else {
       cache.unshift(normalized)
+      newTasks.push(normalized)
       merged += 1
     }
   }
-  if (merged) save()
+  if (merged) {
+    save()
+    generateLinesFromSyncedTasks(newTasks)
+  }
   return merged
 }
 
@@ -744,6 +826,11 @@ export function claimTask(taskId, userName = 'admin') {
   const task = getTaskById(taskId)
   if (!task) return { ok: false, message: '任务不存在' }
   if (task.placement !== 'claim') return { ok: false, message: '该任务不在待领列表' }
+  if (task.claimedBy) return { ok: false, message: '任务已被领取' }
+  const targets = task.claimTargets?.length ? task.claimTargets : task.executors
+  if (targets?.length && !targets.includes(userName)) {
+    return { ok: false, message: '您不在该任务的领取范围内' }
+  }
   task.placement = 'todo'
   task.claimedBy = userName
   task.claimedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')

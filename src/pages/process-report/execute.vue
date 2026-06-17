@@ -107,6 +107,10 @@
       </view>
 
       <view class="field">
+        <ImageUpload v-model="form.images" label="现场图片（选填）" hint="可上传报工现场照片" />
+      </view>
+
+      <view class="field">
         <text class="label">备注（选填）</text>
         <textarea v-model="form.remark" class="remark" placeholder="添加备注..." />
       </view>
@@ -138,6 +142,7 @@ import {
   validateDefectBreakdown,
 } from '@/utils/defectBreakdown'
 import DefectBreakdownField from '@/components/quick-report/DefectBreakdownField.vue'
+import ImageUpload from '@/components/ImageUpload.vue'
 import {
   applyLinkedSingleQtyChange,
   applyLinkedSingleQtyFromDefect,
@@ -184,6 +189,7 @@ const form = reactive({
   defectItemNames: [],
   remark: '',
   operator: '',
+  images: [],
 })
 
 const isQuickSource = computed(() => isQuickReportSource(context.source))
@@ -315,6 +321,7 @@ function loadFromRecord(row) {
   form.defectBreakdown = ensureDefectBreakdown(row, defectItems.value)
   form.remark = row.remark || ''
   form.operator = row.operator || ''
+  form.images = Array.isArray(row.images) ? [...row.images] : []
   applyDefectLegacy()
   refreshQtySnapshot()
   initTaskOperator()
@@ -471,6 +478,7 @@ function onSubmit() {
     defectItemNames: legacy.defectItemNames,
     defectReasonLabel: legacy.defectReasonLabel,
     remark: form.remark,
+    images: [...(form.images || [])],
     operator: isQuickSource.value ? '' : form.operator,
     groupName: isQuickSource.value ? '' : context.groupName,
   }

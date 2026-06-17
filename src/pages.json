@@ -91,15 +91,29 @@
       }
     },
     {
+      "path": "pages/process-report/batch-execute",
+      "style": {
+        "navigationBarTitleText": "批量报工确认",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/process-report/record-detail",
       "style": {
         "navigationBarTitleText": "报工详情"
       }
     },
     {
-      "path": "pages/quick-report/list",
+      "path": "pages/report-confirm/list",
       "style": {
-        "navigationBarTitleText": "登记产出",
+        "navigationBarTitleText": "报工确认",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/report-confirm/detail",
+      "style": {
+        "navigationBarTitleText": "报工确认详情",
         "navigationStyle": "custom"
       }
     },
@@ -136,7 +150,8 @@
     {
       "path": "pages/work-hours/index",
       "style": {
-        "navigationBarTitleText": "工时工资"
+        "navigationBarTitleText": "我的工时",
+        "navigationStyle": "custom"
       }
     },
     {

@@ -1,5 +1,5 @@
 <template>
-  <view class="hub-page">
+  <view class="hub-page" :class="{ 'with-batch-bar': activeTab === 'today' && selectedCount > 0 }">
     <view class="custom-nav">
       <view class="nav-back" @tap="goBack">
         <text class="back-arrow">‹</text>
@@ -15,25 +15,27 @@
         class="tab"
         :class="{ active: activeTab === tab.key }"
         @tap="activeTab = tab.key"
-      >{{ tab.label }}</view>
+      >
+        <text>{{ tab.label }}</text>
+        <text v-if="tab.key === 'claim' && claimCount > 0" class="tab-badge">{{ claimCount }}</text>
+      </view>
     </view>
 
     <text class="date-line">{{ dateHeader }}</text>
 
-    <!-- 今日待报工 -->
-    <view v-if="activeTab === 'today'" class="panel">
-      <text class="panel-sub">共 {{ pendingCount }} 项待报工</text>
+    <!-- 待领任务 -->
+    <view v-if="activeTab === 'claim'" class="panel">
+      <text class="panel-sub">共 {{ claimCount }} 项待领取</text>
       <view
-        v-for="task in reportTasks"
+        v-for="task in claimTasks"
         :key="task.id"
-        class="task-card"
-        :class="task.status"
+        class="task-card claim-card"
       >
         <view class="task-head">
           <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
-          <text class="task-tag">{{ task.taskNo }}</text>
+          <text class="task-tag claim-tag">待领取</text>
         </view>
-        <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+        <text class="task-wo">工单 {{ task.workOrderNo }} · {{ task.orderCategory }}</text>
         <view class="task-body">
           <view class="proc-info">
             <text class="proc-seq">{{ task.processSeq }}</text>
@@ -41,28 +43,186 @@
               <text class="proc-name">{{ task.processName }}</text>
               <text class="proc-meta">
                 目标: {{ task.targetQty }}件 · {{ displayReportMode(task.reportMode) }}
-                <text v-if="task.lockReason"> · {{ task.lockReason }}</text>
-                <text v-if="task.status === 'reported'">
-                  · 已报工 {{ (task.reportedGoodQty || 0) + (task.reportedDefectQty || 0) }}件
-                  · 良品{{ task.reportedGoodQty || 0 }} 不良{{ task.reportedDefectQty || 0 }}
-                  · {{ task.reportStatus }}
-                </text>
+              </text>
+              <text v-if="task.claimTargetLabel" class="proc-meta">
+                可领取: {{ task.claimTargetLabel }}
               </text>
             </view>
           </view>
-          <text
-            v-if="task.status === 'pending'"
-            class="action go"
-            @tap="goWorkReport(task)"
-          >去报工 ›</text>
-          <text
-            v-else-if="task.status === 'reported'"
-            class="action view"
-            @tap="goRecordFromTask(task)"
-          >查看 ›</text>
-          <text v-else class="action lock">未开始</text>
+          <text class="action claim" @tap="onClaimTask(task)">领取 ›</text>
         </view>
       </view>
+      <view v-if="!claimTasks.length" class="empty">暂无待领任务</view>
+    </view>
+
+    <!-- 今日待报工 -->
+    <view v-if="activeTab === 'today'" class="panel">
+      <view class="today-toolbar">
+        <text class="panel-sub inline">共 {{ pendingReportCount }} 项待报工任务</text>
+        <view v-if="selectableTasks.length" class="select-all" @tap="toggleSelectAll">
+          <view class="checkbox" :class="{ checked: isAllSelected }">
+            <text v-if="isAllSelected" class="check-mark">✓</text>
+          </view>
+          <text class="select-all-text">全选</text>
+        </view>
+      </view>
+
+      <view class="group-chips">
+        <view
+          v-for="mode in todayGroupModes"
+          :key="mode.key"
+          class="group-chip"
+          :class="{ active: todayGroupMode === mode.key }"
+          @tap="todayGroupMode = mode.key"
+        >{{ mode.label }}</view>
+      </view>
+
+      <template v-for="group in groupedReportTasks" :key="group.key">
+        <!-- 按工序 / 按人员：汇总卡片 -->
+        <view
+          v-if="todayGroupMode !== 'task' && group.label"
+          class="summary-group-card"
+          :class="todayGroupMode"
+        >
+          <view class="summary-group-head">
+            <view class="summary-group-title">
+              <text v-if="todayGroupMode === 'process'" class="summary-group-icon process">
+                {{ group.processSeq }}
+              </text>
+              <text v-else class="summary-group-icon person">{{ group.personInitial }}</text>
+              <view class="summary-group-name-wrap">
+                <text class="summary-group-name">{{ group.label }}</text>
+                <text class="summary-group-sub">{{ group.summary }}</text>
+              </view>
+            </view>
+            <view v-if="group.pendingCount > 0" class="summary-group-badge pending">
+              待报工 {{ group.pendingCount }}
+            </view>
+          </view>
+          <view class="summary-group-body">
+            <view
+              v-for="task in group.tasks"
+              :key="task.id"
+              class="task-row"
+              :class="{
+                selectable: task.status === 'pending',
+                selected: isTaskSelected(task.id),
+                compact: true,
+              }"
+              @tap="onTaskRowTap(task)"
+            >
+              <view
+                v-if="task.status === 'pending'"
+                class="checkbox-col"
+                @tap.stop="toggleTaskSelect(task.id)"
+              >
+                <view class="checkbox" :class="{ checked: isTaskSelected(task.id) }">
+                  <text v-if="isTaskSelected(task.id)" class="check-mark">✓</text>
+                </view>
+              </view>
+              <view class="task-card" :class="task.status">
+                <view class="task-head">
+                  <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
+                  <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
+                  <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
+                </view>
+                <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+                <view class="task-body">
+                  <view class="proc-info">
+                    <template v-if="todayGroupMode === 'person'">
+                      <text class="proc-seq">{{ task.processSeq }}</text>
+                      <view>
+                        <text class="proc-name">{{ task.processName }}</text>
+                        <text class="proc-meta">
+                          目标: {{ task.targetQty }}件 · {{ displayReportMode(task.reportMode) }}
+                          <text v-if="task.status === 'reported'" class="reported-qty">
+                            · 良品{{ task.reportedGoodQty || 0 }} 不良{{ task.reportedDefectQty || 0 }}
+                          </text>
+                        </text>
+                      </view>
+                    </template>
+                    <view v-else>
+                      <text class="proc-meta">
+                        目标: {{ task.targetQty }}件 · {{ displayReportMode(task.reportMode) }}
+                        <text v-if="task.status === 'reported'" class="reported-qty">
+                          · 良品{{ task.reportedGoodQty || 0 }} 不良{{ task.reportedDefectQty || 0 }}
+                        </text>
+                      </text>
+                    </view>
+                  </view>
+                  <text
+                    v-if="task.status === 'pending'"
+                    class="action go"
+                    @tap.stop="goWorkReport(task)"
+                  >去报工 ›</text>
+                  <text
+                    v-else-if="task.status === 'reported'"
+                    class="action view"
+                    @tap.stop="goRecordFromTask(task)"
+                  >查看 ›</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 按任务：平铺列表 -->
+        <template v-else>
+          <view
+            v-for="task in group.tasks"
+            :key="task.id"
+            class="task-row"
+            :class="{
+              selectable: task.status === 'pending',
+              selected: isTaskSelected(task.id),
+            }"
+            @tap="onTaskRowTap(task)"
+          >
+            <view
+              v-if="task.status === 'pending'"
+              class="checkbox-col"
+              @tap.stop="toggleTaskSelect(task.id)"
+            >
+              <view class="checkbox" :class="{ checked: isTaskSelected(task.id) }">
+                <text v-if="isTaskSelected(task.id)" class="check-mark">✓</text>
+              </view>
+            </view>
+            <view class="task-card" :class="task.status">
+              <view class="task-head">
+                <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
+                <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
+                <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
+              </view>
+              <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+              <view class="task-body">
+                <view class="proc-info">
+                  <text class="proc-seq">{{ task.processSeq }}</text>
+                  <view>
+                    <text class="proc-name">{{ task.processName }}</text>
+                    <text class="proc-meta">
+                      目标: {{ task.targetQty }}件 · {{ displayReportMode(task.reportMode) }}
+                      <text v-if="task.status === 'reported'" class="reported-qty">
+                        · 良品{{ task.reportedGoodQty || 0 }} 不良{{ task.reportedDefectQty || 0 }}
+                      </text>
+                    </text>
+                  </view>
+                </view>
+                <text
+                  v-if="task.status === 'pending'"
+                  class="action go"
+                  @tap.stop="goWorkReport(task)"
+                >去报工 ›</text>
+                <text
+                  v-else-if="task.status === 'reported'"
+                  class="action view"
+                  @tap.stop="goRecordFromTask(task)"
+                >查看 ›</text>
+              </view>
+            </view>
+          </view>
+        </template>
+      </template>
+
       <view v-if="!reportTasks.length" class="empty">今日暂无待报工任务</view>
     </view>
 
@@ -125,17 +285,35 @@
       </view>
       <view v-if="!records.length" class="empty">暂无报工记录</view>
     </view>
+
+    <!-- 批量报工底栏 -->
+    <view v-if="activeTab === 'today' && selectedCount > 0" class="batch-bar">
+      <text class="batch-count">已选择 {{ selectedCount }} 项任务</text>
+      <button class="batch-cancel" @tap="clearSelection">取消</button>
+      <button class="batch-submit" @tap="openBatchConfirm">批量报工 ({{ selectedCount }})</button>
+    </view>
+
+    <BatchReportConfirmModal
+      :open="batchConfirmOpen"
+      :count="selectedCount"
+      @cancel="closeBatchConfirm"
+      @confirm="onBatchQuickConfirm"
+      @abnormal="onBatchAbnormal"
+    />
   </view>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getUser } from '@/utils/auth'
 import {
   getTodayReportTasks,
+  getClaimableReportTasks,
+  getClaimableReportTaskCount,
+  claimReportTask,
   hasTodayReportTasks,
-  getPendingReportTaskCount,
+  batchReportTasks,
 } from '@/mock/processReportTasks'
 import {
   getDateHeader,
@@ -146,21 +324,32 @@ import {
 import { getProcessReportMode } from '@/utils/iodomsStorage'
 import { isDurationReportMode, resolveReportMode, displayReportSource } from '@/utils/reportMode'
 import { getQuickProductByCode } from '@/mock/processReportProducts'
+import BatchReportConfirmModal from '@/components/process-report/BatchReportConfirmModal.vue'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
 }
 
 const tabs = [
+  { key: 'claim', label: '待领任务' },
   { key: 'today', label: '今日待报工' },
   { key: 'quick', label: '快速报工' },
   { key: 'records', label: '我的记录' },
 ]
 
 const activeTab = ref('today')
+const todayGroupMode = ref('task')
+const selectedTaskIds = ref([])
+const batchConfirmOpen = ref(false)
 const recordFilter = ref('all')
 const refreshKey = ref(0)
 const dateHeader = getDateHeader()
+
+const todayGroupModes = [
+  { key: 'task', label: '按任务' },
+  { key: 'process', label: '按工序' },
+  { key: 'person', label: '按人员' },
+]
 
 const recordFilters = [
   { key: 'all', label: '全部' },
@@ -171,14 +360,105 @@ const recordFilters = [
 
 const user = computed(() => getUser())
 
+const claimTasks = computed(() => {
+  refreshKey.value
+  return getClaimableReportTasks(user.value)
+})
+
+const claimCount = computed(() => {
+  refreshKey.value
+  return getClaimableReportTaskCount(user.value)
+})
+
 const reportTasks = computed(() => {
   refreshKey.value
   return getTodayReportTasks(user.value)
 })
 
-const pendingCount = computed(() => {
+const pendingReportCount = computed(() => {
   refreshKey.value
-  return getPendingReportTaskCount(user.value)
+  return reportTasks.value.filter((t) => t.status === 'pending').length
+})
+
+const groupedReportTasks = computed(() => {
+  const tasks = reportTasks.value
+  if (!tasks.length) return []
+
+  if (todayGroupMode.value === 'task') {
+    return [{ key: 'all', label: '', tasks, summary: '' }]
+  }
+
+  const map = new Map()
+  tasks.forEach((task) => {
+    const label =
+      todayGroupMode.value === 'process'
+        ? task.processName || '未指定工序'
+        : task.executor || '未指定人员'
+    if (!map.has(label)) map.set(label, [])
+    map.get(label).push(task)
+  })
+
+  const statusOrder = { pending: 0, reported: 1 }
+  const sortTasks = (list) =>
+    [...list].sort((a, b) => {
+      const diff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+      if (diff !== 0) return diff
+      return (a.processSeq || 0) - (b.processSeq || 0)
+    })
+
+  const buildSummary = (groupTasks) => {
+    const pending = groupTasks.filter((t) => t.status === 'pending').length
+    const reported = groupTasks.filter((t) => t.status === 'reported').length
+    const parts = []
+    if (pending) parts.push(`待报工 ${pending}`)
+    if (reported) parts.push(`已报工 ${reported}`)
+    return parts.join(' · ') || `${groupTasks.length} 项`
+  }
+
+  const sortGroups = (entries) => {
+    if (todayGroupMode.value === 'process') {
+      return entries.sort(([, tasksA], [, tasksB]) => {
+        const pendingA = tasksA.filter((t) => t.status === 'pending').length
+        const pendingB = tasksB.filter((t) => t.status === 'pending').length
+        if (pendingB !== pendingA) return pendingB - pendingA
+        const seqA = Math.min(...tasksA.map((t) => t.processSeq || 99))
+        const seqB = Math.min(...tasksB.map((t) => t.processSeq || 99))
+        return seqA - seqB
+      })
+    }
+    return entries.sort(([labelA, tasksA], [labelB, tasksB]) => {
+      const pendingA = tasksA.filter((t) => t.status === 'pending').length
+      const pendingB = tasksB.filter((t) => t.status === 'pending').length
+      if (pendingB !== pendingA) return pendingB - pendingA
+      return labelA.localeCompare(labelB, 'zh-CN')
+    })
+  }
+
+  return sortGroups([...map.entries()]).map(([label, groupTasks]) => {
+    const sorted = sortTasks(groupTasks)
+    return {
+      key: `${todayGroupMode.value}-${label}`,
+      label,
+      processSeq: sorted[0]?.processSeq ?? '',
+      personInitial: (label || '?').slice(0, 1),
+      tasks: sorted,
+      pendingCount: sorted.filter((t) => t.status === 'pending').length,
+      reportedCount: sorted.filter((t) => t.status === 'reported').length,
+      summary: buildSummary(sorted),
+    }
+  })
+})
+
+const selectableTasks = computed(() => {
+  refreshKey.value
+  return reportTasks.value.filter((t) => t.status === 'pending')
+})
+
+const selectedCount = computed(() => selectedTaskIds.value.length)
+
+const isAllSelected = computed(() => {
+  const list = selectableTasks.value
+  return list.length > 0 && list.every((t) => selectedTaskIds.value.includes(t.id))
 })
 
 const frequentList = computed(() => {
@@ -199,12 +479,91 @@ const records = computed(() => {
 onLoad((query) => {
   if (query.tab === 'records') activeTab.value = 'records'
   else if (query.tab === 'quick') activeTab.value = 'quick'
+  else if (query.tab === 'claim') activeTab.value = 'claim'
+  else if (query.tab === 'today') activeTab.value = 'today'
+  else if (getClaimableReportTaskCount(user.value) > 0) activeTab.value = 'claim'
   else activeTab.value = hasTodayReportTasks(user.value) ? 'today' : 'quick'
 })
 
 onShow(() => {
   refreshKey.value += 1
+  if (activeTab.value === 'today') {
+    selectAllPending()
+    return
+  }
+  const valid = new Set(
+    getTodayReportTasks(user.value)
+      .filter((t) => t.status === 'pending')
+      .map((t) => t.id),
+  )
+  selectedTaskIds.value = selectedTaskIds.value.filter((id) => valid.has(id))
 })
+
+watch(activeTab, (tab) => {
+  if (tab === 'today') selectAllPending()
+  else clearSelection()
+})
+
+function selectAllPending() {
+  selectedTaskIds.value = selectableTasks.value.map((t) => t.id)
+}
+
+function isTaskSelected(id) {
+  return selectedTaskIds.value.includes(id)
+}
+
+function toggleTaskSelect(id) {
+  if (selectedTaskIds.value.includes(id)) {
+    selectedTaskIds.value = selectedTaskIds.value.filter((item) => item !== id)
+  } else {
+    selectedTaskIds.value = [...selectedTaskIds.value, id]
+  }
+}
+
+function toggleSelectAll() {
+  if (isAllSelected.value) {
+    clearSelection()
+    return
+  }
+  selectedTaskIds.value = selectableTasks.value.map((t) => t.id)
+}
+
+function clearSelection() {
+  selectedTaskIds.value = []
+}
+
+function onTaskRowTap(task) {
+  if (task.status === 'pending') toggleTaskSelect(task.id)
+}
+
+function openBatchConfirm() {
+  if (!selectedCount.value) return
+  batchConfirmOpen.value = true
+}
+
+function closeBatchConfirm() {
+  batchConfirmOpen.value = false
+}
+
+function onBatchQuickConfirm() {
+  const ids = [...selectedTaskIds.value]
+  closeBatchConfirm()
+  const result = batchReportTasks(ids, user.value)
+  if (!result.ok) {
+    uni.showToast({ title: result.message, icon: 'none' })
+    return
+  }
+  clearSelection()
+  refreshKey.value += 1
+  uni.showToast({ title: result.message, icon: 'success' })
+}
+
+function onBatchAbnormal() {
+  const ids = [...selectedTaskIds.value]
+  closeBatchConfirm()
+  const q = `ids=${encodeURIComponent(ids.join(','))}`
+  uni.navigateTo({ url: `/pages/process-report/batch-execute?${q}` })
+}
 
 function statusClass(status) {
   if (status === '待审核') return 'pending'
@@ -218,6 +577,17 @@ function buildExecuteQuery(params) {
     .filter(([, v]) => v != null && v !== '')
     .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
     .join('&')
+}
+
+function onClaimTask(task) {
+  const res = claimReportTask(task.id, user.value)
+  if (!res.ok) {
+    uni.showToast({ title: res.message, icon: 'none' })
+    return
+  }
+  uni.showToast({ title: '领取成功', icon: 'success' })
+  refreshKey.value += 1
+  activeTab.value = 'today'
 }
 
 function goWorkReport(task) {
@@ -291,6 +661,10 @@ $primary: #1677ff;
   min-height: 100vh;
   background: #f5f6f8;
   padding: 0 24rpx 48rpx;
+
+  &.with-batch-bar {
+    padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
+  }
 }
 
 .custom-nav {
@@ -339,11 +713,27 @@ $primary: #1677ff;
 
 .tab {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
   text-align: center;
   padding: 16rpx 0;
-  font-size: 26rpx;
+  font-size: 24rpx;
   color: #595959;
   border-radius: 8rpx;
+}
+
+.tab-badge {
+  min-width: 32rpx;
+  height: 32rpx;
+  line-height: 32rpx;
+  padding: 0 8rpx;
+  border-radius: 16rpx;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 20rpx;
+  font-weight: 600;
 }
 
 .tab.active {
@@ -367,6 +757,221 @@ $primary: #1677ff;
   margin-bottom: 16rpx;
 }
 
+.panel-sub.inline {
+  margin-bottom: 0;
+}
+
+.today-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.select-all {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.select-all-text {
+  font-size: 26rpx;
+  color: #595959;
+}
+
+.checkbox {
+  width: 36rpx;
+  height: 36rpx;
+  border: 2rpx solid #d9d9d9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.checkbox.checked {
+  border-color: $primary;
+  background: $primary;
+}
+
+.check-mark {
+  color: #fff;
+  font-size: 22rpx;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.task-row {
+  display: flex;
+  align-items: stretch;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+  border-radius: 16rpx;
+}
+
+.task-row.selectable.selected {
+  .task-card {
+    background: #e6f4ff;
+    border: 2rpx solid $primary;
+  }
+}
+
+.checkbox-col {
+  display: flex;
+  align-items: center;
+  padding-left: 4rpx;
+}
+
+.task-row .task-card {
+  flex: 1;
+  margin-bottom: 0;
+  border: 2rpx solid transparent;
+  box-sizing: border-box;
+}
+
+.group-chips {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.group-chip {
+  padding: 12rpx 28rpx;
+  border-radius: 32rpx;
+  font-size: 26rpx;
+  color: #595959;
+  background: #fff;
+}
+
+.group-chip.active {
+  background: $primary;
+  color: #fff;
+  font-weight: 600;
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rpx 4rpx 12rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.group-count {
+  font-size: 24rpx;
+  font-weight: 400;
+  color: #8c8c8c;
+}
+
+.summary-group-card {
+  background: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 24rpx;
+  overflow: hidden;
+  border: 2rpx solid #e6f4ff;
+
+  &.person {
+    border-color: #d9f7be;
+  }
+}
+
+.summary-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 20rpx 24rpx;
+  background: linear-gradient(90deg, #e6f4ff 0%, #f0f7ff 100%);
+  border-bottom: 1rpx solid #d6e8ff;
+}
+
+.summary-group-card.person .summary-group-head {
+  background: linear-gradient(90deg, #f6ffed 0%, #fcfff6 100%);
+  border-bottom-color: #d9f7be;
+}
+
+.summary-group-title {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-group-icon {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  text-align: center;
+  border-radius: 50%;
+  font-size: 24rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+
+  &.process {
+    background: $primary;
+    color: #fff;
+  }
+
+  &.person {
+    background: #52c41a;
+    color: #fff;
+  }
+}
+
+.summary-group-name-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-group-name {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.summary-group-sub {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #8c8c8c;
+}
+
+.summary-group-badge {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+  font-weight: 600;
+
+  &.pending {
+    color: #fa8c16;
+    background: #fff7e6;
+  }
+}
+
+.summary-group-body {
+  padding: 16rpx 16rpx 4rpx;
+}
+
+.summary-group-body .task-row {
+  margin-bottom: 16rpx;
+}
+
+.summary-group-body .task-card {
+  background: #fafafa;
+  border-radius: 12rpx;
+}
+
+.summary-group-body .task-card.reported {
+  background: #f5f5f5;
+}
+
 .task-card,
 .freq-card,
 .record-card {
@@ -377,7 +982,55 @@ $primary: #1677ff;
 }
 
 .task-card.reported {
-  background: #f6ffed;
+  background: #fafafa;
+  padding: 20rpx 24rpx;
+}
+
+.task-card.reported .task-title {
+  font-weight: 500;
+  color: #8c8c8c;
+}
+
+.task-card.reported .task-wo,
+.task-card.reported .proc-meta,
+.task-card.reported .reported-qty {
+  color: #bfbfbf;
+}
+
+.task-card.reported .proc-name {
+  font-weight: 500;
+  color: #bfbfbf;
+}
+
+.task-card.reported .proc-seq {
+  background: #ebebeb;
+  color: #bfbfbf;
+}
+
+.task-card.reported .task-body {
+  border-top-color: #f0f0f0;
+  padding-top: 16rpx;
+  margin-top: 12rpx;
+}
+
+.task-card.reported .action.view {
+  color: #bfbfbf;
+  font-size: 24rpx;
+}
+
+.task-tag.reported-tag {
+  color: #bfbfbf;
+  background: #f0f0f0;
+  font-weight: 400;
+}
+
+.task-card.claim-card {
+  border: 2rpx solid #ffd591;
+}
+
+.claim-tag {
+  color: #fa8c16 !important;
+  background: #fff7e6 !important;
 }
 
 .task-head {
@@ -400,6 +1053,13 @@ $primary: #1677ff;
   padding: 4rpx 12rpx;
   border-radius: 8rpx;
   flex-shrink: 0;
+
+  &.sales {
+    max-width: 240rpx;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .task-wo {
@@ -458,11 +1118,16 @@ $primary: #1677ff;
 }
 
 .action.view {
-  color: #52c41a;
+  color: #8c8c8c;
 }
 
 .action.lock {
   color: #bfbfbf;
+}
+
+.action.claim {
+  color: $primary;
+  font-weight: 600;
 }
 
 .freq-head {
@@ -622,5 +1287,51 @@ $primary: #1677ff;
   text-align: center;
   padding: 80rpx;
   color: #999;
+}
+
+.batch-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.08);
+}
+
+.batch-count {
+  flex: 1;
+  font-size: 28rpx;
+  color: $primary;
+  font-weight: 600;
+}
+
+.batch-cancel {
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 28rpx;
+  margin: 0;
+  font-size: 28rpx;
+  color: #595959;
+  background: #fff;
+  border: 2rpx solid #d9d9d9;
+  border-radius: 36rpx;
+}
+
+.batch-submit {
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 28rpx;
+  margin: 0;
+  font-size: 28rpx;
+  color: #fff;
+  background: $primary;
+  border: none;
+  border-radius: 36rpx;
+  font-weight: 600;
 }
 </style>

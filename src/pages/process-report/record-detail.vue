@@ -69,6 +69,10 @@
         <text class="label">备注</text>
         <text class="val">{{ record.remark }}</text>
       </view>
+      <view v-if="record.images?.length" class="image-section">
+        <text class="image-label">现场图片</text>
+        <ImageUpload :model-value="record.images" readonly />
+      </view>
       <view v-if="record.status === '已拒绝'" class="reject-tip">
         退回原因：{{ record.rejectReason }}
       </view>
@@ -84,6 +88,7 @@
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getRecordById } from '@/mock/processReportRecords'
+import ImageUpload from '@/components/ImageUpload.vue'
 import { isDurationReportMode, resolveReportMode, displayReportSource } from '@/utils/reportMode'
 
 function displayReportMode(mode) {
@@ -172,6 +177,18 @@ $primary: #1677ff;
   color: #ff4d4f;
   border-radius: 8rpx;
   font-size: 24rpx;
+}
+
+.image-section {
+  padding-top: 16rpx;
+  border-top: 1rpx solid #f5f5f5;
+}
+
+.image-label {
+  display: block;
+  font-size: 26rpx;
+  color: #999;
+  margin-bottom: 12rpx;
 }
 
 .foot {
