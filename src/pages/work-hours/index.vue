@@ -20,11 +20,11 @@
       >{{ tab.label }}</view>
     </view>
 
-    <scroll-view scroll-y class="list-scroll" :class="{ 'has-footer': activeTab !== 'all' || monthSalary > 0 }">
+    <scroll-view scroll-y class="list-scroll" :class="{ 'has-footer': monthSalary > 0 }">
       <view v-for="item in list" :key="item.id" class="card">
         <view class="card-head">
           <text class="task-no">{{ item.taskNo }}</text>
-          <text class="status" :class="statusClass(item.confirmStatus)">{{ item.confirmStatus }}</text>
+          <text class="status" :class="statusClass(item.taskStatus)">{{ item.taskStatus }}</text>
         </view>
         <view class="card-title-row">
           <text class="proc-name">{{ item.processName }}</text>
@@ -32,40 +32,43 @@
         </view>
         <view class="fields">
           <view class="row">
+            <text class="label">工单编号</text>
+            <text class="val">{{ item.workOrderCode }}</text>
+          </view>
+          <view class="row">
+            <text class="label">操作人</text>
+            <text class="val">{{ item.operator || item.executor }}</text>
+          </view>
+          <view class="row">
+            <text class="label">推送状态</text>
+            <text class="val push">{{ item.pushStatus }}</text>
+          </view>
+          <view class="row">
             <text class="label">报工时间</text>
             <text class="val">{{ item.reportTime }}</text>
           </view>
           <view class="row">
-            <text class="label">任务数量</text>
-            <text class="val">{{ item.taskQty }}</text>
-          </view>
-          <view class="row">
             <text class="label">报工数量</text>
-            <text class="val blue">{{ item.goodQty }}</text>
+            <text class="val blue">{{ item.reportQty }}</text>
           </view>
           <view v-if="item.reportType === '时长报工'" class="row">
             <text class="label">报工时长</text>
-            <text class="val">{{ item.reportDuration }}</text>
+            <text class="val">{{ item.reportDuration }}h</text>
           </view>
-          <view v-if="item.confirmStatus === '已确认' && item.scrapQty != null" class="row">
-            <text class="label">报废数量</text>
-            <text class="val">{{ item.scrapQty || 0 }}</text>
-          </view>
-          <view v-if="item.remark && item.confirmStatus !== '已确认'" class="row">
-            <text class="label">备注</text>
-            <text class="val">{{ item.remark }}</text>
+          <view v-if="item.accountHours" class="row">
+            <text class="label">核算工时</text>
+            <text class="val">{{ item.accountHours }}h</text>
           </view>
         </view>
 
-        <!-- 已确认：调整区 -->
-        <view v-if="item.confirmStatus === '已确认'" class="adjust-box">
-          <view class="row">
+        <view class="adjust-box">
+          <view v-if="item.adjustedReportQty != null" class="row">
             <text class="label">调整后数量</text>
-            <text class="val">{{ item.adjustedGoodQty ?? item.goodQty }}</text>
+            <text class="val">{{ item.adjustedReportQty }}</text>
           </view>
-          <view v-if="item.reportType === '时长报工'" class="row">
+          <view v-if="item.reportType === '时长报工' && item.adjustedDuration != null" class="row">
             <text class="label">调整后工时</text>
-            <text class="val">{{ item.adjustedDuration ?? item.reportDuration }}</text>
+            <text class="val">{{ item.adjustedDuration }}h</text>
           </view>
           <view v-if="item.subsidyReportQty" class="row">
             <text class="label">补贴报工数</text>
@@ -77,7 +80,7 @@
           </view>
           <view class="row salary-row">
             <text class="label">计薪</text>
-            <text class="salary">{{ formatMoney(item.calculatedSalary) }}元</text>
+            <text class="salary">{{ formatMoney(item.salaryAmount) }}元</text>
           </view>
           <view v-if="item.adjustReason" class="row">
             <text class="label">调整原因</text>
@@ -88,40 +91,6 @@
             <text class="val reason">{{ item.subsidyReason }}</text>
           </view>
         </view>
-
-        <!-- 待工人确认：展示推送后的调整预览 -->
-        <view v-else-if="item.confirmStatus === '待工人确认'" class="adjust-box pending">
-          <view v-if="hasAdjustment(item)" class="row">
-            <text class="label">调整后数量</text>
-            <text class="val">{{ item.adjustedGoodQty ?? item.goodQty }}</text>
-          </view>
-          <view v-if="item.reportType === '时长报工' && (item.adjustedDuration != null || item.reportDuration)" class="row">
-            <text class="label">调整后工时</text>
-            <text class="val">{{ item.adjustedDuration ?? item.reportDuration }}</text>
-          </view>
-          <view v-if="item.subsidyReportQty" class="row">
-            <text class="label">补贴报工数</text>
-            <text class="val">{{ item.subsidyReportQty }}</text>
-          </view>
-          <view v-if="item.subsidyHours" class="row">
-            <text class="label">补贴工时</text>
-            <text class="val">{{ item.subsidyHours }}h</text>
-          </view>
-          <view v-if="item.adjustReason" class="row">
-            <text class="label">调整原因</text>
-            <text class="val reason">{{ item.adjustReason }}</text>
-          </view>
-          <view v-if="item.subsidyReason" class="row">
-            <text class="label">补贴原因</text>
-            <text class="val reason">{{ item.subsidyReason }}</text>
-          </view>
-        </view>
-
-        <button
-          v-if="item.confirmStatus === '待工人确认'"
-          class="confirm-btn"
-          @tap="onConfirm(item)"
-        >确认</button>
       </view>
 
       <view v-if="!list.length" class="empty">暂无工时记录</view>
@@ -134,30 +103,27 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getUser, isLoggedIn } from '@/utils/auth'
 import {
-  getWorkerConfirmLines,
+  getWorkerLaborWageLines,
   getWorkerMonthSalary,
-  workerConfirmLine,
-  CONFIRM_STATUS,
-} from '@/mock/reportConfirmStore'
+  TASK_STATUS,
+} from '@/mock/laborWageStore'
 
 const tabs = [
   { key: 'all', label: '全部' },
-  { key: 'pending', label: '待确认' },
-  { key: 'confirmed', label: '已确认' },
+  { key: 'reported', label: '已报工' },
+  { key: 'audited', label: '已审核' },
 ]
 const activeTab = ref('all')
 const list = ref([])
 const monthSalary = ref(0)
 
-const tabKeyMap = { all: 'all', pending: 'pending', confirmed: 'confirmed' }
-
 function refresh() {
   const user = getUser()
-  list.value = getWorkerConfirmLines(user, tabKeyMap[activeTab.value])
+  list.value = getWorkerLaborWageLines(user, activeTab.value)
   monthSalary.value = getWorkerMonthSalary(user)
 }
 
@@ -180,41 +146,13 @@ function showFilterTip() {
 }
 
 function statusClass(status) {
-  if (status === CONFIRM_STATUS.CONFIRMED) return 'confirmed'
-  if (status === CONFIRM_STATUS.WORKER_PENDING) return 'pending'
-  return ''
-}
-
-function hasAdjustment(item) {
-  return (
-    item.adjustedGoodQty != null ||
-    item.adjustedDefectQty != null ||
-    item.adjustedDuration != null ||
-    item.subsidyReportQty ||
-    item.subsidyHours
-  )
+  if (status === TASK_STATUS.AUDITED) return 'confirmed'
+  return 'pending'
 }
 
 function formatMoney(n) {
   const v = Number(n) || 0
   return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function onConfirm(item) {
-  uni.showModal({
-    title: '确认报工',
-    content: `确认任务 ${item.taskNo} 的报工数据？确认后将计入本月计薪。`,
-    success: (r) => {
-      if (!r.confirm) return
-      const res = workerConfirmLine(item.id, getUser())
-      if (!res.ok) {
-        uni.showToast({ title: res.message, icon: 'none' })
-        return
-      }
-      refresh()
-      uni.showToast({ title: '确认成功', icon: 'success' })
-    },
-  })
 }
 </script>
 
@@ -268,7 +206,7 @@ function onConfirm(item) {
   flex: 1;
   text-align: center;
   padding: 20rpx 0;
-  font-size: 28rpx;
+  font-size: 26rpx;
   color: #595959;
   position: relative;
 
@@ -319,14 +257,10 @@ function onConfirm(item) {
 
 .status {
   font-size: 24rpx;
-  color: #ff4d4f;
+  color: #fa8c16;
 
   &.confirmed {
     color: #1677ff;
-  }
-
-  &.pending {
-    color: #fa8c16;
   }
 }
 
@@ -367,6 +301,10 @@ function onConfirm(item) {
     font-weight: 600;
   }
 
+  &.push {
+    color: #52c41a;
+  }
+
   &.reason {
     max-width: 60%;
     text-align: right;
@@ -379,28 +317,12 @@ function onConfirm(item) {
   background: #f6ffed;
   border-radius: 12rpx;
   border: 1rpx solid #b7eb8f;
-
-  &.pending {
-    background: #fffbe6;
-    border-color: #ffe58f;
-  }
 }
 
 .salary-row .salary {
   color: #52c41a;
   font-weight: 700;
   font-size: 30rpx;
-}
-
-.confirm-btn {
-  margin-top: 20rpx;
-  background: #1677ff;
-  color: #fff;
-  border: none;
-  border-radius: 12rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  font-size: 28rpx;
 }
 
 .footer-bar {

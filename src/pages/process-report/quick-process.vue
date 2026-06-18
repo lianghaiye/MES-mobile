@@ -16,11 +16,38 @@
       <text class="pc-spec">规格: {{ product.spec }}</text>
     </view>
 
-    <text class="hint-title">选择要报工的工序</text>
-    <text class="hint-sub">该产品有 {{ processes.length }} 道工序，请选择本次要报工的工序</text>
+    <view class="search-bar">
+      <input
+        v-model="keyword"
+        class="search-input"
+        placeholder="搜索工序名称..."
+        @input="refreshList"
+      />
+    </view>
+
+    <template v-if="recentList.length">
+      <text class="section-label">最近常选 ({{ recentList.length }})</text>
+      <view
+        v-for="p in recentList"
+        :key="`recent-${p.name}`"
+        class="proc-card recent"
+        :class="{ selected: selectedName === p.name }"
+        @tap="selectedName = p.name"
+      >
+        <view class="proc-left">
+          <text class="proc-name">{{ p.name }}</text>
+          <text class="proc-sub">{{ displayReportMode(p.reportMode) }}{{ p.estimate ? ` · ${p.estimate}` : '' }}</text>
+        </view>
+        <text v-if="selectedName === p.name" class="selected-tag">已选</text>
+        <view v-else class="radio" />
+      </view>
+    </template>
+
+    <text class="section-label">{{ listTitle }} ({{ allList.length }})</text>
+    <text v-if="!keyword.trim()" class="hint-sub">请选择本次要报工的工序</text>
 
     <view
-      v-for="p in processes"
+      v-for="p in allList"
       :key="p.name"
       class="proc-card"
       :class="{ selected: selectedName === p.name }"
@@ -34,6 +61,8 @@
       <view v-else class="radio" />
     </view>
 
+    <view v-if="!recentList.length && !allList.length" class="empty">未找到匹配的工序</view>
+
     <view class="foot">
       <button class="btn outline" @tap="goBack">上一步</button>
       <button class="btn primary" :disabled="!selectedName" @tap="goNext">下一步</button>
@@ -44,7 +73,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getQuickProductById } from '@/mock/processReportProducts'
+import { getQuickProductById, getQuickProcessPickSections } from '@/mock/processReportProducts'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
 import { resolveReportMode } from '@/utils/reportMode'
 
@@ -55,20 +84,18 @@ function displayReportMode(mode) {
 const product = ref(null)
 const selectedName = ref('')
 const editId = ref('')
+const keyword = ref('')
+const recentList = ref([])
+const allList = ref([])
 
-const ESTIMATE = {
-  车削: '预计 30分钟/件',
-  热处理: '预计 4小时/批',
+const listTitle = computed(() => (keyword.value.trim() ? '搜索结果' : '全部工序'))
+
+function refreshList() {
+  if (!product.value) return
+  const sections = getQuickProcessPickSections(product.value, keyword.value)
+  recentList.value = sections.recent
+  allList.value = sections.all
 }
-
-const processes = computed(() => {
-  if (!product.value) return []
-  return product.value.processNames.map((name) => ({
-    name,
-    reportMode: getProcessReportMode(name),
-    estimate: ESTIMATE[name] || '',
-  }))
-})
 
 onLoad((query) => {
   product.value = getQuickProductById(query.productId)
@@ -79,7 +106,9 @@ onLoad((query) => {
   if (!product.value) {
     uni.showToast({ title: '产品不存在', icon: 'none' })
     setTimeout(() => uni.navigateBack(), 1500)
+    return
   }
+  refreshList()
 })
 
 function goBack() {
@@ -190,18 +219,32 @@ $primary: #1677ff;
   color: #8c8c8c;
 }
 
-.hint-title {
+.search-bar {
+  margin-bottom: 20rpx;
+}
+
+.search-input {
+  width: 100%;
+  height: 72rpx;
+  padding: 0 24rpx;
+  background: #fff;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.section-label {
   display: block;
-  font-size: 30rpx;
-  font-weight: 600;
-  margin-bottom: 8rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+  margin-bottom: 16rpx;
 }
 
 .hint-sub {
   display: block;
   font-size: 24rpx;
   color: #8c8c8c;
-  margin-bottom: 20rpx;
+  margin: -8rpx 0 20rpx;
 }
 
 .proc-card {
@@ -213,6 +256,10 @@ $primary: #1677ff;
   border-radius: 16rpx;
   padding: 28rpx;
   margin-bottom: 16rpx;
+}
+
+.proc-card.recent {
+  border-color: rgba(22, 119, 255, 0.15);
 }
 
 .proc-card.selected {
@@ -244,6 +291,13 @@ $primary: #1677ff;
   height: 36rpx;
   border: 2rpx solid #d9d9d9;
   border-radius: 50%;
+}
+
+.empty {
+  text-align: center;
+  padding: 60rpx 0;
+  font-size: 28rpx;
+  color: #8c8c8c;
 }
 
 .foot {

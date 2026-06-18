@@ -307,6 +307,7 @@ function buildBatchReportPayload(task, reportContext) {
     operator: reportContext.operator,
     reporter: reportContext.reporter,
     groupName: task.groupName || '',
+    taskScope: task.isGroupTask ? '小组' : '个人',
     images: [],
   }
 }
@@ -432,6 +433,7 @@ export function buildCustomReportPayload(task, form, sharedRemark = '', reportCo
     remark: remark || '异常报工',
     operator: ctx.operator,
     reporter: ctx.reporter,
+    taskScope: task.isGroupTask ? '小组' : '个人',
     groupName: task.groupName || '',
     images: form.images || [],
   }

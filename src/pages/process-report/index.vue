@@ -73,7 +73,6 @@
       </view>
 
       <view v-if="showMemberSelector" class="member-bar">
-        <text class="member-bar-label">代报工</text>
         <scroll-view scroll-x class="member-scroll" :show-scrollbar="false">
           <view class="member-chips">
             <view
@@ -98,6 +97,16 @@
           :class="{ active: todayGroupMode === mode.key }"
           @tap="todayGroupMode = mode.key"
         >{{ mode.label }}</view>
+      </view>
+
+      <view class="scope-chips">
+        <view
+          v-for="scope in todayTaskScopeFilters"
+          :key="scope.key"
+          class="scope-chip"
+          :class="{ active: todayTaskScopeFilter === scope.key }"
+          @tap="todayTaskScopeFilter = scope.key"
+        >{{ scope.label }}</view>
       </view>
 
       <template v-for="group in groupedReportTasks" :key="group.key">
@@ -224,7 +233,7 @@
         </template>
       </template>
 
-      <view v-if="!reportTasks.length" class="empty">今日暂无待报工任务</view>
+      <view v-if="!scopedReportTasks.length" class="empty">今日暂无待报工任务</view>
     </view>
 
     <!-- 快速报工 -->
@@ -268,12 +277,18 @@
         @tap="goRecordDetail(r)"
       >
         <view class="rc-head">
-          <text class="rc-title">{{ r.processName }} · {{ r.productName }}</text>
+          <view class="rc-title-wrap">
+            <text class="rc-title">{{ r.processName }} · {{ r.productName }}</text>
+            <view v-if="r.source === 'workorder' && r.taskScope" class="rc-scope-tags">
+              <text class="scope-tag" :class="r.taskScope === '小组' ? 'group' : 'personal'">{{ r.taskScope }}</text>
+            </view>
+          </view>
           <text class="rc-status">{{ r.status }}</text>
         </view>
         <text class="rc-meta">{{ r.workOrderNo ? r.workOrderNo + ' · ' : '' }}{{ r.timeLabel }}</text>
         <view class="rc-metrics">
           <text>报工方式: {{ displayReportSource(r.source) }}</text>
+          <text v-if="r.pushStatus">推送状态: {{ r.pushStatus }}</text>
           <text v-if="r.source === 'workorder' && r.reporter">执行人: {{ r.reporter }}</text>
           <text v-if="r.source === 'workorder' && r.operator">操作人: {{ r.operator }}</text>
           <template v-if="isDurationReportMode(r.reportMode)">
@@ -322,6 +337,7 @@ import {
   getFrequentReports,
   getMyRecords,
   getRecordStats,
+  PUSH_STATUS,
 } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
 import { isDurationReportMode, resolveReportMode, displayReportSource } from '@/utils/reportMode'
@@ -346,6 +362,7 @@ const tabs = [
 
 const activeTab = ref('today')
 const todayGroupMode = ref('task')
+const todayTaskScopeFilter = ref('all')
 const reportForMember = ref('')
 const selectedTaskIds = ref([])
 const batchConfirmOpen = ref(false)
@@ -358,11 +375,17 @@ const todayGroupModes = [
   { key: 'process', label: '按工序' },
 ]
 
+const todayTaskScopeFilters = [
+  { key: 'all', label: '全部' },
+  { key: 'personal', label: '个人' },
+  { key: 'group', label: '小组' },
+]
+
 const recordFilters = [
   { key: 'all', label: '全部' },
-  { key: '待审核', label: '待审核' },
-  { key: '已审核', label: '已审核' },
-  { key: '已拒绝', label: '已拒绝' },
+  { key: PUSH_STATUS.NOT_PUSHED, label: PUSH_STATUS.NOT_PUSHED },
+  { key: PUSH_STATUS.PUSHED, label: PUSH_STATUS.PUSHED },
+  { key: PUSH_STATUS.AUTO_PUSHED, label: PUSH_STATUS.AUTO_PUSHED },
 ]
 
 const user = computed(() => getUser())
@@ -419,13 +442,24 @@ const reportTasks = computed(() => {
   return getTodayReportTasks(user.value, reportOptions.value)
 })
 
+const scopedReportTasks = computed(() => {
+  const tasks = reportTasks.value
+  if (todayTaskScopeFilter.value === 'personal') {
+    return tasks.filter((t) => t.isPersonalTask)
+  }
+  if (todayTaskScopeFilter.value === 'group') {
+    return tasks.filter((t) => t.isGroupTask)
+  }
+  return tasks
+})
+
 const pendingReportCount = computed(() => {
   refreshKey.value
-  return reportTasks.value.filter((t) => t.status === 'pending').length
+  return scopedReportTasks.value.filter((t) => t.status === 'pending').length
 })
 
 const groupedReportTasks = computed(() => {
-  const tasks = reportTasks.value
+  const tasks = scopedReportTasks.value
   if (!tasks.length) return []
 
   if (todayGroupMode.value === 'task') {
@@ -482,7 +516,7 @@ const groupedReportTasks = computed(() => {
 
 const selectableTasks = computed(() => {
   refreshKey.value
-  return reportTasks.value.filter((t) => t.status === 'pending')
+  return scopedReportTasks.value.filter((t) => t.status === 'pending')
 })
 
 const selectedCount = computed(() => selectedTaskIds.value.length)
@@ -525,7 +559,7 @@ onShow(() => {
     return
   }
   const valid = new Set(
-    getTodayReportTasks(user.value, reportOptions.value)
+    scopedReportTasks.value
       .filter((t) => t.status === 'pending')
       .map((t) => t.id),
   )
@@ -535,6 +569,10 @@ onShow(() => {
 watch(reportForMember, () => {
   if (activeTab.value === 'today') selectAllPending()
   else clearSelection()
+})
+
+watch(todayTaskScopeFilter, () => {
+  if (activeTab.value === 'today') selectAllPending()
 })
 
 watch(activeTab, (tab) => {
@@ -975,6 +1013,27 @@ $primary: #1677ff;
   font-weight: 600;
 }
 
+.scope-chips {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.scope-chip {
+  padding: 10rpx 24rpx;
+  border-radius: 32rpx;
+  font-size: 24rpx;
+  color: #595959;
+  background: #fff;
+  border: 2rpx solid #f0f0f0;
+}
+
+.scope-chip.active {
+  color: $primary;
+  border-color: rgba(22, 119, 255, 0.35);
+  background: rgba(22, 119, 255, 0.08);
+}
+
 .group-title {
   display: flex;
   align-items: center;
@@ -1378,6 +1437,35 @@ $primary: #1677ff;
 .rc-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.rc-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.rc-scope-tags {
+  margin-top: 8rpx;
+}
+
+.scope-tag {
+  display: inline-block;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  font-weight: 500;
+
+  &.personal {
+    color: #531dab;
+    background: #f9f0ff;
+  }
+
+  &.group {
+    color: #08979c;
+    background: #e6fffb;
+  }
 }
 
 .rc-title {

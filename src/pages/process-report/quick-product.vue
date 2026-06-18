@@ -13,13 +13,27 @@
         v-model="keyword"
         class="search-input"
         placeholder="搜索产品名称或编码..."
-        @input="onSearch"
+        @input="refreshList"
       />
     </view>
 
-    <text class="section-label">全部产品 ({{ list.length }})</text>
+    <template v-if="recentList.length">
+      <text class="section-label">最近常选 ({{ recentList.length }})</text>
+      <view v-for="item in recentList" :key="`recent-${item.id}`" class="card recent" @tap="onSelect(item)">
+        <view class="card-head">
+          <text class="name">{{ item.name }}</text>
+          <text class="link">选择 ›</text>
+        </view>
+        <text class="meta">编码: {{ item.code }} · 规格: {{ item.spec }}</text>
+        <view class="tags">
+          <text v-for="(p, i) in item.processNames" :key="i" class="tag">{{ p }}</text>
+        </view>
+      </view>
+    </template>
 
-    <view v-for="item in list" :key="item.id" class="card" @tap="onSelect(item)">
+    <text class="section-label">{{ listTitle }} ({{ allList.length }})</text>
+
+    <view v-for="item in allList" :key="item.id" class="card" @tap="onSelect(item)">
       <view class="card-head">
         <text class="name">{{ item.name }}</text>
         <text class="link">选择 ›</text>
@@ -29,19 +43,28 @@
         <text v-for="(p, i) in item.processNames" :key="i" class="tag">{{ p }}</text>
       </view>
     </view>
+
+    <view v-if="!recentList.length && !allList.length" class="empty">未找到匹配的产品</view>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { searchQuickProducts } from '@/mock/processReportProducts'
+import { ref, computed } from 'vue'
+import { getQuickProductPickSections } from '@/mock/processReportProducts'
 
 const keyword = ref('')
-const list = ref(searchQuickProducts())
+const recentList = ref([])
+const allList = ref([])
 
-function onSearch() {
-  list.value = searchQuickProducts(keyword.value)
+const listTitle = computed(() => (keyword.value.trim() ? '搜索结果' : '全部产品'))
+
+function refreshList() {
+  const sections = getQuickProductPickSections(keyword.value)
+  recentList.value = sections.recent
+  allList.value = sections.all
 }
+
+refreshList()
 
 function onSelect(item) {
   uni.navigateTo({
@@ -107,6 +130,10 @@ $primary: #1677ff;
   background: $primary;
 }
 
+.search-bar {
+  margin-bottom: 24rpx;
+}
+
 .search-input {
   width: 100%;
   height: 72rpx;
@@ -115,7 +142,6 @@ $primary: #1677ff;
   border-radius: 36rpx;
   font-size: 28rpx;
   box-sizing: border-box;
-  margin-bottom: 24rpx;
 }
 
 .section-label {
@@ -130,6 +156,10 @@ $primary: #1677ff;
   border-radius: 16rpx;
   padding: 28rpx;
   margin-bottom: 16rpx;
+}
+
+.card.recent {
+  border: 2rpx solid rgba(22, 119, 255, 0.15);
 }
 
 .card-head {
@@ -168,5 +198,12 @@ $primary: #1677ff;
   color: $primary;
   border-radius: 8rpx;
   font-size: 22rpx;
+}
+
+.empty {
+  text-align: center;
+  padding: 80rpx 0;
+  font-size: 28rpx;
+  color: #8c8c8c;
 }
 </style>

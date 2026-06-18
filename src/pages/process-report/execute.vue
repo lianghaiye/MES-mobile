@@ -534,6 +534,7 @@ function onSubmit() {
     images: [...(form.images || [])],
     operator: isQuickSource.value ? '' : form.operator,
     reporter: isQuickSource.value ? '' : (form.reporter || form.operator),
+    taskScope: isQuickSource.value ? '' : (context.isGroupTask ? '小组' : '个人'),
     groupName: isQuickSource.value ? '' : context.groupName,
   }
   const res = editId.value

@@ -4,17 +4,36 @@ import { getUser } from '@/utils/auth'
 import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
 import { breakdownToLegacy, validateDefectBreakdown } from '@/utils/defectBreakdown'
 import { getProcessDefectItems } from '@/utils/iodomsStorage'
+import { PUSH_STATUS } from '@/utils/laborWageConstants'
 
 const MIGRATE_KEY = 'i_doms_process_report_mode_migrate_v'
-const MIGRATE_VERSION = '1'
+const MIGRATE_VERSION = '2'
 
 function withNormalizedMode(row) {
   if (!row) return row
   return { ...row, reportMode: resolveReportMode(row.reportMode) }
 }
 
-function migrateStoredList(list) {
+function migrateFrequentList(list) {
   return (list || []).map(withNormalizedMode)
+}
+
+function migrateRecord(row) {
+  const next = withNormalizedMode(row)
+  if (!next.pushStatus) {
+    if (next.status === '已审核') next.pushStatus = PUSH_STATUS.PUSHED
+    else next.pushStatus = PUSH_STATUS.NOT_PUSHED
+  }
+  if (!next.taskScope && next.source === 'workorder') {
+    next.taskScope = next.operator && next.reporter && next.operator !== next.reporter
+      ? '小组'
+      : '个人'
+  }
+  return next
+}
+
+function migrateStoredRecords(list) {
+  return (list || []).map(migrateRecord)
 }
 
 export const RECORD_STATUS = ['待审核', '已审核', '已拒绝']
@@ -65,6 +84,8 @@ function createSeed() {
       status: '待审核',
       rejectReason: '',
       reporter: '张三',
+      taskScope: '小组',
+      pushStatus: PUSH_STATUS.NOT_PUSHED,
       createdAt: `${today} 14:30`,
       timeLabel: '今天 14:30',
     },
@@ -89,6 +110,7 @@ function createSeed() {
       status: '待审核',
       rejectReason: '',
       reporter: '张三',
+      pushStatus: PUSH_STATUS.NOT_PUSHED,
       createdAt: `${today} 10:15`,
       timeLabel: '今天 10:15',
     },
@@ -114,6 +136,8 @@ function createSeed() {
       status: '已审核',
       rejectReason: '',
       reporter: '张三',
+      taskScope: '个人',
+      pushStatus: PUSH_STATUS.PUSHED,
       createdAt: '2026-06-10 16:20',
       timeLabel: '昨天 16:20',
     },
@@ -138,6 +162,7 @@ function createSeed() {
       status: '已拒绝',
       rejectReason: '工时填写不完整，请重新报工',
       reporter: '张三',
+      pushStatus: PUSH_STATUS.NOT_PUSHED,
       createdAt: '2026-06-09 15:40',
       timeLabel: '前天 15:40',
     },
@@ -152,14 +177,14 @@ function load() {
   } catch {
     /* ignore */
   }
-  if (!list) return createSeed()
+  if (!list) return migrateStoredRecords(createSeed())
   if (uni.getStorageSync(MIGRATE_KEY) !== MIGRATE_VERSION) {
-    list = migrateStoredList(list)
+    list = migrateStoredRecords(list)
     uni.setStorageSync(STORAGE_KEY, JSON.stringify(list))
     migrateFrequentReports()
     uni.setStorageSync(MIGRATE_KEY, MIGRATE_VERSION)
   }
-  return list
+  return migrateStoredRecords(list)
 }
 
 let cache = load()
@@ -178,14 +203,18 @@ function resolveReporterNames(user) {
   return [...new Set([displayName, username].filter(Boolean))]
 }
 
-export function getMyRecords(user, filter = 'all') {
+export function getMyRecords(user, pushFilter = 'all') {
   const names = resolveReporterNames(user)
   let list = cache.filter(
     (r) => names.includes(r.reporter) || (r.operator && names.includes(r.operator)),
   )
-  if (filter !== 'all') list = list.filter((r) => r.status === filter)
+  if (pushFilter !== 'all') {
+    list = list.filter((r) => (r.pushStatus || PUSH_STATUS.NOT_PUSHED) === pushFilter)
+  }
   return list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 }
+
+export { PUSH_STATUS }
 
 export function getRecordStats(user) {
   const list = getMyRecords(user, 'all')
@@ -258,6 +287,8 @@ function buildRecordFromPayload(payload, base = {}) {
       operator: payload.operator || base.operator || '',
       reporter: payload.reporter || base.reporter || '',
       groupName: payload.groupName || base.groupName || '',
+      taskScope: payload.taskScope || base.taskScope || '',
+      pushStatus: payload.pushStatus || base.pushStatus || PUSH_STATUS.NOT_PUSHED,
       status: '待审核',
       rejectReason: '',
       createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -347,7 +378,7 @@ function migrateFrequentReports() {
     /* ignore */
   }
   if (!list.length) return
-  const migrated = migrateStoredList(list)
+  const migrated = migrateFrequentList(list)
   uni.setStorageSync(FREQ_KEY, JSON.stringify(migrated))
 }
 
@@ -360,7 +391,7 @@ export function getFrequentReports() {
     /* ignore */
   }
   if (!list.length) list = defaultFrequent()
-  return migrateStoredList(list).slice(0, FREQ_LIMIT)
+  return migrateFrequentList(list).slice(0, FREQ_LIMIT)
 }
 
 function updateFrequentReport(payload) {
