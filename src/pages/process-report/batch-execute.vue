@@ -124,11 +124,13 @@ import {
   getReportTasksByIds,
   submitBatchCustomReports,
   buildCustomReportPayload,
+  resolveReportContext,
 } from '@/mock/processReportTasks'
 
 const forms = ref([])
 const sharedRemark = ref('')
 const submitting = ref(false)
+const reportForMember = ref('')
 
 function createFormItem(task) {
   const targetQty = Number(task.targetQty) || 0
@@ -151,11 +153,13 @@ function createFormItem(task) {
 }
 
 onLoad((query) => {
+  reportForMember.value = query.reportFor ? decodeURIComponent(query.reportFor) : ''
   const ids = (query.ids || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-  const tasks = getReportTasksByIds(ids, getUser())
+  const options = reportForMember.value ? { reportForMember: reportForMember.value } : {}
+  const tasks = getReportTasksByIds(ids, getUser(), options)
   if (!tasks.length) {
     uni.showToast({ title: '任务不存在或已报工', icon: 'none' })
     setTimeout(() => uni.navigateBack(), 1200)
@@ -238,11 +242,18 @@ function onSubmit() {
     return
   }
   submitting.value = true
+  const user = getUser()
+  const options = reportForMember.value ? { reportForMember: reportForMember.value } : {}
   const entries = forms.value.map((item) => ({
     taskId: item.taskId,
-    payload: buildCustomReportPayload(item.task, item, sharedRemark.value),
+    payload: buildCustomReportPayload(
+      item.task,
+      item,
+      sharedRemark.value,
+      resolveReportContext(user, options, item.task),
+    ),
   }))
-  const res = submitBatchCustomReports(entries, getUser())
+  const res = submitBatchCustomReports(entries, user, options)
   submitting.value = false
   if (!res.ok) {
     uni.showToast({ title: res.message, icon: 'none' })

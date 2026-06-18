@@ -19,8 +19,14 @@
       <text class="card-title">报工信息{{ isDurationReportMode(reportMode) ? '（时长型）' : '' }}</text>
 
       <view v-if="targetQty" class="target-bar">
-        <text>今日目标</text>
-        <text class="target-num">{{ targetQty }} 件</text>
+        <view class="target-item">
+          <text>排产数量</text>
+          <text class="target-num">{{ targetQty }} 件</text>
+        </view>
+        <view v-if="remainingQty != null" class="target-item highlight">
+          <text>待报工</text>
+          <text class="target-num">{{ remainingQty }} 件</text>
+        </view>
       </view>
 
       <!-- 批量计件 -->
@@ -97,7 +103,17 @@
         </view>
       </template>
 
-      <view v-if="!isQuickSource" class="field operator-field" @tap="goSelectOperator">
+      <view v-if="!isQuickSource && isProxyMode" class="field readonly-field">
+        <text class="label">执行人</text>
+        <text class="readonly-val">{{ form.reporter }}</text>
+      </view>
+
+      <view v-if="!isQuickSource && isProxyMode" class="field readonly-field">
+        <text class="label">操作人</text>
+        <text class="readonly-val">{{ form.operator }}</text>
+      </view>
+
+      <view v-if="!isQuickSource && !isProxyMode" class="field operator-field" @tap="goSelectOperator">
         <text class="label required">操作人</text>
         <view class="operator-picker">
           <text :class="{ placeholder: !form.operator }">{{ form.operator || '请选择操作人' }}</text>
@@ -155,7 +171,7 @@ import { getQuickProductByCode } from '@/mock/processReportProducts'
 import { getRecordById, resubmitProcessReport, submitProcessReport } from '@/mock/processReportRecords'
 import { markTaskReported } from '@/mock/processReportTasks'
 import { getUser } from '@/utils/auth'
-import { getGroupWorkerNames, resolveWorkerDisplayName, getUserWorkerGroupNames } from '@/utils/workerGroup'
+import { getGroupWorkerNames, resolveWorkerDisplayName, getUserWorkerGroupNames, isGroupLeader } from '@/utils/workerGroup'
 import { consumeSelectionResult } from '@/utils/selection'
 
 const submitting = ref(false)
@@ -165,6 +181,7 @@ const productName = ref('')
 const productCode = ref('')
 const reportMode = ref('批量计件')
 const targetQty = ref(null)
+const remainingQty = ref(null)
 const defectItems = ref([])
 const context = reactive({
   source: 'quick',
@@ -175,6 +192,8 @@ const context = reactive({
   workOrderId: '',
   processId: '',
   groupName: '',
+  reportFor: '',
+  isGroupTask: false,
 })
 
 const form = reactive({
@@ -189,10 +208,17 @@ const form = reactive({
   defectItemNames: [],
   remark: '',
   operator: '',
+  reporter: '',
   images: [],
 })
 
 const isQuickSource = computed(() => isQuickReportSource(context.source))
+
+const isProxyMode = computed(() => {
+  if (context.source !== 'workorder' || !context.isGroupTask) return false
+  const leaderName = resolveWorkerDisplayName(getUser())
+  return !!context.reportFor && context.reportFor !== leaderName && isGroupLeader(getUser())
+})
 
 const useLinkedQty = computed(() => !!targetQty.value)
 
@@ -234,6 +260,7 @@ onLoad((query) => {
   productName.value = decodeURIComponent(query.productName || '')
   productCode.value = query.productCode || ''
   targetQty.value = query.targetQty ? Number(query.targetQty) : null
+  remainingQty.value = query.remainingQty != null ? Number(query.remainingQty) : targetQty.value
   context.source = query.source || 'quick'
   context.productId = query.productId || ''
   context.taskId = query.taskId || ''
@@ -242,6 +269,8 @@ onLoad((query) => {
   context.workOrderId = query.workOrderId || ''
   context.processId = query.processId || ''
   context.groupName = query.groupName ? decodeURIComponent(query.groupName) : ''
+  context.reportFor = query.reportFor ? decodeURIComponent(query.reportFor) : ''
+  context.isGroupTask = query.isGroupTask === '1'
 
   reportMode.value = query.reportMode || getProcessReportMode(processName.value)
   defectItems.value = getProcessDefectItems(processName.value)
@@ -250,8 +279,9 @@ onLoad((query) => {
   form.startTime = nowTime()
   form.endTime = nowTime()
   if (targetQty.value) {
-    form.goodQty = targetQty.value
-    form.finishedQty = targetQty.value
+    const pending = Math.max(0, Number(remainingQty.value ?? targetQty.value) || 0)
+    form.goodQty = pending
+    form.finishedQty = pending
     refreshQtySnapshot()
   }
 })
@@ -266,15 +296,24 @@ onShow(() => {
 function initTaskOperator() {
   if (context.source !== 'workorder') return
   const user = getUser()
+  const leaderName = resolveWorkerDisplayName(user)
+  const reportFor = context.reportFor || leaderName
   if (!context.groupName) {
     const groups = getUserWorkerGroupNames(user)
     context.groupName = groups[0] || ''
   }
-  const defaultName = resolveWorkerDisplayName(user)
+  if (isProxyMode.value) {
+    form.reporter = reportFor
+    form.operator = leaderName
+    return
+  }
+  const defaultName = reportFor || leaderName
   if (!form.operator) form.operator = defaultName
+  form.reporter = form.operator
   const allowed = getGroupWorkerNames(context.groupName)
   if (form.operator && allowed.length && !allowed.includes(form.operator)) {
     form.operator = allowed.includes(defaultName) ? defaultName : allowed[0] || ''
+    form.reporter = form.operator
   }
 }
 
@@ -321,6 +360,7 @@ function loadFromRecord(row) {
   form.defectBreakdown = ensureDefectBreakdown(row, defectItems.value)
   form.remark = row.remark || ''
   form.operator = row.operator || ''
+  form.reporter = row.reporter || row.operator || ''
   form.images = Array.isArray(row.images) ? [...row.images] : []
   applyDefectLegacy()
   refreshQtySnapshot()
@@ -442,10 +482,12 @@ function onSubmit() {
       uni.showToast({ title: '请选择操作人', icon: 'none' })
       return
     }
-    const allowed = getGroupWorkerNames(context.groupName)
-    if (allowed.length && !allowed.includes(form.operator)) {
-      uni.showToast({ title: '操作人不在当前工人小组', icon: 'none' })
-      return
+    if (!isProxyMode.value) {
+      const allowed = getGroupWorkerNames(context.groupName)
+      if (allowed.length && !allowed.includes(form.operator)) {
+        uni.showToast({ title: '操作人不在当前工人小组', icon: 'none' })
+        return
+      }
     }
   }
   const defectErr = validateDefectBreakdown(
@@ -456,6 +498,17 @@ function onSubmit() {
   if (defectErr) {
     uni.showToast({ title: defectErr, icon: 'none' })
     return
+  }
+  if (!isQuickSource.value && remainingQty.value != null) {
+    const total = (Number(form.goodQty) || 0) + (Number(form.defectQty) || 0)
+    if (total <= 0) {
+      uni.showToast({ title: '请填写报工数量', icon: 'none' })
+      return
+    }
+    if (total > remainingQty.value) {
+      uni.showToast({ title: `报工数量不能超过待报 ${remainingQty.value} 件`, icon: 'none' })
+      return
+    }
   }
   submitting.value = true
   const legacy = breakdownToLegacy(form.defectBreakdown)
@@ -480,6 +533,7 @@ function onSubmit() {
     remark: form.remark,
     images: [...(form.images || [])],
     operator: isQuickSource.value ? '' : form.operator,
+    reporter: isQuickSource.value ? '' : (form.reporter || form.operator),
     groupName: isQuickSource.value ? '' : context.groupName,
   }
   const res = editId.value
@@ -603,16 +657,26 @@ $primary: #1677ff;
 .target-bar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  gap: 20rpx;
   padding: 20rpx 24rpx;
   background: #e6f4ff;
   border-radius: 12rpx;
   margin-bottom: 28rpx;
+}
+
+.target-item {
+  flex: 1;
   font-size: 26rpx;
   color: #595959;
+
+  &.highlight .target-num {
+    color: #fa8c16;
+  }
 }
 
 .target-num {
+  display: block;
+  margin-top: 8rpx;
   font-size: 36rpx;
   font-weight: 700;
   color: $primary;
@@ -714,6 +778,15 @@ $primary: #1677ff;
   border-radius: 12rpx;
   font-size: 28rpx;
   box-sizing: border-box;
+}
+
+.readonly-field .readonly-val {
+  display: block;
+  padding: 20rpx 24rpx;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: #262626;
 }
 
 .operator-field .operator-picker {

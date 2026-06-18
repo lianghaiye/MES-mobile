@@ -6,6 +6,11 @@ import {
   initQcDisplayState,
 } from '@/mock/disassemblyEbom'
 import { generateLinesFromSyncedTasks } from '@/mock/reportConfirmStore'
+import {
+  getTaskAssignGroups,
+  isMultiGroupTask,
+} from '@/utils/processReportTaskRules'
+import { getGroupLeaderName } from '@/mock/employeeGroups'
 
 const STORAGE_KEY = 'i_doms_mobile_disassembly_tasks'
 const DRAFT_KEY = 'i_doms_mobile_disassembly_drafts'
@@ -19,7 +24,7 @@ const WO_STATUS_KEY = 'i_doms_disassembly_wo_status'
 export const warehouseOptions = ['半成品仓', '成品仓', '原料仓', '报废品仓']
 
 /** 任务状态 */
-export const taskStatusOptions = ['待领取', '待分发', '待开始', '执行中', '已完成']
+export const taskStatusOptions = ['待领取', '待分发', '待报工', '待开始', '执行中', '已完成']
 
 /** 拆解工艺路线工序（一张工单拆成多条任务） */
 const DISASSEMBLY_PROCESSES = ['拆解', '拆解质检', '入库']
@@ -203,7 +208,7 @@ const seedTasks = [
     executor: '张三',
     groupName: '焊接小组',
     expectedQty: 25,
-    taskStatus: '待开始',
+    taskStatus: '已完成',
     placement: 'todo',
     serialLocked: false,
     createdAt: `${formatTaskDate()} 08:00:00`,
@@ -225,7 +230,7 @@ const seedTasks = [
     executor: '张三',
     groupName: '焊接小组',
     expectedQty: 25,
-    taskStatus: '待开始',
+    taskStatus: '已完成',
     placement: 'todo',
     serialLocked: false,
     createdAt: `${formatTaskDate()} 08:00:00`,
@@ -247,7 +252,7 @@ const seedTasks = [
     executor: '张三',
     groupName: '加工小组',
     expectedQty: 25,
-    taskStatus: '待开始',
+    taskStatus: '已完成',
     placement: 'todo',
     serialLocked: true,
     createdAt: `${formatTaskDate()} 08:00:00`,
@@ -269,7 +274,7 @@ const seedTasks = [
     executor: '张三',
     groupName: '加工小组',
     expectedQty: 15,
-    taskStatus: '执行中',
+    taskStatus: '已完成',
     placement: 'todo',
     serialLocked: false,
     reportStatus: '待审核',
@@ -294,7 +299,7 @@ const seedTasks = [
     executor: '张三',
     groupName: '加工小组',
     expectedQty: 15,
-    taskStatus: '待开始',
+    taskStatus: '已完成',
     placement: 'todo',
     serialLocked: false,
     createdAt: `${formatTaskDate()} 09:00:00`,
@@ -316,7 +321,7 @@ const seedTasks = [
     executor: '张三',
     groupName: '加工小组',
     expectedQty: 12,
-    taskStatus: '待开始',
+    taskStatus: '已完成',
     placement: 'todo',
     serialLocked: false,
     createdAt: `${formatTaskDate()} 10:00:00`,
@@ -397,6 +402,78 @@ const seedTasks = [
     serialLocked: false,
     createdAt: `${formatTaskDate()} 08:45:00`,
   }),
+  taskSeed({
+    id: 'pt-leader-1',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-leader-1',
+    workOrderCode: 'WO-058',
+    workOrderName: '泵轴生产工单',
+    taskNo: 'T20260602017',
+    processName: '精车',
+    processSeq: 1,
+    productName: '泵轴',
+    itemCode: 'BX-2024-03',
+    specModel: 'Φ50×L800 45#',
+    barcodeType: '一批一码',
+    processRoute: '车铣加工路线',
+    executor: '张三',
+    groupName: '加工小组',
+    resourceType: '工人',
+    expectedQty: 18,
+    taskStatus: '待报工',
+    placement: 'todo',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 07:00:00`,
+  }),
+  taskSeed({
+    id: 'pt-group-1',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-7',
+    workOrderCode: 'WO-072',
+    workOrderName: '深井潜水泵生产工单',
+    taskNo: 'T20260602025',
+    processName: '磨削',
+    processSeq: 1,
+    productName: '深井潜水泵',
+    itemCode: 'CP2610004',
+    specModel: 'QJ200-50/4',
+    barcodeType: '一批一码',
+    processRoute: '机加标准路线',
+    executor: '',
+    executors: ['张三', '李四', '赵六'],
+    groupName: '加工小组',
+    resourceType: '工人小组',
+    expectedQty: 100,
+    taskStatus: '待报工',
+    placement: 'todo',
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 07:20:00`,
+  }),
+  taskSeed({
+    id: 'pt-claim-multi',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-8',
+    workOrderCode: 'WO-071',
+    workOrderName: '法兰盘生产工单',
+    taskNo: 'T20260602026',
+    processName: '喷涂',
+    processSeq: 1,
+    productName: '法兰盘',
+    itemCode: 'FL-2024-C',
+    specModel: 'DN150 PN16',
+    barcodeType: '一批一码',
+    processRoute: '表面处理路线',
+    executor: '',
+    groupName: '加工小组',
+    groupNames: ['加工小组', '焊接小组'],
+    resourceType: '工人小组',
+    expectedQty: 30,
+    taskStatus: '待领取',
+    placement: 'claim',
+    claimedGroups: [],
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 07:40:00`,
+  }),
   // 工单5 — 深井泵拆解待开始
   taskSeed({
     id: 'dt-007',
@@ -431,6 +508,8 @@ function taskSeed(partial) {
     placement: partial.placement || 'todo',
     serialLocked: partial.serialLocked ?? false,
     claimTargets: partial.claimTargets || [],
+    groupNames: partial.groupNames || [],
+    claimedGroups: partial.claimedGroups || [],
     groupLeader: partial.groupLeader || '',
     leaderParticipates: partial.leaderParticipates ?? true,
     groupWorkers: partial.groupWorkers || [],
@@ -446,7 +525,7 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '5'
+const TASK_SEED_VERSION = '6'
 
 function buildSeedTasks() {
   const today = formatTaskDate()
@@ -826,7 +905,24 @@ export function claimTask(taskId, userName = 'admin') {
   const task = getTaskById(taskId)
   if (!task) return { ok: false, message: '任务不存在' }
   if (task.placement !== 'claim') return { ok: false, message: '该任务不在待领列表' }
+  if (task.resourceType === '工人小组' && isMultiGroupTask(task)) {
+    const myGroup = getTaskAssignGroups(task).find((groupName) => getGroupLeaderName(groupName) === userName)
+    if (!myGroup) return { ok: false, message: '仅小组组长可领取该任务' }
+    if ((task.claimedGroups || []).includes(myGroup)) {
+      return { ok: false, message: '该小组已领取此任务' }
+    }
+    task.claimedGroups = [...(task.claimedGroups || []), myGroup]
+    task.claimedBy = task.claimedBy || userName
+    task.groupLeader = userName
+    task.claimedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    task.taskStatus = '待报工'
+    save()
+    return { ok: true, task }
+  }
   if (task.claimedBy) return { ok: false, message: '任务已被领取' }
+  if (task.resourceType === '工人小组') {
+    return { ok: false, message: '单小组任务无需领取，请直接报工' }
+  }
   const targets = task.claimTargets?.length ? task.claimTargets : task.executors
   if (targets?.length && !targets.includes(userName)) {
     return { ok: false, message: '您不在该任务的领取范围内' }
@@ -834,14 +930,8 @@ export function claimTask(taskId, userName = 'admin') {
   task.placement = 'todo'
   task.claimedBy = userName
   task.claimedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')
-  if (task.resourceType === '工人小组') {
-    task.groupLeader = userName
-    task.executor = userName
-    task.taskStatus = '待分发'
-  } else {
-    task.executor = userName
-    task.taskStatus = '待开始'
-  }
+  task.executor = userName
+  task.taskStatus = '待报工'
   save()
   return { ok: true, task }
 }

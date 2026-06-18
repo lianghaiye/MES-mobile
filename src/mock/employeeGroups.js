@@ -118,6 +118,33 @@ export function resolveWorkerDisplayName(user) {
   return aliases[0] || '张三'
 }
 
+/** 当前用户是否为任一小组组长 */
+export function isGroupLeader(user) {
+  const names = resolveUserAliases(user)
+  return loadGroups()
+    .filter((g) => g.status === '启用')
+    .some((g) => names.includes(g.leaderName))
+}
+
+/** 组长可代报工的小组成员（去重，含组长本人） */
+export function getLedGroupMembers(user) {
+  const names = resolveUserAliases(user)
+  const memberMap = new Map()
+  loadGroups()
+    .filter((g) => g.status === '启用' && names.includes(g.leaderName))
+    .forEach((g) => {
+      ;(g.workers || []).forEach((w) => {
+        if (w.name) memberMap.set(w.name, { name: w.name, isLeader: !!w.isLeader, groupName: g.name })
+      })
+    })
+  return [...memberMap.values()]
+}
+
+export function getGroupLeaderName(groupName = '') {
+  const group = getEmployeeGroupByName(groupName)
+  return group?.leaderName || ''
+}
+
 export function resolveTaskGroupName(task = {}, user) {
   if (task.groupName) return task.groupName
   const userGroups = getUserWorkerGroupNames(user)

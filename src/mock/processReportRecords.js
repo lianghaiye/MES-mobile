@@ -180,7 +180,9 @@ function resolveReporterNames(user) {
 
 export function getMyRecords(user, filter = 'all') {
   const names = resolveReporterNames(user)
-  let list = cache.filter((r) => names.includes(r.reporter))
+  let list = cache.filter(
+    (r) => names.includes(r.reporter) || (r.operator && names.includes(r.operator)),
+  )
   if (filter !== 'all') list = list.filter((r) => r.status === filter)
   return list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 }
@@ -254,6 +256,7 @@ function buildRecordFromPayload(payload, base = {}) {
       remark: payload.remark || '',
       images: Array.isArray(payload.images) ? [...payload.images] : [],
       operator: payload.operator || base.operator || '',
+      reporter: payload.reporter || base.reporter || '',
       groupName: payload.groupName || base.groupName || '',
       status: '待审核',
       rejectReason: '',
@@ -270,7 +273,7 @@ function nowTime() {
 
 export function submitProcessReport(payload) {
   const user = getUser()
-  const reporter = user?.displayName || '当前用户'
+  const reporter = payload.reporter || user?.displayName || '当前用户'
   const built = buildRecordFromPayload(payload, {
     id: `pr-${Date.now()}`,
     reporter,
