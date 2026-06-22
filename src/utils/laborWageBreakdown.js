@@ -306,9 +306,11 @@ export function enrichLaborWageFromRecord(record, bundle = {}) {
     reportAccountHours: wage.reportAccountHours,
     accountHours: wage.accountHours,
     finalAccountHours:
-      config.reportType === '时长报工' && config.salaryMethod === '计时工资'
-        ? wage.finalSalaryHours
-        : wage.accountHours,
+      config.reportType === '批量计件' && config.salaryMethod === '计时工资'
+        ? wage.accountHours
+        : config.reportType === '时长报工' && config.salaryMethod === '计时工资'
+          ? wage.finalSalaryHours
+          : null,
     salaryAmount: wage.salaryAmount,
     reportType: config.reportType,
     salaryMethod: config.salaryMethod,

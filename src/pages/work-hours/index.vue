@@ -58,9 +58,9 @@
             <text class="label">报工时长</text>
             <text class="val">{{ item.reportDuration }}h</text>
           </view>
-          <view v-if="item.accountHours" class="row">
+          <view v-if="showFinalAccountHours(item)" class="row">
             <text class="label">最终核算工时</text>
-            <text class="val">{{ item.accountHours }}h</text>
+            <text class="val">{{ item.finalAccountHours }}h</text>
           </view>
         </view>
 
@@ -385,6 +385,21 @@ function showMoney(v) {
 
 function showQty(v) {
   return Number(v) > 0
+}
+
+function isBatchPieceSalary(item) {
+  return item?.reportType === '批量计件' && item?.salaryMethod === '计件工资'
+}
+
+function isHourlySalary(item) {
+  return item?.salaryMethod === '计时工资'
+}
+
+/** 最终核算工时：仅计时工资模式展示；批量计件+计件工资不展示 */
+function showFinalAccountHours(item) {
+  if (!item || isBatchPieceSalary(item) || !isHourlySalary(item)) return false
+  const hours = item.finalAccountHours
+  return hours != null && hours !== '' && Number(hours) > 0
 }
 
 function goDetail(item) {
