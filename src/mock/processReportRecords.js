@@ -4,10 +4,10 @@ import { getUser } from '@/utils/auth'
 import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
 import { breakdownToLegacy, validateDefectBreakdown } from '@/utils/defectBreakdown'
 import { getProcessDefectItems } from '@/utils/iodomsStorage'
-import { PUSH_STATUS } from '@/utils/laborWageConstants'
+import { PUSH_STATUS, TASK_STATUS, isAutoSalaryPush } from '@/utils/laborWageConstants'
 
 const MIGRATE_KEY = 'i_doms_process_report_mode_migrate_v'
-const MIGRATE_VERSION = '2'
+const MIGRATE_VERSION = '3'
 
 function withNormalizedMode(row) {
   if (!row) return row
@@ -18,12 +18,28 @@ function migrateFrequentList(list) {
   return (list || []).map(withNormalizedMode)
 }
 
+function resolvePushStatus(row = {}) {
+  let pushStatus = row.pushStatus
+  if (!pushStatus) {
+    pushStatus = row.pushedAt ? PUSH_STATUS.PUSHED : PUSH_STATUS.NOT_PUSHED
+  }
+  if (
+    isAutoSalaryPush() &&
+    pushStatus === PUSH_STATUS.NOT_PUSHED &&
+    row.source === 'workorder'
+  ) {
+    pushStatus = PUSH_STATUS.AUTO_PUSHED
+  }
+  return pushStatus
+}
+
 function migrateRecord(row) {
   const next = withNormalizedMode(row)
-  if (!next.pushStatus) {
-    if (next.status === '已审核') next.pushStatus = PUSH_STATUS.PUSHED
-    else next.pushStatus = PUSH_STATUS.NOT_PUSHED
+  if (!next.taskStatus) {
+    next.taskStatus = next.status === '已审核' ? TASK_STATUS.AUDITED : TASK_STATUS.REPORTED
   }
+  if (!next.operator) next.operator = next.reporter || ''
+  next.pushStatus = resolvePushStatus(next)
   if (!next.taskScope && next.source === 'workorder') {
     next.taskScope = next.operator && next.reporter && next.operator !== next.reporter
       ? '小组'
@@ -138,6 +154,7 @@ function createSeed() {
       reporter: '张三',
       taskScope: '个人',
       pushStatus: PUSH_STATUS.PUSHED,
+      pushedAt: '2026-06-10 16:25:00',
       createdAt: '2026-06-10 16:20',
       timeLabel: '昨天 16:20',
     },
@@ -189,6 +206,11 @@ function load() {
 
 let cache = load()
 
+export function reloadProcessReportRecords() {
+  cache = load()
+  return cache
+}
+
 function save() {
   uni.setStorageSync(STORAGE_KEY, JSON.stringify(cache))
 }
@@ -203,13 +225,18 @@ function resolveReporterNames(user) {
   return [...new Set([displayName, username].filter(Boolean))]
 }
 
+export function resolveRecordPushStatus(record) {
+  return resolvePushStatus(record || {})
+}
+
 export function getMyRecords(user, pushFilter = 'all') {
+  reloadProcessReportRecords()
   const names = resolveReporterNames(user)
   let list = cache.filter(
     (r) => names.includes(r.reporter) || (r.operator && names.includes(r.operator)),
   )
   if (pushFilter !== 'all') {
-    list = list.filter((r) => (r.pushStatus || PUSH_STATUS.NOT_PUSHED) === pushFilter)
+    list = list.filter((r) => resolveRecordPushStatus(r) === pushFilter)
   }
   return list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
 }
@@ -219,13 +246,14 @@ export { PUSH_STATUS }
 export function getRecordStats(user) {
   const list = getMyRecords(user, 'all')
   return {
-    pending: list.filter((r) => r.status === '待审核').length,
-    approved: list.filter((r) => r.status === '已审核').length,
-    rejected: list.filter((r) => r.status === '已拒绝').length,
+    notPushed: list.filter((r) => resolveRecordPushStatus(r) === PUSH_STATUS.NOT_PUSHED).length,
+    pushed: list.filter((r) => resolveRecordPushStatus(r) === PUSH_STATUS.PUSHED).length,
+    autoPushed: list.filter((r) => resolveRecordPushStatus(r) === PUSH_STATUS.AUTO_PUSHED).length,
   }
 }
 
 export function getRecordById(id) {
+  reloadProcessReportRecords()
   return cache.find((r) => r.id === id) || null
 }
 
@@ -258,7 +286,7 @@ function buildRecordFromPayload(payload, base = {}) {
 
   return {
     ok: true,
-    record: {
+    record: migrateRecord({
       ...base,
       source: payload.source || base.source || 'quick',
       taskId: payload.taskId || base.taskId || '',
@@ -288,12 +316,12 @@ function buildRecordFromPayload(payload, base = {}) {
       reporter: payload.reporter || base.reporter || '',
       groupName: payload.groupName || base.groupName || '',
       taskScope: payload.taskScope || base.taskScope || '',
-      pushStatus: payload.pushStatus || base.pushStatus || PUSH_STATUS.NOT_PUSHED,
+      pushedAt: payload.pushedAt || base.pushedAt || '',
       status: '待审核',
       rejectReason: '',
       createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       timeLabel: `今天 ${time}`,
-    },
+    }),
   }
 }
 

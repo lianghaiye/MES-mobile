@@ -165,7 +165,7 @@ export function createWorkOrderLinkedQuickReportSeed(formatDate, normalizeRecord
     normalizeRecord({
       id: 'qr-mat-3',
       productId: 'mat-LH-MAT-03',
-      productName: '工时演示-时长计件',
+      productName: '工时演示-时长计时',
       productCode: 'LH-MAT-03',
       itemType: 'material',
       reportDate: yesterday,

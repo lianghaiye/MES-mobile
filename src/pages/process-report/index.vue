@@ -256,9 +256,9 @@
     <!-- 我的记录 -->
     <view v-if="activeTab === 'records'" class="panel">
       <view class="stats-row">
-        <view class="stat orange"><text class="stat-num">{{ stats.pending }}</text><text>待审核</text></view>
-        <view class="stat green"><text class="stat-num">{{ stats.approved }}</text><text>已审核</text></view>
-        <view class="stat red"><text class="stat-num">{{ stats.rejected }}</text><text>已拒绝</text></view>
+        <view class="stat orange"><text class="stat-num">{{ stats.notPushed }}</text><text>未推送</text></view>
+        <view class="stat blue"><text class="stat-num">{{ stats.pushed }}</text><text>已推送</text></view>
+        <view class="stat green"><text class="stat-num">{{ stats.autoPushed }}</text><text>已自动推送</text></view>
       </view>
       <view class="filter-chips">
         <view
@@ -273,7 +273,7 @@
         v-for="r in records"
         :key="r.id"
         class="record-card"
-        :class="statusClass(r.status)"
+        :class="pushStatusClass(r)"
         @tap="goRecordDetail(r)"
       >
         <view class="rc-head">
@@ -283,12 +283,12 @@
               <text class="scope-tag" :class="r.taskScope === '小组' ? 'group' : 'personal'">{{ r.taskScope }}</text>
             </view>
           </view>
-          <text class="rc-status">{{ r.status }}</text>
+          <text class="rc-status">{{ resolveRecordPushStatus(r) }}</text>
         </view>
         <text class="rc-meta">{{ r.workOrderNo ? r.workOrderNo + ' · ' : '' }}{{ r.timeLabel }}</text>
         <view class="rc-metrics">
           <text>报工方式: {{ displayReportSource(r.source) }}</text>
-          <text v-if="r.pushStatus">推送状态: {{ r.pushStatus }}</text>
+          <text>审核状态: {{ r.status }}</text>
           <text v-if="r.source === 'workorder' && r.reporter">执行人: {{ r.reporter }}</text>
           <text v-if="r.source === 'workorder' && r.operator">操作人: {{ r.operator }}</text>
           <template v-if="isDurationReportMode(r.reportMode)">
@@ -337,6 +337,7 @@ import {
   getFrequentReports,
   getMyRecords,
   getRecordStats,
+  resolveRecordPushStatus,
   PUSH_STATUS,
 } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
@@ -656,11 +657,11 @@ function onBatchAbnormal() {
   uni.navigateTo({ url: `/pages/process-report/batch-execute?${q}` })
 }
 
-function statusClass(status) {
-  if (status === '待审核') return 'pending'
-  if (status === '已审核') return 'approved'
-  if (status === '已拒绝') return 'rejected'
-  return ''
+function pushStatusClass(record) {
+  const status = resolveRecordPushStatus(record)
+  if (status === PUSH_STATUS.AUTO_PUSHED) return 'push-auto'
+  if (status === PUSH_STATUS.PUSHED) return 'push-manual'
+  return 'push-not'
 }
 
 function buildExecuteQuery(params) {
@@ -1403,6 +1404,7 @@ $primary: #1677ff;
 }
 
 .stat.orange .stat-num { color: #fa8c16; }
+.stat.blue .stat-num { color: #1890ff; }
 .stat.green .stat-num { color: #52c41a; }
 .stat.red .stat-num { color: #ff4d4f; }
 
@@ -1430,9 +1432,9 @@ $primary: #1677ff;
   border-left: 8rpx solid #d9d9d9;
 }
 
-.record-card.pending { border-left-color: #fa8c16; }
-.record-card.approved { border-left-color: #52c41a; }
-.record-card.rejected { border-left-color: #ff4d4f; }
+.record-card.push-not { border-left-color: #d9d9d9; }
+.record-card.push-manual { border-left-color: #1677ff; }
+.record-card.push-auto { border-left-color: #52c41a; }
 
 .rc-head {
   display: flex;
@@ -1475,11 +1477,12 @@ $primary: #1677ff;
 
 .rc-status {
   font-size: 24rpx;
+  flex-shrink: 0;
 }
 
-.record-card.pending .rc-status { color: #fa8c16; }
-.record-card.approved .rc-status { color: #52c41a; }
-.record-card.rejected .rc-status { color: #ff4d4f; }
+.record-card.push-not .rc-status { color: #8c8c8c; }
+.record-card.push-manual .rc-status { color: #1677ff; }
+.record-card.push-auto .rc-status { color: #52c41a; }
 
 .rc-meta {
   display: block;

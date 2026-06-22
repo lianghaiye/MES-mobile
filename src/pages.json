@@ -150,7 +150,14 @@
     {
       "path": "pages/work-hours/index",
       "style": {
-        "navigationBarTitleText": "我的工时",
+        "navigationBarTitleText": "工时工资",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/work-hours/detail",
+      "style": {
+        "navigationBarTitleText": "工时工资详情",
         "navigationStyle": "custom"
       }
     },

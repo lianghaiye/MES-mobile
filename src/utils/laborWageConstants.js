@@ -14,3 +14,19 @@ export const PUSH_STATUS = {
 export function isPushedToMobile(pushStatus) {
   return pushStatus === PUSH_STATUS.PUSHED || pushStatus === PUSH_STATUS.AUTO_PUSHED
 }
+
+const FUNCTION_PARAM_KEY = 'i_doms_function_params'
+
+/** 与 WEB functionParamStore 共用配置 */
+export function isAutoSalaryPush() {
+  try {
+    const raw = uni.getStorageSync(FUNCTION_PARAM_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return parsed.salaryPushMode === 'auto'
+    }
+  } catch {
+    /* ignore */
+  }
+  return false
+}
