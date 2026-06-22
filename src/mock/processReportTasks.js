@@ -12,6 +12,7 @@ import {
   getTaskById,
 } from './disassemblyTasks'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
+import { resolveLaborConfig } from '@/utils/laborWageCalc'
 import { isDurationReportMode } from '@/utils/reportMode'
 import {
   resolveWorkerDisplayName,
@@ -42,6 +43,13 @@ const SALES_ORDER_BY_WO_CODE = {
   'WO-068': '1-20260603-002',
   'WO-072': '1-20260606-001',
   'WO-ZZ-012': '1-20260605-001',
+  'WO-LH-01': '1-20260606-101',
+  'WO-LH-02': '1-20260606-102',
+  'WO-LH-03': '1-20260606-103',
+  'WO-LH-04': '1-20260606-104',
+  'WO-LH-05': '1-20260606-105',
+  'WO-LH-06': '1-20260606-106',
+  'WO-LH-07': '1-20260606-106',
 }
 
 function resolveSalesOrderNo(task) {
@@ -135,6 +143,8 @@ export function resolveReportContext(user, options = {}, task = null) {
 
 function enrichTask(task, user, options = {}) {
   const reportMode = getProcessReportMode(task.processName)
+  const productCode = task.itemCode || task.productCode || ''
+  const laborCfg = resolveLaborConfig(productCode, task.processName)
   const leaderName = resolveWorkerDisplayName(user)
   const targetQty = task.expectedQty ?? task.targetQty ?? 0
   const reportedTotalQty = getTaskReportedTotal(task)
@@ -157,6 +167,8 @@ function enrichTask(task, user, options = {}) {
     salesOrderNo: resolveSalesOrderNo(task),
     groupName: task.groupName || getTaskAssignGroups(task)[0] || '',
     reportMode,
+    salaryMethod: laborCfg.salaryMethod,
+    reportTypeLabel: `${laborCfg.reportType}+${laborCfg.salaryMethod}`,
     status,
     isGroupTask,
     isPersonalTask,

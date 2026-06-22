@@ -405,11 +405,11 @@ const showMemberSelector = computed(() => {
 
 function taskQtyText(task) {
   if (task.status === 'reported') {
-    return `目标: ${task.targetQty}件 · 已报: ${task.reportedTotalQty || task.targetQty}件 · ${displayReportMode(task.reportMode)}`
+    return `目标: ${task.targetQty}件 · 已报: ${task.reportedTotalQty || task.targetQty}件 · ${task.reportTypeLabel || displayReportMode(task.reportMode)}`
   }
   const parts = [`目标: ${task.targetQty}件`, `待报: ${task.remainingQty ?? task.targetQty}件`]
   if ((task.reportedTotalQty || 0) > 0) parts.push(`已报: ${task.reportedTotalQty}件`)
-  parts.push(displayReportMode(task.reportMode))
+  parts.push(task.reportTypeLabel || displayReportMode(task.reportMode))
   return parts.join(' · ')
 }
 
