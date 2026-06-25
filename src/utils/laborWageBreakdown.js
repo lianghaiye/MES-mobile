@@ -90,17 +90,57 @@ function getUnitDeductionAmount(fixedDeductionAmount, stdMin) {
   return round2((Number(fixedDeductionAmount) || 0) / hoursPerPiece)
 }
 
+function aggregateDefectBucket(breakdownRules = [], config = {}) {
+  const stdMin = Number(config?.standardMinutesPerPiece) || 0
+  const salaryMethod = config?.salaryMethod || ''
+  const reportType = config?.reportType || ''
+  let discountWeighted = 0
+  let fixedDeductionQty = 0
+  let fixedDeductionSum = 0
+
+  breakdownRules.forEach((row) => {
+    if (!row.rule?.apply) return
+    const qty = Number(row.qty) || 0
+    if (row.rule.mode === 'discount') {
+      discountWeighted += qty * row.rule.discountRate
+    } else if (row.rule.mode === 'deduction') {
+      fixedDeductionQty += qty
+      if (salaryMethod === '计件工资' && reportType === '批量计件') {
+        fixedDeductionSum += qty * (row.rule.deductionAmount || 0)
+      } else if (salaryMethod === '计时工资' && reportType === '批量计件') {
+        fixedDeductionSum += qty * getUnitDeductionAmount(row.rule.deductionAmount, stdMin)
+      }
+    }
+  })
+
+  return {
+    discountWeighted: round2(discountWeighted),
+    fixedDeductionQty: round2(fixedDeductionQty),
+    fixedDeductionSum: round2(fixedDeductionSum),
+  }
+}
+
 function resolveSubsidyWage(line = {}, config = {}) {
   const method = resolveSubsidyMethod(line)
   if (method === 'fixed') return round2(Number(line.subsidyFixedAmount) || 0)
-  const unitPrice = Number(config.subsidyUnitPrice) || DEFAULT_SUBSIDY_UNIT_PRICE
-  const qty = getSubsidyPieceQty(line)
-  if (config.salaryMethod === '计件工资') {
-    return round2(qty * (Number(config.pieceRate) || unitPrice))
+  const reportType = config.reportType || ''
+  const salaryMethod = config.salaryMethod || ''
+  if (salaryMethod === '计时工资' && reportType === '时长报工') {
+    const hours = Number(line.subsidyHours) || 0
+    return round2(hours * (Number(config.standardHourlyRate) || 0))
   }
-  const hours = Number(line.subsidyHours) || 0
-  if (hours > 0) return round2(hours * (Number(config.standardHourlyRate) || 0))
-  return round2(qty * unitPrice)
+  if (salaryMethod === '计件工资' && reportType === '批量计件') {
+    const pieceRate = Number(config.pieceRate) || 0
+    return round2(getSubsidyPieceQty(line) * pieceRate)
+  }
+  if (salaryMethod === '计时工资' && reportType === '批量计件') {
+    const stdMin = Number(config.standardMinutesPerPiece) || 0
+    const hourlyRate = Number(config.standardHourlyRate) || 0
+    const qty = getSubsidyPieceQty(line)
+    return round2(((qty * stdMin) / 60) * hourlyRate)
+  }
+  const unitPrice = Number(config.subsidyUnitPrice) || DEFAULT_SUBSIDY_UNIT_PRICE
+  return round2(getSubsidyPieceQty(line) * unitPrice)
 }
 
 export function calcFinalPieceQty(line = {}) {
@@ -114,25 +154,13 @@ export function calcReportAccountHours(config, record = {}) {
   if (salaryMethod !== '计时工资' || reportType !== '批量计件') return null
 
   const goodQty = Number(record.goodQty) || 0
-  const defectQty = Number(record.defectQty) || 0
-  const totalQty = goodQty + defectQty
   const prepMin = Number(config.setupMinutesPerBatch) || 0
   const stdMin = Number(config.standardMinutesPerPiece) || 0
   const prepHours = round2(prepMin / 60)
   const breakdownRules = resolveBreakdownRules(record.defectBreakdown || [])
-
-  let discountWeightedDefect = 0
-  const useHourlyDeductionMode = breakdownRules.some(
-    (row) => row.rule?.apply && row.rule.mode === 'deduction',
-  )
-
-  breakdownRules.forEach((row) => {
-    if (!row.rule?.apply || row.rule.mode !== 'discount') return
-    discountWeightedDefect += (Number(row.qty) || 0) * row.rule.discountRate
-  })
-
-  const hoursQty = useHourlyDeductionMode ? totalQty : round2(goodQty + discountWeightedDefect)
-  const processHours = round2((hoursQty * stdMin) / 60)
+  const { discountWeighted, fixedDeductionQty } = aggregateDefectBucket(breakdownRules, config)
+  const bucket = round2(goodQty + discountWeighted + fixedDeductionQty)
+  const processHours = round2((bucket * stdMin) / 60)
   return round2(prepHours + processHours)
 }
 
@@ -156,7 +184,6 @@ export function calcMobileLaborWage(config, record = {}) {
 
   const goodQty = getApprovedGoodQty(line)
   const defectQty = getApprovedDefectQty(line)
-  const totalQty = goodQty + defectQty
   const pieceRate = Number(config?.pieceRate) || 0
   const hourlyRate = Number(config?.standardHourlyRate) || 0
   const stdMin = Number(config.standardMinutesPerPiece) || 0
@@ -168,34 +195,16 @@ export function calcMobileLaborWage(config, record = {}) {
   const breakdownRules = resolveBreakdownRules(getDefectBreakdown(line))
   const subsidyMethod = resolveSubsidyMethod(line)
   const subsidyQty = getSubsidyPieceQty(line)
+  const subsidyFixedAmount = round2(Number(line.subsidyFixedAmount) || 0)
   const subsidyHours = Number(line.subsidyHours) || 0
-  const unitWage = getUnitWage(config)
+
+  const { discountWeighted, fixedDeductionQty, fixedDeductionSum } = aggregateDefectBucket(
+    breakdownRules,
+    config,
+  )
 
   let defectWage = 0
   let qualityDeduction = 0
-  let discountWeightedDefect = 0
-  let unitDeductionSum = 0
-  const useHourlyDeductionMode = breakdownRules.some(
-    (row) => row.rule?.apply && row.rule.mode === 'deduction',
-  )
-
-  breakdownRules.forEach((row) => {
-    if (!row.rule?.apply) return
-    const qty = Number(row.qty) || 0
-    if (row.rule.mode === 'discount') {
-      discountWeightedDefect += qty * row.rule.discountRate
-      if (salaryMethod === '计件工资' && reportType === '批量计件') {
-        defectWage += round2(qty * pieceRate * row.rule.discountRate)
-      }
-    } else if (row.rule.mode === 'deduction') {
-      if (salaryMethod === '计件工资' && reportType === '批量计件') {
-        defectWage += round2(qty * pieceRate - qty * (row.rule.deductionAmount || 0))
-      } else if (salaryMethod === '计时工资' && reportType === '批量计件') {
-        unitDeductionSum += qty * getUnitDeductionAmount(row.rule.deductionAmount, stdMin)
-      }
-    }
-  })
-
   let goodWage = 0
   let salaryAmount = 0
   let accountHours = 0
@@ -203,27 +212,34 @@ export function calcMobileLaborWage(config, record = {}) {
   let subsidyWage = 0
 
   if (salaryMethod === '计件工资' && reportType === '批量计件') {
+    const bucket = round2(goodQty + discountWeighted + fixedDeductionQty + subsidyQty)
+    const grossWage = round2(bucket * pieceRate)
     goodWage = round2(goodQty * pieceRate)
-    subsidyWage = resolveSubsidyWage(line, config)
-    salaryAmount = round2(goodWage + defectWage + subsidyWage - manualQualityDeduction)
+    defectWage = round2((discountWeighted + fixedDeductionQty) * pieceRate)
+    subsidyWage =
+      subsidyMethod === 'fixed' ? subsidyFixedAmount : round2(subsidyQty * pieceRate)
+    qualityDeduction = round2(fixedDeductionSum + manualQualityDeduction)
+    salaryAmount = round2(
+      grossWage -
+        fixedDeductionSum +
+        (subsidyMethod === 'fixed' ? subsidyFixedAmount : 0) -
+        manualQualityDeduction,
+    )
     accountHours = round2((prepMin + goodQty * stdMin) / 60)
   } else if (salaryMethod === '计时工资' && reportType === '批量计件') {
-    const hoursQty = useHourlyDeductionMode ? totalQty : round2(goodQty + discountWeightedDefect)
-    const processHours = round2((hoursQty * stdMin) / 60)
-    accountHours = round2(prepHours + processHours + subsidyHours)
-    goodWage = round2(accountHours * hourlyRate)
-    subsidyWage =
-      subsidyMethod === 'fixed'
-        ? round2(Number(line.subsidyFixedAmount) || 0)
-        : subsidyHours > 0
-          ? round2(subsidyHours * hourlyRate)
-          : round2(subsidyQty * DEFAULT_SUBSIDY_UNIT_PRICE * hourlyRate)
-    if (!useHourlyDeductionMode) {
-      defectWage = round2(((discountWeightedDefect * stdMin) / 60) * hourlyRate)
-    }
-    qualityDeduction = round2(unitDeductionSum + manualQualityDeduction)
+    const bucket = round2(subsidyQty + goodQty + fixedDeductionQty + discountWeighted)
+    const totalHours = round2(prepHours + (bucket * stdMin) / 60)
+    accountHours = totalHours
+    goodWage = round2(totalHours * hourlyRate)
+    defectWage = round2(((discountWeighted + fixedDeductionQty) * stdMin) / 60) * hourlyRate
+    defectWage = round2(defectWage)
+    subsidyWage = subsidyMethod === 'fixed' ? subsidyFixedAmount : 0
+    qualityDeduction = round2(fixedDeductionSum + manualQualityDeduction)
     salaryAmount = round2(
-      goodWage + (subsidyMethod === 'fixed' ? subsidyWage : 0) - unitDeductionSum - manualQualityDeduction,
+      goodWage -
+        fixedDeductionSum +
+        (subsidyMethod === 'fixed' ? subsidyFixedAmount : 0) -
+        manualQualityDeduction,
     )
   } else if (salaryMethod === '计时工资' && reportType === '时长报工') {
     const approvedHours = getApprovedWorkHours(line, config)
