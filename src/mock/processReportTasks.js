@@ -34,6 +34,27 @@ import {
 const REPORTABLE_CATEGORIES = ['生产工单', '总装工单']
 const ACTIVE_TASK_STATUS = REPORTABLE_TASK_STATUS
 
+/** 演示：物品编码 → 材质/图号（任务种子未填时兜底） */
+const PRODUCT_MATERIAL_MAP = {
+  'SJ-2024-A': { material: 'Q235', drawingNo: 'SJ-A-DWG-001' },
+  'BX-2024-03': { material: '45#', drawingNo: 'BX-2024-03-DWG' },
+  'CP2610004': { material: '不锈钢304', drawingNo: 'QJ200-50/4-DWG' },
+  'CP2610002': { material: 'HT250', drawingNo: 'ISG80-160-DWG' },
+  'FL-2024-C': { material: 'HT200', drawingNo: 'FL-DN150-01' },
+  'BK-2024-01': { material: 'HT200', drawingNo: 'BK-DWG-01' },
+  'DJ-2024-B': { material: '冷轧板', drawingNo: 'DJ-B-DWG-01' },
+}
+
+function resolveTaskProductMeta(task) {
+  const code = task.itemCode || task.productCode || ''
+  const hit = PRODUCT_MATERIAL_MAP[code] || {}
+  return {
+    material: task.material || hit.material || '',
+    drawingNo: task.drawingNo || hit.drawingNo || '',
+    specModel: task.specModel || hit.specModel || '',
+  }
+}
+
 /** 演示：工单号 → 销售订单号 */
 const SALES_ORDER_BY_WO_CODE = {
   'WO-062': '1-20260602-001',
@@ -177,6 +198,7 @@ function enrichTask(task, user, options = {}) {
     reportedDefectQty: Number(task.reportedDefectQty) || 0,
     reportStatus: remainingQty <= 0 ? task.reportStatus || '待审核' : '',
     reportRecordId: '',
+    ...resolveTaskProductMeta(task),
   }
 }
 
@@ -192,6 +214,7 @@ function enrichClaimTask(task) {
     groupNames: groups,
     isMultiGroup: isMultiGroupTask(task),
     reportMode: getProcessReportMode(task.processName),
+    ...resolveTaskProductMeta(task),
   }
 }
 
@@ -219,6 +242,10 @@ export function getClaimableReportTasks(user) {
 
 export function getClaimableReportTaskCount(user) {
   return getClaimableReportTasks(user).length
+}
+
+export function getClaimableReportTaskById(taskId, user) {
+  return getClaimableReportTasks(user).find((t) => t.id === taskId) || null
 }
 
 export function claimReportTask(taskId, user) {

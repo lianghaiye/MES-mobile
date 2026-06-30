@@ -503,6 +503,8 @@ const seedTasks = [
     productName: '法兰盘',
     itemCode: 'FL-2024-C',
     specModel: 'DN150 PN16',
+    material: 'HT200',
+    drawingNo: 'FL-DN150-01',
     barcodeType: '一批一码',
     processRoute: '标准焊接工艺 v2',
     executor: '',
@@ -528,6 +530,8 @@ const seedTasks = [
     productName: '深井潜水泵',
     itemCode: 'CP2610004',
     specModel: 'QJ200-50/4',
+    material: '不锈钢304',
+    drawingNo: 'QJ200-50/4-DWG',
     barcodeType: '一批一码',
     processRoute: '机加标准路线',
     executor: '',
@@ -553,6 +557,8 @@ const seedTasks = [
     productName: '污水泵',
     itemCode: 'CP2610002',
     specModel: 'ISG80-160(I)A',
+    material: 'HT250',
+    drawingNo: 'ISG80-160-DWG',
     barcodeType: '一批一码',
     processRoute: '装配标准路线',
     executor: '',
@@ -625,6 +631,8 @@ const seedTasks = [
     productName: '法兰盘',
     itemCode: 'FL-2024-C',
     specModel: 'DN150 PN16',
+    material: 'HT200',
+    drawingNo: 'FL-DN150-01',
     barcodeType: '一批一码',
     processRoute: '表面处理路线',
     executor: '',
@@ -689,7 +697,7 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '7'
+const TASK_SEED_VERSION = '8'
 
 function buildSeedTasks() {
   const today = formatTaskDate()

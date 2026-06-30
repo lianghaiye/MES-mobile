@@ -30,6 +30,7 @@
         v-for="task in claimTasks"
         :key="task.id"
         class="task-card claim-card"
+        @tap="goClaimDetail(task)"
       >
         <view class="task-head">
           <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
@@ -37,6 +38,9 @@
           <text v-else class="task-tag claim-tag">待领取</text>
         </view>
         <text class="task-wo">工单 {{ task.workOrderNo }} · {{ task.orderCategory }}</text>
+        <text class="task-spec">
+          材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
+        </text>
         <view class="task-body">
           <view class="proc-info">
             <text class="proc-seq">{{ task.processSeq }}</text>
@@ -50,7 +54,7 @@
               </text>
             </view>
           </view>
-          <text class="action claim" @tap="onClaimTask(task)">领取 ›</text>
+          <text class="action claim" @tap.stop="onClaimTask(task)">领取 ›</text>
         </view>
       </view>
       <view v-if="!claimTasks.length" class="empty">暂无待领任务</view>
@@ -139,7 +143,6 @@
                 selected: isTaskSelected(task.id),
                 compact: true,
               }"
-              @tap="onTaskRowTap(task)"
             >
               <view
                 v-if="task.status === 'pending'"
@@ -150,7 +153,7 @@
                   <text v-if="isTaskSelected(task.id)" class="check-mark">✓</text>
                 </view>
               </view>
-              <view class="task-card" :class="task.status">
+              <view class="task-card" :class="task.status" @tap="goTaskDetail(task)">
                 <view class="task-head">
                   <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
                   <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
@@ -159,6 +162,9 @@
                   <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
                 </view>
                 <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+                <text class="task-spec">
+                  材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
+                </text>
                 <view class="task-body">
                   <view class="proc-info">
                     <text class="proc-meta">{{ taskQtyText(task) }}</text>
@@ -189,7 +195,6 @@
               selectable: task.status === 'pending',
               selected: isTaskSelected(task.id),
             }"
-            @tap="onTaskRowTap(task)"
           >
             <view
               v-if="task.status === 'pending'"
@@ -200,7 +205,7 @@
                 <text v-if="isTaskSelected(task.id)" class="check-mark">✓</text>
               </view>
             </view>
-            <view class="task-card" :class="task.status">
+            <view class="task-card" :class="task.status" @tap="goTaskDetail(task)">
               <view class="task-head">
                 <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
                 <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
@@ -209,6 +214,9 @@
                 <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
               </view>
               <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+              <text class="task-spec">
+                材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
+              </text>
               <view class="task-body">
                 <view class="proc-info">
                   <text class="proc-seq">{{ task.processSeq }}</text>
@@ -615,10 +623,6 @@ function clearSelection() {
   selectedTaskIds.value = []
 }
 
-function onTaskRowTap(task) {
-  if (task.status === 'pending') toggleTaskSelect(task.id)
-}
-
 function openBatchConfirm() {
   if (!selectedCount.value) return
   batchConfirmOpen.value = true
@@ -682,6 +686,19 @@ function onClaimTask(task) {
   activeTab.value = 'today'
 }
 
+function goClaimDetail(task) {
+  uni.navigateTo({ url: `/pages/process-report/claim-detail?id=${task.id}` })
+}
+
+function goTaskDetail(task) {
+  const reportFor = encodeURIComponent(
+    reportForMember.value || resolveWorkerDisplayName(user.value),
+  )
+  uni.navigateTo({
+    url: `/pages/process-report/claim-detail?id=${task.id}&mode=report&reportFor=${reportFor}`,
+  })
+}
+
 function goWorkReport(task) {
   const q = buildExecuteQuery({
     source: 'workorder',
@@ -693,6 +710,9 @@ function goWorkReport(task) {
     processName: task.processName,
     productName: task.productName,
     productCode: task.productCode,
+    specModel: task.specModel,
+    material: task.material,
+    drawingNo: task.drawingNo,
     targetQty: task.targetQty,
     remainingQty: task.remainingQty ?? task.targetQty,
     isGroupTask: task.isGroupTask ? '1' : '0',
@@ -1261,6 +1281,13 @@ $primary: #1677ff;
   margin-top: 8rpx;
   font-size: 24rpx;
   color: #8c8c8c;
+}
+
+.task-spec {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #595959;
 }
 
 .task-body {

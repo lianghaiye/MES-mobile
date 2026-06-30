@@ -10,6 +10,12 @@
 
     <view class="sub-title">{{ processName }} · {{ productName }} {{ productCode }}</view>
 
+    <view v-if="showProductMeta" class="product-meta">
+      <text v-if="specModel" class="meta-item">规格: {{ specModel }}</text>
+      <text class="meta-item">材质: {{ material || '—' }}</text>
+      <text class="meta-item">图号: {{ drawingNo || '—' }}</text>
+    </view>
+
     <view class="mode-tags">
       <view class="mode-tag">{{ displayReportMode(reportMode) }}</view>
       <view class="source-tag">{{ displayReportSource(context.source) }}</view>
@@ -179,6 +185,9 @@ const editId = ref('')
 const processName = ref('')
 const productName = ref('')
 const productCode = ref('')
+const specModel = ref('')
+const material = ref('')
+const drawingNo = ref('')
 const reportMode = ref('批量计件')
 const targetQty = ref(null)
 const remainingQty = ref(null)
@@ -213,6 +222,12 @@ const form = reactive({
 })
 
 const isQuickSource = computed(() => isQuickReportSource(context.source))
+
+const showProductMeta = computed(
+  () =>
+    !isQuickSource.value &&
+    (specModel.value || material.value || drawingNo.value),
+)
 
 const isProxyMode = computed(() => {
   if (context.source !== 'workorder' || !context.isGroupTask) return false
@@ -259,6 +274,9 @@ onLoad((query) => {
   processName.value = decodeURIComponent(query.processName || '')
   productName.value = decodeURIComponent(query.productName || '')
   productCode.value = query.productCode || ''
+  specModel.value = query.specModel ? decodeURIComponent(query.specModel) : ''
+  material.value = query.material ? decodeURIComponent(query.material) : ''
+  drawingNo.value = query.drawingNo ? decodeURIComponent(query.drawingNo) : ''
   targetQty.value = query.targetQty ? Number(query.targetQty) : null
   remainingQty.value = query.remainingQty != null ? Number(query.remainingQty) : targetQty.value
   context.source = query.source || 'quick'
@@ -615,6 +633,19 @@ $primary: #1677ff;
   font-size: 26rpx;
   color: #8c8c8c;
   margin-bottom: 12rpx;
+}
+
+.product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 20rpx;
+  margin-bottom: 16rpx;
+  font-size: 24rpx;
+  color: #595959;
+}
+
+.meta-item {
+  line-height: 1.5;
 }
 
 .mode-tags {
