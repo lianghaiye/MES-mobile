@@ -63,6 +63,14 @@ export const workbenchModules = [
     color: '#13c2c2',
     path: '/pages/material-req/index',
     placeholder: false,
-    stub: true,
+  },
+  {
+    key: 'product-inbound',
+    title: '成品入库',
+    desc: '工单入库与快速入库',
+    icon: '📥',
+    color: '#52c41a',
+    path: '/pages/product-inbound/index',
+    placeholder: false,
   },
 ]

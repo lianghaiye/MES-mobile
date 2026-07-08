@@ -3,18 +3,18 @@
     <view class="action-row">
       <view class="action-card primary" @tap="goWorkOrder">
         <text class="action-icon">📋</text>
-        <text class="action-title">根据工单领料</text>
-        <text class="action-desc">选择工单，带出 EBOM 物料</text>
+        <text class="action-title">按工单入库</text>
+        <text class="action-desc">选择已完成工单，带出产品</text>
       </view>
       <view class="action-card" @tap="goQuick">
         <text class="action-icon">⚡</text>
-        <text class="action-title">快速领料</text>
-        <text class="action-desc">无工单，手工添加物料</text>
+        <text class="action-title">快速入库</text>
+        <text class="action-desc">直接选择产品入库</text>
       </view>
     </view>
 
     <view class="list-head">
-      <text class="list-title">我的领料申请</text>
+      <text class="list-title">我的入库申请</text>
       <text class="list-count">共 {{ list.length }} 条</text>
     </view>
 
@@ -26,37 +26,37 @@
     >
       <view class="req-head">
         <view class="req-head-left">
-          <text class="req-no">{{ item.reqNo }}</text>
-          <text class="req-mode">{{ item.mode === 'quick' ? '快速领料' : '工单领料' }}</text>
+          <text class="req-no">{{ item.inboundNo }}</text>
+          <text class="req-mode">{{ item.mode === 'quick' ? '快速入库' : '工单入库' }}</text>
         </view>
-        <text class="req-status">{{ item.outboundStatus }}</text>
+        <text class="req-status">{{ item.inboundStatus }}</text>
       </view>
       <text class="req-main">
-        {{ displayMain(item) }}
+        {{ item.productName || '—' }}
         <text v-if="item.workOrderCode" class="req-sub"> · {{ item.workOrderCode }}</text>
       </text>
       <view class="req-foot">
         <text>{{ item.totalQty }} 件</text>
         <text class="dot">·</text>
-        <text>{{ item.outboundDocNo || '待生成出库单' }}</text>
+        <text>{{ item.inboundDocNo || '待生成入库单' }}</text>
         <text class="dot">·</text>
         <text>{{ formatTime(item.createdAt) }}</text>
       </view>
     </view>
 
-    <view v-if="!list.length" class="empty">暂无领料申请，点击上方按钮发起</view>
+    <view v-if="!list.length" class="empty">暂无入库申请，点击上方按钮发起</view>
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { listMaterialRequisitions } from '@/store/materialRequisitionStore'
+import { listProductInbounds } from '@/store/productInboundStore'
 
 const list = ref([])
 
 function loadList() {
-  list.value = listMaterialRequisitions()
+  list.value = listProductInbounds()
 }
 
 onShow(() => {
@@ -69,23 +69,15 @@ onPullDownRefresh(() => {
 })
 
 function goWorkOrder() {
-  uni.navigateTo({ url: '/pages/material-req/work-order-select' })
+  uni.navigateTo({ url: '/pages/product-inbound/work-order-select' })
 }
 
 function goQuick() {
-  uni.navigateTo({ url: '/pages/material-req/create-quick' })
+  uni.navigateTo({ url: '/pages/product-inbound/create-quick' })
 }
 
 function goDetail(item) {
-  uni.navigateTo({ url: `/pages/material-req/detail?id=${item.id}` })
-}
-
-function displayMain(item) {
-  if (item.productName) return item.productName
-  const first = item.lines?.[0]?.itemName
-  if (!first) return '—'
-  if (item.lineCount > 1) return `${first} 等${item.lineCount}项`
-  return first
+  uni.navigateTo({ url: `/pages/product-inbound/detail?id=${item.id}` })
 }
 
 function formatTime(value) {
@@ -118,7 +110,7 @@ $primary: #1677ff;
 }
 
 .action-card.primary {
-  background: linear-gradient(135deg, #1677ff, #4096ff);
+  background: linear-gradient(135deg, #52c41a, #73d13d);
   color: #fff;
 }
 
@@ -231,6 +223,18 @@ $primary: #1677ff;
 
 .dot {
   color: #d9d9d9;
+}
+
+.req-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 26rpx;
+  color: #595959;
+  padding: 8rpx 0;
+}
+
+.label {
+  color: #8c8c8c;
 }
 
 .empty {

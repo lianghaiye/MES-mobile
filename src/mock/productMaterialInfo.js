@@ -22,6 +22,8 @@ function mapProduct(p) {
     name: p.name,
     code: p.code,
     spec: p.specModel || '',
+    material: p.material || '',
+    drawingNo: p.drawingNo || '',
   }
 }
 
@@ -32,6 +34,8 @@ function mapMaterial(m) {
     name: m.name,
     code: m.code,
     spec: m.specModel || '',
+    material: m.material || '',
+    drawingNo: m.drawingNo || '',
   }
 }
 
@@ -46,6 +50,8 @@ export function loadProductMaterialItems() {
     name: p.name,
     code: p.code,
     spec: p.spec || '',
+    material: p.material || '',
+    drawingNo: p.drawingNo || '',
   }))
 }
 
@@ -53,12 +59,31 @@ export function searchProductMaterials(keyword = '') {
   const kw = keyword.trim().toLowerCase()
   const list = loadProductMaterialItems()
   if (!kw) return list
-  return list.filter(
-    (item) =>
-      item.name.toLowerCase().includes(kw) ||
-      item.code.toLowerCase().includes(kw) ||
-      (item.spec && item.spec.toLowerCase().includes(kw)),
-  )
+  return list.filter((item) => {
+    const hay = [item.name, item.code, item.spec, item.material, item.drawingNo]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(kw)
+  })
+}
+
+/** 仅可销售产品（成品入库快速选择） */
+export function searchSellableProducts(keyword = '') {
+  const products = loadJson(PRODUCT_KEY, 'products')
+  const mapped = products
+    .filter((p) => p.canSell !== false)
+    .map(mapProduct)
+  const list = mapped.length ? mapped : loadProductMaterialItems().filter((i) => i.itemType === '产品')
+  const kw = keyword.trim().toLowerCase()
+  if (!kw) return list
+  return list.filter((item) => {
+    const hay = [item.name, item.code, item.spec, item.material, item.drawingNo]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(kw)
+  })
 }
 
 export function getProductMaterialById(id) {

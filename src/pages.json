@@ -177,7 +177,63 @@
     {
       "path": "pages/material-req/index",
       "style": {
-        "navigationBarTitleText": "领料管理"
+        "navigationBarTitleText": "领料管理",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/material-req/work-order-select",
+      "style": {
+        "navigationBarTitleText": "选择工单"
+      }
+    },
+    {
+      "path": "pages/material-req/create-by-work-order",
+      "style": {
+        "navigationBarTitleText": "工单领料"
+      }
+    },
+    {
+      "path": "pages/material-req/create-quick",
+      "style": {
+        "navigationBarTitleText": "快速领料"
+      }
+    },
+    {
+      "path": "pages/material-req/detail",
+      "style": {
+        "navigationBarTitleText": "领料详情"
+      }
+    },
+    {
+      "path": "pages/product-inbound/index",
+      "style": {
+        "navigationBarTitleText": "成品入库",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/product-inbound/work-order-select",
+      "style": {
+        "navigationBarTitleText": "选择工单"
+      }
+    },
+    {
+      "path": "pages/product-inbound/create-by-work-order",
+      "style": {
+        "navigationBarTitleText": "工单入库"
+      }
+    },
+    {
+      "path": "pages/product-inbound/create-quick",
+      "style": {
+        "navigationBarTitleText": "快速入库"
+      }
+    },
+    {
+      "path": "pages/product-inbound/detail",
+      "style": {
+        "navigationBarTitleText": "入库详情"
       }
     },
     {
