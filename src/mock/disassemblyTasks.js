@@ -11,6 +11,7 @@ import {
   isMultiGroupTask,
 } from '@/utils/processReportTaskRules'
 import { getGroupLeaderName } from '@/mock/employeeGroups'
+import { isParallelTaskDispatch } from '@/utils/businessRuleBridge'
 
 const STORAGE_KEY = 'i_doms_mobile_disassembly_tasks'
 const DRAFT_KEY = 'i_doms_mobile_disassembly_drafts'
@@ -678,6 +679,7 @@ function taskSeed(partial) {
     laborCalcMethod: '时长报工+计时工资',
     resourceType: partial.resourceType || '工人',
     placement: partial.placement || 'todo',
+    dispatchControl: partial.dispatchControl || 'serial',
     serialLocked: partial.serialLocked ?? false,
     claimTargets: partial.claimTargets || [],
     groupNames: partial.groupNames || [],
@@ -686,6 +688,12 @@ function taskSeed(partial) {
     leaderParticipates: partial.leaderParticipates ?? true,
     groupWorkers: partial.groupWorkers || [],
     executors: partial.executors || [],
+    taskGroupId: partial.taskGroupId || '',
+    taskExecutionMode: partial.taskExecutionMode || 'single_claim',
+    collaborationSlot: partial.collaborationSlot ?? null,
+    collaborationTotal: partial.collaborationTotal ?? 1,
+    baseTaskNo: partial.baseTaskNo || partial.taskNo || '',
+    reportMode: partial.reportMode || '',
     ...partial,
   }
 }
@@ -1129,17 +1137,41 @@ export function distributeTask(taskId, executorName) {
   return { ok: true, task }
 }
 
-function unlockNextSerialTask(workOrderId, completedProcessSeq) {
-  const next = cache.find(
+function isProcessGroupCompleted(workOrderId, processSeq) {
+  const groupTasks = cache.filter(
+    (t) => t.workOrderId === workOrderId && t.processSeq === processSeq,
+  )
+  if (!groupTasks.length) return false
+  return groupTasks.every((t) => t.taskStatus === '已完成')
+}
+
+export function unlockNextSerialTask(workOrderId, completedProcessSeq) {
+  const sample = cache.find((t) => t.workOrderId === workOrderId)
+  if (sample?.dispatchControl === 'parallel') return null
+  if (!sample?.dispatchControl && isParallelTaskDispatch()) return null
+  if (!isProcessGroupCompleted(workOrderId, completedProcessSeq)) return null
+  const nextTasks = cache.filter(
     (t) =>
       t.workOrderId === workOrderId &&
       t.processSeq === completedProcessSeq + 1 &&
       t.serialLocked,
   )
-  if (!next) return null
-  next.serialLocked = false
+  if (!nextTasks.length) return null
+  nextTasks.forEach((next) => {
+    next.serialLocked = false
+  })
   save()
-  return next
+  return nextTasks[0]
+}
+
+export function getTasksByProcessGroup(workOrderId, processSeq) {
+  mergePcSyncedTasks()
+  return cache.filter((t) => t.workOrderId === workOrderId && t.processSeq === processSeq)
+}
+
+export function isProcessGroupCompletedForWorkOrder(workOrderId, processSeq) {
+  mergePcSyncedTasks()
+  return isProcessGroupCompleted(workOrderId, processSeq)
 }
 
 export function getTaskById(id) {

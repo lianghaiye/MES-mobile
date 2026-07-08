@@ -6,6 +6,8 @@ export const productList = [
     name: '货架支架',
     code: 'SJ-2024-A',
     spec: '1200×600mm',
+    material: 'Q235',
+    drawingNo: 'SJ-A-DWG-001',
     routes: [
       {
         id: 'route-1',
@@ -24,6 +26,8 @@ export const productList = [
     name: '电机外壳',
     code: 'DJ-2024-B',
     spec: 'φ180mm',
+    material: '冷轧板',
+    drawingNo: 'DJ-B-DWG-01',
     routes: [
       {
         id: 'route-2a',

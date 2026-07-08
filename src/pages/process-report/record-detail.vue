@@ -9,7 +9,14 @@
         <text class="label">工单号</text>
         <text class="val">{{ record.workOrderNo }}</text>
       </view>
-      <view v-if="record.source === 'workorder' && record.operator" class="row">
+      <view v-if="record.source === 'workorder' && (record.reporter || record.operator)" class="row">
+        <text class="label">执行人</text>
+        <text class="val">{{ record.reporter || record.operator }}</text>
+      </view>
+      <view
+        v-if="record.source === 'workorder' && record.operator && record.operator !== record.reporter"
+        class="row"
+      >
         <text class="label">操作人</text>
         <text class="val">{{ record.operator }}</text>
       </view>

@@ -10,10 +10,14 @@ import {
   updateTaskById,
   claimTask,
   getTaskById,
+  getTasksByProcessGroup,
+  unlockNextSerialTask,
 } from './disassemblyTasks'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
 import { resolveLaborConfig } from '@/utils/laborWageCalc'
 import { isDurationReportMode } from '@/utils/reportMode'
+import { isParallelTaskDispatch } from '@/utils/businessRuleBridge'
+import { updateWorkOrderStatus } from '@/utils/workOrderStatusBridge'
 import {
   resolveWorkerDisplayName,
   getGroupLeaderName,
@@ -29,9 +33,11 @@ import {
   isGroupTaskReadyForLeader,
   getTaskReportedTotal,
   getTaskRemainingQty,
+  isCollaborativeTask,
 } from '@/utils/processReportTaskRules'
 
 const REPORTABLE_CATEGORIES = ['生产工单', '总装工单']
+const AUTO_COMPLETE_CATEGORIES = ['生产工单', '总装工单', '外协工单']
 const ACTIVE_TASK_STATUS = REPORTABLE_TASK_STATUS
 
 /** 演示：物品编码 → 材质/图号（任务种子未填时兜底） */
@@ -115,6 +121,7 @@ function isTaskForUser(task, names) {
 }
 
 function isTaskClaimableForUser(task, names) {
+  if (isCollaborativeTask(task)) return false
   if (task.taskStatus !== '待领取' || task.placement !== 'claim') return false
   if (isGroupReportTask(task)) {
     if (!isMultiGroupTask(task)) return false
@@ -163,7 +170,7 @@ export function resolveReportContext(user, options = {}, task = null) {
 }
 
 function enrichTask(task, user, options = {}) {
-  const reportMode = getProcessReportMode(task.processName)
+  const reportMode = getProcessReportMode(task.processName) || task.reportMode
   const productCode = task.itemCode || task.productCode || ''
   const laborCfg = resolveLaborConfig(productCode, task.processName)
   const leaderName = resolveWorkerDisplayName(user)
@@ -173,8 +180,12 @@ function enrichTask(task, user, options = {}) {
   const isGroupTask = isGroupReportTask(task)
   const isPersonalTask = isPersonalLeaderTask(task, leaderName)
 
-  let status = remainingQty <= 0 ? 'reported' : 'pending'
-  if (!REPORTABLE_TASK_STATUS.includes(task.taskStatus) && remainingQty > 0) {
+  let status = 'pending'
+  if (task.taskStatus === '已完成' || remainingQty <= 0) {
+    status = 'reported'
+  } else if (task.serialLocked) {
+    status = 'locked'
+  } else if (!REPORTABLE_TASK_STATUS.includes(task.taskStatus) && remainingQty > 0) {
     status = 'locked'
   }
 
@@ -188,6 +199,10 @@ function enrichTask(task, user, options = {}) {
     salesOrderNo: resolveSalesOrderNo(task),
     groupName: task.groupName || getTaskAssignGroups(task)[0] || '',
     reportMode,
+    isCollaborative: isCollaborativeTask(task),
+    collaborationLabel: isCollaborativeTask(task)
+      ? `协作 ${task.collaborationSlot || 1}/${task.collaborationTotal || 1}`
+      : '',
     salaryMethod: laborCfg.salaryMethod,
     reportTypeLabel: `${laborCfg.reportType}+${laborCfg.salaryMethod}`,
     status,
@@ -213,9 +228,21 @@ function enrichClaimTask(task) {
     groupName: task.groupName || groups[0] || '',
     groupNames: groups,
     isMultiGroup: isMultiGroupTask(task),
-    reportMode: getProcessReportMode(task.processName),
+    isCollaborative: isCollaborativeTask(task),
+    reportMode: getProcessReportMode(task.processName) || task.reportMode,
     ...resolveTaskProductMeta(task),
   }
+}
+
+export function getCollaborationPeers(taskId) {
+  const task = getTaskById(taskId)
+  if (!task?.workOrderId || !task.processSeq) return []
+  return getTasksByProcessGroup(task.workOrderId, task.processSeq).map((item) => ({
+    id: item.id,
+    executor: item.executor || '',
+    taskStatus: item.taskStatus,
+    collaborationSlot: item.collaborationSlot,
+  }))
 }
 
 function isTaskInTodayScope(task, today) {
@@ -299,9 +326,50 @@ export function getReportTaskById(taskId, user, options = {}) {
   return task || null
 }
 
+function isParallelDispatchForWorkOrder(workOrderId) {
+  const tasks = getAllTasks().filter((t) => t.workOrderId === workOrderId)
+  if (!tasks.length) return isParallelTaskDispatch()
+  if (tasks.some((t) => t.dispatchControl === 'parallel')) return true
+  if (tasks.some((t) => t.dispatchControl === 'serial')) return false
+  return isParallelTaskDispatch()
+}
+
+/** 极简报工：全部工序任务报工完成后，工单自动变更为「完成」 */
+export function tryAutoCompleteWorkOrder(workOrderId) {
+  if (!workOrderId) return false
+  if (!isParallelDispatchForWorkOrder(workOrderId)) return false
+
+  const tasks = getAllTasks().filter((t) => t.workOrderId === workOrderId)
+  if (!tasks.length) return false
+
+  const category = tasks[0].orderCategory || '生产工单'
+  if (!AUTO_COMPLETE_CATEGORIES.includes(category)) return false
+  if (!tasks.every((t) => t.taskStatus === '已完成')) return false
+
+  return updateWorkOrderStatus(workOrderId, '完成', category)
+}
+
 export function markTaskReported(taskId, payload = {}) {
   const task = getTaskById(taskId)
   if (!task) return null
+
+  if (isCollaborativeTask(task) && isDurationReportMode(task.reportMode || getProcessReportMode(task.processName))) {
+    const finishedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    const patch = {
+      reportedGoodQty: Number(payload.goodQty) || 0,
+      reportedDefectQty: Number(payload.defectQty) || 0,
+      reportedFinishedQty: (Number(payload.goodQty) || 0) + (Number(payload.defectQty) || 0),
+      reportStatus: '待审核',
+      taskStatus: '已完成',
+      finishedAt,
+      reportedWorkHours: payload.workHours ?? null,
+    }
+    updateTaskById(taskId, patch)
+    unlockNextSerialTask(task.workOrderId, task.processSeq)
+    tryAutoCompleteWorkOrder(task.workOrderId)
+    return getTaskById(taskId)
+  }
+
   const addGood = Number(payload.goodQty) || 0
   const addDefect = Number(payload.defectQty) || 0
   const reportedGoodQty = (Number(task.reportedGoodQty) || 0) + addGood
@@ -314,9 +382,14 @@ export function markTaskReported(taskId, payload = {}) {
     reportedDefectQty,
     reportedFinishedQty,
     reportStatus: complete ? '待审核' : '',
-    taskStatus: complete ? '执行中' : '待报工',
+    taskStatus: complete ? '已完成' : '待报工',
   }
-  return updateTaskById(taskId, patch)
+  const updated = updateTaskById(taskId, patch)
+  if (complete && updated) {
+    unlockNextSerialTask(updated.workOrderId, updated.processSeq)
+    tryAutoCompleteWorkOrder(updated.workOrderId)
+  }
+  return updated
 }
 
 function buildBatchReportPayload(task, reportContext) {

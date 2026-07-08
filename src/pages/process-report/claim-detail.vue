@@ -11,7 +11,8 @@
     <view class="status-banner">
       <text class="status-tag" :class="statusTagClass">{{ statusLabel }}</text>
       <text v-if="task.salesOrderNo" class="sales-no">{{ task.salesOrderNo }}</text>
-      <text v-if="isReportMode && task.isPersonalTask" class="scope-tag personal">个人</text>
+      <text v-if="isReportMode && task.isCollaborative" class="scope-tag collab">协作</text>
+      <text v-else-if="isReportMode && task.isPersonalTask" class="scope-tag personal">个人</text>
       <text v-else-if="isReportMode && task.isGroupTask" class="scope-tag group">小组</text>
     </view>
 
@@ -31,6 +32,18 @@
         <view v-for="row in productRows" :key="row.label" class="info-row">
           <text class="info-label">{{ row.label }}</text>
           <text class="info-value">{{ row.value }}</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="collaborationPeers.length" class="section-card">
+      <text class="section-title">协作进度</text>
+      <view class="info-list">
+        <view v-for="peer in collaborationPeers" :key="peer.id" class="info-row">
+          <text class="info-label">{{ peer.executor || '—' }}</text>
+          <text class="info-value" :class="{ done: peer.taskStatus === '已完成' }">
+            {{ peer.taskStatus === '已完成' ? '已完成' : '进行中' }}
+          </text>
         </view>
       </view>
     </view>
@@ -75,6 +88,7 @@ import {
   getClaimableReportTaskById,
   getReportTaskById,
   claimReportTask,
+  getCollaborationPeers,
 } from '@/mock/processReportTasks'
 import { getMyRecords } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
@@ -90,6 +104,7 @@ const pageMode = ref('claim')
 const reportFor = ref('')
 const task = ref(null)
 const claiming = ref(false)
+const collaborationPeers = ref([])
 
 const isReportMode = computed(() => pageMode.value === 'report')
 
@@ -136,11 +151,16 @@ const taskRows = computed(() => {
   const rows = [
     { label: '任务编号', value: t.taskNo || '—' },
     { label: '所属工序', value: `${t.processName || '—'}【第${t.processSeq || '—'}步】` },
+  ]
+  if (t.collaborationLabel) {
+    rows.push({ label: '协作序号', value: t.collaborationLabel })
+  }
+  rows.push(
     { label: '目标数量', value: `${t.targetQty ?? '—'} 件` },
     { label: '报工模式', value: displayReportMode(t.reportMode) },
     { label: '资源类型', value: t.resourceType || '工人' },
     { label: '创建时间', value: t.createdAt || '—' },
-  ]
+  )
   if (isReportMode.value) {
     rows.splice(3, 0, {
       label: '待报数量',
@@ -177,6 +197,7 @@ function reload() {
   } else {
     task.value = getClaimableReportTaskById(taskId.value, u)
   }
+  collaborationPeers.value = taskId.value ? getCollaborationPeers(taskId.value) : []
 }
 
 onLoad((query) => {
@@ -224,6 +245,7 @@ function onGoReport() {
     remainingQty: t.remainingQty ?? t.targetQty,
     isGroupTask: t.isGroupTask ? '1' : '0',
     reportMode: t.reportMode || getProcessReportMode(t.processName),
+    collaborationLabel: t.collaborationLabel || '',
     groupName: t.groupName || '',
     reportFor: reportFor.value || resolveWorkerDisplayName(getUser()),
   })
@@ -369,6 +391,11 @@ $primary: #1677ff;
     color: #08979c;
     background: #e6fffb;
   }
+
+  &.collab {
+    color: #531dab;
+    background: #f9f0ff;
+  }
 }
 
 .section-card {
@@ -409,6 +436,10 @@ $primary: #1677ff;
   flex: 1;
   color: #1a1a1a;
   word-break: break-all;
+
+  &.done {
+    color: #52c41a;
+  }
 }
 
 .footer-bar {

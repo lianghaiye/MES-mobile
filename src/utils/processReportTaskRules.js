@@ -58,6 +58,17 @@ export function getTaskReportedTotal(task = {}) {
   return good + defect
 }
 
+export function isCollaborativeTask(task = {}) {
+  return task.taskExecutionMode === 'collaborative'
+}
+
+export function getCollaborationProgressLabel(task = {}) {
+  if (!isCollaborativeTask(task)) return ''
+  const slot = task.collaborationSlot || 1
+  const total = task.collaborationTotal || 1
+  return `协作 ${slot}/${total}`
+}
+
 export function getTaskRemainingQty(task = {}) {
   const target = Number(task.expectedQty ?? task.targetQty) || 0
   return Math.max(0, target - getTaskReportedTotal(task))

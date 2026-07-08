@@ -8,7 +8,20 @@
       <view class="nav-placeholder" />
     </view>
 
-    <view class="sub-title">{{ processName }} · {{ productName }} {{ productCode }}</view>
+    <view class="sub-title">
+      {{ processName }} · {{ productName }} {{ productCode }}
+      <text v-if="collaborationLabel" class="collab-tag">{{ collaborationLabel }}</text>
+    </view>
+
+    <view v-if="collaborationPeers.length" class="collab-card">
+      <text class="collab-title">协作进度</text>
+      <view v-for="peer in collaborationPeers" :key="peer.id" class="collab-row">
+        <text class="collab-name">{{ peer.executor || '—' }}</text>
+        <text class="collab-status" :class="{ done: peer.taskStatus === '已完成' }">
+          {{ peer.taskStatus === '已完成' ? '已完成' : '进行中' }}
+        </text>
+      </view>
+    </view>
 
     <view v-if="showProductMeta" class="product-meta">
       <text v-if="specModel" class="meta-item">规格: {{ specModel }}</text>
@@ -120,9 +133,9 @@
       </view>
 
       <view v-if="!isQuickSource && !isProxyMode" class="field operator-field" @tap="goSelectOperator">
-        <text class="label required">操作人</text>
+        <text class="label required">执行人</text>
         <view class="operator-picker">
-          <text :class="{ placeholder: !form.operator }">{{ form.operator || '请选择操作人' }}</text>
+          <text :class="{ placeholder: !form.reporter }">{{ form.reporter || '请选择执行人' }}</text>
           <text class="arrow">›</text>
         </view>
         <text v-if="context.groupName" class="field-hint">可选范围：{{ context.groupName }}成员</text>
@@ -175,7 +188,7 @@ function displayReportMode(mode) {
 }
 import { getQuickProductByCode } from '@/mock/processReportProducts'
 import { getRecordById, resubmitProcessReport, submitProcessReport } from '@/mock/processReportRecords'
-import { markTaskReported } from '@/mock/processReportTasks'
+import { markTaskReported, getCollaborationPeers } from '@/mock/processReportTasks'
 import { getUser } from '@/utils/auth'
 import { getGroupWorkerNames, resolveWorkerDisplayName, getUserWorkerGroupNames, isGroupLeader } from '@/utils/workerGroup'
 import { consumeSelectionResult } from '@/utils/selection'
@@ -191,6 +204,8 @@ const drawingNo = ref('')
 const reportMode = ref('批量计件')
 const targetQty = ref(null)
 const remainingQty = ref(null)
+const collaborationLabel = ref('')
+const collaborationPeers = ref([])
 const defectItems = ref([])
 const context = reactive({
   source: 'quick',
@@ -289,11 +304,23 @@ onLoad((query) => {
   context.groupName = query.groupName ? decodeURIComponent(query.groupName) : ''
   context.reportFor = query.reportFor ? decodeURIComponent(query.reportFor) : ''
   context.isGroupTask = query.isGroupTask === '1'
+  collaborationLabel.value = query.collaborationLabel
+    ? decodeURIComponent(query.collaborationLabel)
+    : ''
 
   reportMode.value = query.reportMode || getProcessReportMode(processName.value)
   defectItems.value = getProcessDefectItems(processName.value)
   resolveProductId()
   initTaskOperator()
+  if (context.taskId) {
+    collaborationPeers.value = getCollaborationPeers(context.taskId)
+    if (!collaborationLabel.value && collaborationPeers.value.length > 1) {
+      const self = collaborationPeers.value.find((p) => p.id === context.taskId)
+      if (self?.collaborationSlot) {
+        collaborationLabel.value = `协作 ${self.collaborationSlot}/${collaborationPeers.value.length}`
+      }
+    }
+  }
   form.startTime = nowTime()
   form.endTime = nowTime()
   if (targetQty.value) {
@@ -308,6 +335,9 @@ onShow(() => {
   const picked = consumeSelectionResult('processOperator')
   if (picked?.operator) {
     form.operator = picked.operator
+    if (!isProxyMode.value) {
+      form.reporter = picked.operator
+    }
   }
 })
 
@@ -496,14 +526,14 @@ onBackPress(() => {
 function onSubmit() {
   if (submitting.value) return
   if (!isQuickSource.value) {
-    if (!form.operator) {
-      uni.showToast({ title: '请选择操作人', icon: 'none' })
+    if (!form.reporter && !form.operator) {
+      uni.showToast({ title: '请选择执行人', icon: 'none' })
       return
     }
     if (!isProxyMode.value) {
       const allowed = getGroupWorkerNames(context.groupName)
       if (allowed.length && !allowed.includes(form.operator)) {
-        uni.showToast({ title: '操作人不在当前工人小组', icon: 'none' })
+        uni.showToast({ title: '执行人不在当前工人小组', icon: 'none' })
         return
       }
     }
@@ -633,6 +663,49 @@ $primary: #1677ff;
   font-size: 26rpx;
   color: #8c8c8c;
   margin-bottom: 12rpx;
+}
+
+.collab-tag {
+  margin-left: 12rpx;
+  font-size: 22rpx;
+  color: #531dab;
+  background: #f9f0ff;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+
+.collab-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.collab-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 12rpx;
+}
+
+.collab-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 24rpx;
+  padding: 8rpx 0;
+}
+
+.collab-name {
+  color: #595959;
+}
+
+.collab-status {
+  color: #fa8c16;
+
+  &.done {
+    color: #52c41a;
+  }
 }
 
 .product-meta {

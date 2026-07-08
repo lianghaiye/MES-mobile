@@ -209,6 +209,7 @@
               <view class="task-head">
                 <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
                 <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
+                <text v-else-if="task.isCollaborative" class="task-tag collab-tag">协作</text>
                 <text v-else-if="task.isGroupTask" class="task-tag group-tag">小组</text>
                 <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
                 <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
@@ -221,7 +222,10 @@
                 <view class="proc-info">
                   <text class="proc-seq">{{ task.processSeq }}</text>
                   <view>
-                    <text class="proc-name">{{ task.processName }}</text>
+                    <text class="proc-name">
+                      {{ task.processName }}
+                      <text v-if="task.collaborationLabel" class="collab-inline">{{ task.collaborationLabel }}</text>
+                    </text>
                     <text class="proc-meta">{{ taskQtyText(task) }}</text>
                   </view>
                 </view>
@@ -297,8 +301,8 @@
         <view class="rc-metrics">
           <text>报工方式: {{ displayReportSource(r.source) }}</text>
           <text>审核状态: {{ r.status }}</text>
-          <text v-if="r.source === 'workorder' && r.reporter">执行人: {{ r.reporter }}</text>
-          <text v-if="r.source === 'workorder' && r.operator">操作人: {{ r.operator }}</text>
+          <text v-if="r.source === 'workorder' && (r.reporter || r.operator)">执行人: {{ r.reporter || r.operator }}</text>
+          <text v-if="r.source === 'workorder' && r.operator && r.operator !== r.reporter">操作人: {{ r.operator }}</text>
           <template v-if="isDurationReportMode(r.reportMode)">
             <text>时长: {{ r.workHours }}h</text>
           </template>
@@ -718,6 +722,7 @@ function goWorkReport(task) {
     isGroupTask: task.isGroupTask ? '1' : '0',
     reportMode: task.reportMode || getProcessReportMode(task.processName),
     groupName: task.groupName || '',
+    collaborationLabel: task.collaborationLabel || '',
     reportFor: reportForMember.value || resolveWorkerDisplayName(user.value),
   })
   uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
@@ -1274,6 +1279,11 @@ $primary: #1677ff;
     color: #08979c;
     background: #e6fffb;
   }
+
+  &.collab-tag {
+    color: #531dab;
+    background: #f9f0ff;
+  }
 }
 
 .task-wo {
@@ -1320,6 +1330,13 @@ $primary: #1677ff;
   display: block;
   font-size: 28rpx;
   font-weight: 600;
+}
+
+.collab-inline {
+  margin-left: 8rpx;
+  font-size: 22rpx;
+  color: #531dab;
+  font-weight: 400;
 }
 
 .proc-meta {

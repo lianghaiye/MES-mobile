@@ -548,22 +548,28 @@ function syncToLaborHour(line) {
 export function generateLinesFromTask(task) {
   if (!task?.workOrderId || !task.processName) return null
   reload()
-  const exists = cache.find(
-    (l) => l.workOrderId === task.workOrderId && l.processName === task.processName,
-  )
+  const processSeq = task.processSeq || 1
+  const slot = task.collaborationSlot
+  const lineId =
+    task.taskExecutionMode === 'collaborative' && slot
+      ? `rc-${task.workOrderId}-${processSeq}-${String(slot).padStart(2, '0')}`
+      : `rc-${task.workOrderId}-${processSeq}`
+  const exists = cache.find((l) => l.id === lineId)
   if (exists) return exists
   const qty = task.expectedQty ?? task.targetQty ?? task.scheduleQty ?? 0
   const productCode = task.itemCode || task.productCode || ''
   const labor = resolveLabor(productCode, task.processName)
-  const processSeq = task.processSeq || 1
   const line = enrichLine({
-    id: `rc-${task.workOrderId}-${processSeq}`,
+    id: lineId,
     taskNo: task.taskNo || `T${Date.now()}`,
     workOrderId: task.workOrderId,
     workOrderNo: task.workOrderCode || task.workOrderNo,
     workOrderName: task.workOrderName || '',
     processName: task.processName,
     processSeq,
+    collaborationSlot: slot || null,
+    collaborationTotal: task.collaborationTotal || 1,
+    taskExecutionMode: task.taskExecutionMode || 'single_claim',
     productName: task.productName,
     productCode,
     executor: task.executor || task.executors?.[0] || '',
