@@ -184,7 +184,7 @@
     {
       "path": "pages/material-req/work-order-select",
       "style": {
-        "navigationBarTitleText": "选择工单"
+        "navigationBarTitleText": "工单领料"
       }
     },
     {
@@ -206,6 +206,30 @@
       }
     },
     {
+      "path": "pages/material-req/batch-entry",
+      "style": {
+        "navigationBarTitleText": "批量领料"
+      }
+    },
+    {
+      "path": "pages/material-req/sales-order-select",
+      "style": {
+        "navigationBarTitleText": "按销售订单"
+      }
+    },
+    {
+      "path": "pages/material-req/work-order-batch-select",
+      "style": {
+        "navigationBarTitleText": "多选工单"
+      }
+    },
+    {
+      "path": "pages/material-req/create-batch-work-order",
+      "style": {
+        "navigationBarTitleText": "批量工单领料"
+      }
+    },
+    {
       "path": "pages/product-inbound/index",
       "style": {
         "navigationBarTitleText": "成品入库",
@@ -215,13 +239,19 @@
     {
       "path": "pages/product-inbound/work-order-select",
       "style": {
-        "navigationBarTitleText": "选择工单"
+        "navigationBarTitleText": "工单入库"
       }
     },
     {
       "path": "pages/product-inbound/create-by-work-order",
       "style": {
         "navigationBarTitleText": "工单入库"
+      }
+    },
+    {
+      "path": "pages/product-inbound/create-batch-work-order",
+      "style": {
+        "navigationBarTitleText": "批量工单入库"
       }
     },
     {

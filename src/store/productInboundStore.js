@@ -2,6 +2,7 @@ import { getUser } from '@/utils/auth'
 import { appendInboundFromMiniProgram, getInboundOrderById } from '@/utils/inboundBridge'
 import { getInboundTaskById } from '@/utils/inboundTaskStore'
 import { generateProductInboundNo, formatDateTime } from '@/utils/productInboundNo'
+import { mergeProductInboundLinesWithSources } from '@/utils/productInboundHelpers'
 
 const STORAGE_KEY = 'i_doms_mobile_product_inbounds'
 
@@ -23,6 +24,39 @@ function saveRecords(items) {
 function currentUserName() {
   const user = getUser()
   return user?.displayName || user?.username || '工人'
+}
+
+function modeLabel(mode) {
+  if (mode === 'quick') return '快速入库'
+  if (mode === 'batch-work-order') return '批量入库'
+  return '工单入库'
+}
+
+function resolveBatchSourceOrderNo(payload) {
+  if (payload.salesOrderNo && payload.salesOrderNo !== 'MULTI') {
+    return payload.salesOrderNo
+  }
+  const codes = (payload.workOrders || [])
+    .map((wo) => wo.code)
+    .filter(Boolean)
+    .slice(0, 3)
+  return codes.join('、')
+}
+
+function resolveLineSourceDocNo(payload, line) {
+  if (payload.mode !== 'batch-work-order') {
+    return payload.workOrderCode || ''
+  }
+  const sources = line.sourceWorkOrders || []
+  if (sources.length === 1) return sources[0].workOrderCode || ''
+  if (sources.length > 1) {
+    return sources
+      .map((s) => s.workOrderCode)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join('、')
+  }
+  return resolveBatchSourceOrderNo(payload)
 }
 
 function enrichRecord(row) {
@@ -48,10 +82,12 @@ export function getProductInboundById(id) {
 
 /**
  * @param {object} payload
- * @param {'work-order'|'quick'} payload.mode
+ * @param {'work-order'|'quick'|'batch-work-order'} payload.mode
  */
 export function submitProductInbound(payload) {
-  const lines = (payload.lines || []).filter((line) => line.itemCode)
+  const isBatch = payload.mode === 'batch-work-order'
+  const mergeFn = isBatch ? mergeProductInboundLinesWithSources : (lines) => lines
+  const lines = mergeFn((payload.lines || []).filter((line) => line.itemCode))
   if (!lines.length) {
     return { ok: false, message: '请添加入库产品' }
   }
@@ -71,6 +107,14 @@ export function submitProductInbound(payload) {
   const inboundId = `ib-${Date.now()}`
   const miniProgramTaskId = `mp-task-${Date.now()}`
 
+  const sourceOrderNo = isBatch
+    ? resolveBatchSourceOrderNo(payload)
+    : payload.workOrderCode || ''
+
+  const remarkBase = payload.remark
+    ? `小程序成品入库：${payload.remark}`
+    : `小程序成品入库（${modeLabel(payload.mode)}）`
+
   const inboundResult = appendInboundFromMiniProgram({
     inboundId,
     miniProgramTaskId,
@@ -79,11 +123,9 @@ export function submitProductInbound(payload) {
     creator: userName,
     warehouseKeeper: userName,
     workshop,
-    workOrderCode: payload.workOrderCode || '',
+    workOrderCode: isBatch ? sourceOrderNo : payload.workOrderCode || '',
     productName: payload.productName || lines[0]?.itemName || '',
-    remark: payload.remark
-      ? `小程序成品入库：${payload.remark}`
-      : `小程序成品入库（${payload.mode === 'quick' ? '快速入库' : '工单入库'}）`,
+    remark: remarkBase,
     warehouse: lines.length === 1 ? lines[0].warehouse : '',
     lineItems: lines.map((line) => ({
       itemCode: line.itemCode,
@@ -98,6 +140,9 @@ export function submitProductInbound(payload) {
       warehouse: line.warehouse,
       unitPrice: line.unitPrice ?? null,
       weight: line.weight ?? null,
+      lineSource: '工单入库',
+      sourceDocNo: resolveLineSourceDocNo(payload, line),
+      sourceWorkOrders: line.sourceWorkOrders || [],
     })),
   })
 
@@ -112,6 +157,9 @@ export function submitProductInbound(payload) {
     workOrderId: payload.workOrderId || '',
     workOrderCode: payload.workOrderCode || '',
     workOrderName: payload.workOrderName || '',
+    workOrderIds: payload.workOrderIds || [],
+    workOrders: payload.workOrders || [],
+    salesOrderNo: payload.salesOrderNo || '',
     productName: payload.productName || lines[0]?.itemName || '',
     productCode: payload.productCode || lines[0]?.itemCode || '',
     orderCategory: payload.orderCategory || '',

@@ -111,13 +111,17 @@ export function getWorkOrderById(id) {
   return buildMockCompletedWorkOrders().find((o) => o.id === id) || null
 }
 
-export function filterWorkOrders({ keyword = '' } = {}) {
+export function filterWorkOrders({ keyword = '', salesOrderNo = '', workCenter = '' } = {}) {
   const kw = String(keyword || '')
     .trim()
     .toLowerCase()
+  const so = String(salesOrderNo || '').trim()
+  const wc = String(workCenter || '').trim()
   return loadAllWorkOrders()
     .filter(isPickableWorkOrder)
     .filter((o) => {
+      if (so && o.salesOrderNo !== so) return false
+      if (wc && o.workCenter !== wc) return false
       if (!kw) return true
       const hay = [
         o.code,
@@ -136,14 +140,66 @@ export function filterWorkOrders({ keyword = '' } = {}) {
     .sort((a, b) => String(b.code).localeCompare(String(a.code)))
 }
 
-export function filterCompletedWorkOrders({ keyword = '' } = {}) {
+export function getWorkOrdersByIds(ids = []) {
+  const idSet = new Set((ids || []).filter(Boolean))
+  if (!idSet.size) return []
+  return loadAllWorkOrders().filter((o) => idSet.has(o.id))
+}
+
+export function listDistinctWorkCenters() {
+  const set = new Set()
+  for (const wo of loadAllWorkOrders().filter(isPickableWorkOrder)) {
+    if (wo.workCenter) set.add(wo.workCenter)
+  }
+  return [...set].sort()
+}
+
+export function listSalesOrdersWithPickableWorkOrders({ keyword = '', workCenter = '' } = {}) {
+  const orders = filterWorkOrders({ keyword, workCenter })
+  const map = new Map()
+  for (const wo of orders) {
+    const key = wo.salesOrderNo || '(无销售订单)'
+    if (!map.has(key)) {
+      map.set(key, {
+        salesOrderNo: wo.salesOrderNo || '',
+        displayNo: key,
+        workOrderCount: 0,
+        workCenterSet: new Set(),
+        productNames: new Set(),
+        workOrders: [],
+      })
+    }
+    const group = map.get(key)
+    group.workOrderCount += 1
+    group.workCenterSet.add(wo.workCenter)
+    group.productNames.add(wo.productName)
+    group.workOrders.push(wo)
+  }
+  return [...map.values()]
+    .map((group) => ({
+      salesOrderNo: group.salesOrderNo,
+      displayNo: group.displayNo,
+      workOrderCount: group.workOrderCount,
+      workCenters: [...group.workCenterSet],
+      workCenterLabel: [...group.workCenterSet].join('、'),
+      productSummary:
+        [...group.productNames].slice(0, 3).join('、') +
+        (group.productNames.size > 3 ? '…' : ''),
+      workOrders: group.workOrders,
+    }))
+    .sort((a, b) => String(b.salesOrderNo).localeCompare(String(a.salesOrderNo)))
+}
+
+export function filterCompletedWorkOrders({ keyword = '', workCenter = '' } = {}) {
   const kw = String(keyword || '')
     .trim()
     .toLowerCase()
+  const wc = String(workCenter || '').trim()
   const fromStorage = loadAllWorkOrders().filter(isCompletedWorkOrder)
   const source = fromStorage.length ? fromStorage : buildMockCompletedWorkOrders()
   return source
     .filter((o) => {
+      if (wc && o.workCenter !== wc) return false
       if (!kw) return true
       const hay = [
         o.code,
@@ -160,4 +216,58 @@ export function filterCompletedWorkOrders({ keyword = '' } = {}) {
       return hay.includes(kw)
     })
     .sort((a, b) => String(b.code).localeCompare(String(a.code)))
+}
+
+export function getCompletedWorkOrdersByIds(ids = []) {
+  const idSet = new Set((ids || []).filter(Boolean))
+  if (!idSet.size) return []
+  const fromStorage = loadAllWorkOrders().filter(isCompletedWorkOrder)
+  const source = fromStorage.length ? fromStorage : buildMockCompletedWorkOrders()
+  return source.filter((o) => idSet.has(o.id))
+}
+
+export function listDistinctCompletedWorkCenters() {
+  const set = new Set()
+  const fromStorage = loadAllWorkOrders().filter(isCompletedWorkOrder)
+  const source = fromStorage.length ? fromStorage : buildMockCompletedWorkOrders()
+  for (const wo of source) {
+    if (wo.workCenter) set.add(wo.workCenter)
+  }
+  return [...set].sort()
+}
+
+export function listSalesOrdersWithCompletedWorkOrders({ keyword = '', workCenter = '' } = {}) {
+  const orders = filterCompletedWorkOrders({ keyword, workCenter })
+  const map = new Map()
+  for (const wo of orders) {
+    const key = wo.salesOrderNo || '(无销售订单)'
+    if (!map.has(key)) {
+      map.set(key, {
+        salesOrderNo: wo.salesOrderNo || '',
+        displayNo: key,
+        workOrderCount: 0,
+        workCenterSet: new Set(),
+        productNames: new Set(),
+        workOrders: [],
+      })
+    }
+    const group = map.get(key)
+    group.workOrderCount += 1
+    group.workCenterSet.add(wo.workCenter)
+    group.productNames.add(wo.productName)
+    group.workOrders.push(wo)
+  }
+  return [...map.values()]
+    .map((group) => ({
+      salesOrderNo: group.salesOrderNo,
+      displayNo: group.displayNo,
+      workOrderCount: group.workOrderCount,
+      workCenters: [...group.workCenterSet],
+      workCenterLabel: [...group.workCenterSet].join('、'),
+      productSummary:
+        [...group.productNames].slice(0, 3).join('、') +
+        (group.productNames.size > 3 ? '…' : ''),
+      workOrders: group.workOrders,
+    }))
+    .sort((a, b) => String(b.salesOrderNo).localeCompare(String(a.salesOrderNo)))
 }

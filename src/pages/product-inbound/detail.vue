@@ -7,11 +7,19 @@
       </view>
       <view class="info-row">
         <text class="label">入库方式</text>
-        <text class="val">{{ record.mode === 'quick' ? '快速入库' : '工单入库' }}</text>
+        <text class="val">{{ modeLabel(record.mode) }}</text>
       </view>
-      <view v-if="record.workOrderCode" class="info-row">
+      <view v-if="record.mode === 'batch-work-order' && record.workOrders?.length" class="info-row">
+        <text class="label">关联工单</text>
+        <text class="val">{{ record.workOrders.length }} 个</text>
+      </view>
+      <view v-else-if="record.workOrderCode" class="info-row">
         <text class="label">关联工单</text>
         <text class="val">{{ record.workOrderCode }}</text>
+      </view>
+      <view v-if="record.salesOrderNo && record.salesOrderNo !== 'MULTI'" class="info-row">
+        <text class="label">销售订单</text>
+        <text class="val">{{ record.salesOrderNo }}</text>
       </view>
       <view v-if="record.productName" class="info-row">
         <text class="label">产品</text>
@@ -39,6 +47,14 @@
       </view>
     </view>
 
+    <view v-if="record?.mode === 'batch-work-order' && record.workOrders?.length" class="card">
+      <text class="section-title">工单清单</text>
+      <view v-for="wo in record.workOrders" :key="wo.id" class="wo-row">
+        <text class="wo-code">{{ wo.code }}</text>
+        <text class="wo-product">{{ wo.productName }} · {{ wo.scheduleQty }} 件</text>
+      </view>
+    </view>
+
     <view v-if="record" class="card">
       <text class="section-title">入库明细（{{ record.lineCount }} 项 / 合计 {{ record.totalQty }}）</text>
       <view v-for="line in record.lines" :key="line.id" class="line-row">
@@ -54,6 +70,15 @@
         </view>
         <view class="line-sub">
           <text class="line-qty">{{ line.qty }} {{ line.unit || '件' }}</text>
+        </view>
+        <view v-if="line.sourceWorkOrders?.length" class="source-list">
+          <text
+            v-for="source in line.sourceWorkOrders"
+            :key="source.workOrderId"
+            class="source-tag"
+          >
+            {{ source.workOrderCode }} ×{{ source.qty }}
+          </text>
         </view>
       </view>
     </view>
@@ -74,6 +99,12 @@ const record = ref(null)
 
 function formatWarehouse(value) {
   return formatFinishedWarehouseLabel(value)
+}
+
+function modeLabel(mode) {
+  if (mode === 'quick') return '快速入库'
+  if (mode === 'batch-work-order') return '批量入库'
+  return '工单入库'
 }
 
 onLoad((query) => {
@@ -182,6 +213,43 @@ $primary: #1677ff;
 .line-qty {
   color: #52c41a;
   font-weight: 600;
+}
+
+.wo-row {
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.wo-row:last-child {
+  border-bottom: none;
+}
+
+.wo-code {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.wo-product {
+  display: block;
+  font-size: 24rpx;
+  color: #8c8c8c;
+  margin-top: 4rpx;
+}
+
+.source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 10rpx;
+}
+
+.source-tag {
+  font-size: 22rpx;
+  color: #595959;
+  background: #f5f6f8;
+  padding: 4rpx 10rpx;
+  border-radius: 6rpx;
 }
 
 .tip-card {

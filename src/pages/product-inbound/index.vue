@@ -3,8 +3,8 @@
     <view class="action-row">
       <view class="action-card primary" @tap="goWorkOrder">
         <text class="action-icon">📋</text>
-        <text class="action-title">按工单入库</text>
-        <text class="action-desc">选择已完成工单，带出产品</text>
+        <text class="action-title">工单入库</text>
+        <text class="action-desc">选择工单，支持单工单或批量合并</text>
       </view>
       <view class="action-card" @tap="goQuick">
         <text class="action-icon">⚡</text>
@@ -27,13 +27,13 @@
       <view class="req-head">
         <view class="req-head-left">
           <text class="req-no">{{ item.inboundNo }}</text>
-          <text class="req-mode">{{ item.mode === 'quick' ? '快速入库' : '工单入库' }}</text>
+          <text class="req-mode">{{ modeLabel(item.mode) }}</text>
         </view>
         <text class="req-status">{{ item.inboundStatus }}</text>
       </view>
       <text class="req-main">
-        {{ item.productName || '—' }}
-        <text v-if="item.workOrderCode" class="req-sub"> · {{ item.workOrderCode }}</text>
+        {{ displayMain(item) }}
+        <text v-if="item.workOrderCode && item.mode !== 'batch-work-order'" class="req-sub"> · {{ item.workOrderCode }}</text>
       </text>
       <view class="req-foot">
         <text>{{ item.totalQty }} 件</text>
@@ -78,6 +78,21 @@ function goQuick() {
 
 function goDetail(item) {
   uni.navigateTo({ url: `/pages/product-inbound/detail?id=${item.id}` })
+}
+
+function modeLabel(mode) {
+  if (mode === 'quick') return '快速入库'
+  if (mode === 'batch-work-order') return '批量入库'
+  return '工单入库'
+}
+
+function displayMain(item) {
+  if (item.mode === 'batch-work-order') {
+    const count = item.workOrderIds?.length || item.workOrders?.length || 0
+    if (count) return `${count} 个工单 · ${item.lineCount || 0} 项产品`
+    return item.productName || '批量入库'
+  }
+  return item.productName || '—'
 }
 
 function formatTime(value) {

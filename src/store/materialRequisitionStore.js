@@ -1,7 +1,10 @@
 import { getUser } from '@/utils/auth'
 import { appendOutboundFromRequisition, getOutboundOrderById } from '@/utils/outboundBridge'
 import { generateMaterialReqNo, formatDateTime } from '@/utils/materialRequisitionNo'
-import { mergeMaterialLines } from '@/utils/workOrderEbomMaterials'
+import {
+  mergeMaterialLines,
+  mergeMaterialLinesWithSources,
+} from '@/utils/workOrderEbomMaterials'
 
 const STORAGE_KEY = 'i_doms_mobile_material_reqs'
 
@@ -23,6 +26,39 @@ function saveReqs(items) {
 function currentUserName() {
   const user = getUser()
   return user?.displayName || user?.username || '工人'
+}
+
+function modeLabel(mode) {
+  if (mode === 'quick') return '快速领料'
+  if (mode === 'batch-work-order') return '批量领料'
+  return '工单领料'
+}
+
+function resolveBatchSourceOrderNo(payload) {
+  if (payload.salesOrderNo && payload.salesOrderNo !== 'MULTI') {
+    return payload.salesOrderNo
+  }
+  const codes = (payload.workOrders || [])
+    .map((wo) => wo.code)
+    .filter(Boolean)
+    .slice(0, 3)
+  return codes.join('、')
+}
+
+function resolveLineSourceDocNo(payload, line) {
+  if (payload.mode !== 'batch-work-order') {
+    return payload.workOrderCode || ''
+  }
+  const sources = line.sourceWorkOrders || []
+  if (sources.length === 1) return sources[0].workOrderCode || ''
+  if (sources.length > 1) {
+    return sources
+      .map((s) => s.workOrderCode)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join('、')
+  }
+  return resolveBatchSourceOrderNo(payload)
 }
 
 export function listMaterialRequisitions() {
@@ -47,10 +83,12 @@ function enrichRequisition(row) {
 
 /**
  * @param {object} payload
- * @param {'work-order'|'quick'} payload.mode
+ * @param {'work-order'|'quick'|'batch-work-order'} payload.mode
  */
 export function submitMaterialRequisition(payload) {
-  const lines = mergeMaterialLines(payload.lines || [])
+  const isBatch = payload.mode === 'batch-work-order'
+  const mergeFn = isBatch ? mergeMaterialLinesWithSources : mergeMaterialLines
+  const lines = mergeFn(payload.lines || [])
   if (!lines.length) {
     return { ok: false, message: '请至少添加一条领料明细' }
   }
@@ -66,6 +104,14 @@ export function submitMaterialRequisition(payload) {
   const workshop = payload.workshop || payload.requisitionDept || '默认工厂'
   const outboundId = `ob-${Date.now()}`
 
+  const sourceOrderNo = isBatch
+    ? resolveBatchSourceOrderNo(payload)
+    : payload.workOrderCode || ''
+
+  const remarkBase = payload.remark
+    ? `小程序领料申请：${payload.remark}`
+    : `小程序领料申请（${modeLabel(payload.mode)}）`
+
   const outboundResult = appendOutboundFromRequisition({
     id: outboundId,
     handler: userName,
@@ -74,11 +120,9 @@ export function submitMaterialRequisition(payload) {
     workshop,
     requisitionDept: workshop,
     receiveWarehouse: payload.receiveWarehouse || '',
-    sourceOrderNo: payload.workOrderCode || '',
+    sourceOrderNo,
     warehouse: payload.warehouse || '',
-    remark: payload.remark
-      ? `小程序领料申请：${payload.remark}`
-      : `小程序领料申请（${payload.mode === 'quick' ? '快速领料' : '工单领料'}）`,
+    remark: remarkBase,
     lineItems: lines.map((line) => ({
       itemCode: line.itemCode,
       itemName: line.itemName,
@@ -93,8 +137,9 @@ export function submitMaterialRequisition(payload) {
       stockQty: line.warehouseStockQty ?? null,
       warehouseStockQty: line.warehouseStockQty ?? null,
       lineSource: line.lineSource === 'EBOM' ? '工单领料' : '手工添加',
-      sourceDocNo: payload.workOrderCode || '',
+      sourceDocNo: resolveLineSourceDocNo(payload, line),
       itemId: line.itemId || '',
+      sourceWorkOrders: line.sourceWorkOrders || [],
     })),
   })
 
@@ -109,6 +154,9 @@ export function submitMaterialRequisition(payload) {
     workOrderId: payload.workOrderId || '',
     workOrderCode: payload.workOrderCode || '',
     workOrderName: payload.workOrderName || '',
+    workOrderIds: payload.workOrderIds || [],
+    workOrders: payload.workOrders || [],
+    salesOrderNo: payload.salesOrderNo || '',
     productName: payload.productName || '',
     orderCategory: payload.orderCategory || '',
     workshop,

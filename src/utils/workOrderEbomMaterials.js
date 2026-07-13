@@ -173,3 +173,76 @@ export function mergeMaterialLines(lines = []) {
   }
   return [...map.values()].filter((l) => Number(l.shipQty) > 0)
 }
+
+function mergeSourceWorkOrders(target = [], incoming = []) {
+  const map = new Map()
+  for (const source of [...target, ...incoming]) {
+    if (!source?.workOrderId) continue
+    const existing = map.get(source.workOrderId)
+    if (!existing) {
+      map.set(source.workOrderId, { ...source })
+      continue
+    }
+    existing.qty = Number(existing.qty || 0) + Number(source.qty || 0)
+  }
+  return [...map.values()]
+}
+
+/** 为明细行附加来源工单溯源 */
+export function attachWorkOrderSourceToLines(workOrder, lines = []) {
+  const workOrderId = workOrder.id
+  const workOrderCode = workOrder.code
+  return lines.map((line) => ({
+    ...line,
+    sourceWorkOrders: [
+      {
+        workOrderId,
+        workOrderCode,
+        qty: Number(line.shipQty) || 0,
+      },
+    ],
+  }))
+}
+
+/** 合并多工单物料行，保留 sourceWorkOrders 溯源 */
+export function mergeMaterialLinesWithSources(lines = []) {
+  const map = new Map()
+  for (const line of lines) {
+    const key = line.itemCode || line.itemName
+    if (!key) continue
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, {
+        ...line,
+        sourceWorkOrders: [...(line.sourceWorkOrders || [])],
+      })
+      continue
+    }
+    existing.shipQty = Number(existing.shipQty || 0) + Number(line.shipQty || 0)
+    existing.suggestedQty = Number(existing.suggestedQty || 0) + Number(line.suggestedQty || 0)
+    existing.sourceWorkOrders = mergeSourceWorkOrders(
+      existing.sourceWorkOrders,
+      line.sourceWorkOrders,
+    )
+    if (line.lineSource === '手工添加') existing.lineSource = '手工添加'
+  }
+  return [...map.values()].filter((l) => Number(l.shipQty) > 0)
+}
+
+/** 解析多个工单的 EBOM 物料并合并 */
+export function resolveBatchWorkOrderMaterialLines(workOrders = []) {
+  const allLines = []
+  const emptyWorkOrders = []
+  for (const wo of workOrders) {
+    const lines = resolveWorkOrderMaterialLines(wo)
+    if (!lines.length) {
+      emptyWorkOrders.push(wo)
+      continue
+    }
+    allLines.push(...attachWorkOrderSourceToLines(wo, lines))
+  }
+  return {
+    lines: mergeMaterialLinesWithSources(allLines),
+    emptyWorkOrders,
+  }
+}

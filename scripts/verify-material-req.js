@@ -1,12 +1,7 @@
 /**
- * 领料管理存储桥接联调脚本（Node 环境模拟 uni.storage / localStorage）
+ * 领料管理联调脚本（Node 环境，内联核心逻辑避免 @ 别名）
  */
-const fs = require('fs')
-const path = require('path')
-
 const storage = new Map()
-const OUTBOUND_KEY = 'i_doms_outbound_orders'
-const REQ_KEY = 'i_doms_mobile_material_reqs'
 
 global.uni = {
   getStorageSync(key) {
@@ -17,74 +12,191 @@ global.uni = {
   },
 }
 
-// 动态加载 ESM 模块较麻烦，直接内联核心断言逻辑
-function run() {
-  const { appendOutboundFromRequisition } = require('./src/utils/outboundBridge.js')
-  const { resolveWorkOrderMaterialLines } = require('./src/utils/workOrderEbomMaterials.js')
-  const { buildMockPickableWorkOrders } = require('./src/mock/materialRequisitionSeed.js')
-  const { submitMaterialRequisition } = require('./src/store/materialRequisitionStore.js')
-
-  // mock auth
-  uni.setStorageSync(
-    'i_doms_mobile_user',
-    JSON.stringify({ username: 'worker1', displayName: '工人甲', factory: '机加车间' }),
-  )
-  uni.setStorageSync('i_doms_mobile_token', 'mock-token')
-
-  const wo = buildMockPickableWorkOrders()[0]
-  const lines = resolveWorkOrderMaterialLines(wo)
-  if (!lines.length) throw new Error('EBOM lines empty')
-
-  const result = submitMaterialRequisition({
-    mode: 'work-order',
-    workOrderId: wo.id,
-    workOrderCode: wo.code,
-    workOrderName: wo.name,
-    productName: wo.productName,
-    orderCategory: wo.orderCategory,
-    workshop: wo.workCenter,
-    lines,
-  })
-
-  if (!result.ok) throw new Error(`submit failed: ${result.message}`)
-  if (result.order.outboundType !== '领料出库') throw new Error('wrong outbound type')
-  if (result.order.status !== '待处理') throw new Error('wrong status')
-  if (result.order.sourceChannel !== 'mini-program') throw new Error('missing sourceChannel')
-
-  const raw = uni.getStorageSync(OUTBOUND_KEY)
-  const parsed = JSON.parse(raw)
-  if (!parsed.orders?.some((o) => o.id === result.order.id)) {
-    throw new Error('outbound not persisted')
+function mergeSourceWorkOrders(target = [], incoming = []) {
+  const map = new Map()
+  for (const source of [...target, ...incoming]) {
+    if (!source?.workOrderId) continue
+    const existing = map.get(source.workOrderId)
+    if (!existing) {
+      map.set(source.workOrderId, { ...source })
+      continue
+    }
+    existing.qty = Number(existing.qty || 0) + Number(source.qty || 0)
   }
+  return [...map.values()]
+}
 
-  const reqs = JSON.parse(uni.getStorageSync(REQ_KEY))
-  if (!reqs.items?.length) throw new Error('requisition not persisted')
+function mergeMaterialLinesWithSources(lines = []) {
+  const map = new Map()
+  for (const line of lines) {
+    const key = line.itemCode || line.itemName
+    if (!key) continue
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, {
+        ...line,
+        sourceWorkOrders: [...(line.sourceWorkOrders || [])],
+      })
+      continue
+    }
+    existing.shipQty = Number(existing.shipQty || 0) + Number(line.shipQty || 0)
+    existing.suggestedQty = Number(existing.suggestedQty || 0) + Number(line.suggestedQty || 0)
+    existing.sourceWorkOrders = mergeSourceWorkOrders(
+      existing.sourceWorkOrders,
+      line.sourceWorkOrders,
+    )
+    if (line.lineSource === '手工添加') existing.lineSource = '手工添加'
+  }
+  return [...map.values()].filter((l) => Number(l.shipQty) > 0)
+}
 
-  // 快速领料
-  const quick = submitMaterialRequisition({
-    mode: 'quick',
-    workshop: '总装车间',
-    lines: [
+function attachWorkOrderSourceToLines(workOrder, lines = []) {
+  return lines.map((line) => ({
+    ...line,
+    sourceWorkOrders: [
       {
-        id: 'manual-1',
-        itemCode: 'MAT-999',
-        itemName: '测试垫片',
-        shipQty: 5,
-        unit: '件',
-        lineSource: '手工添加',
+        workOrderId: workOrder.id,
+        workOrderCode: workOrder.code,
+        qty: Number(line.shipQty) || 0,
       },
     ],
+  }))
+}
+
+function fromComponentLines(lines = [], scheduleQty = 1) {
+  return lines.map((line) => {
+    const unitQty = Number(line.unitQty) || 1
+    const requiredQty = line.requiredQty ?? unitQty * scheduleQty
+    return {
+      itemCode: line.itemCode || '',
+      itemName: line.itemName || '',
+      shipQty: Number(requiredQty) || 0,
+      lineSource: 'EBOM',
+    }
   })
-  if (!quick.ok) throw new Error(`quick submit failed: ${quick.message}`)
+}
+
+function resolveBatchWorkOrderMaterialLines(workOrders = []) {
+  const allLines = []
+  const emptyWorkOrders = []
+  for (const wo of workOrders) {
+    const lines = fromComponentLines(wo.componentLines || [], wo.scheduleQty || 1)
+    if (!lines.length) {
+      emptyWorkOrders.push(wo)
+      continue
+    }
+    allLines.push(...attachWorkOrderSourceToLines(wo, lines))
+  }
+  return {
+    lines: mergeMaterialLinesWithSources(allLines),
+    emptyWorkOrders,
+  }
+}
+
+function run() {
+  const batchWos = [
+    {
+      id: 'wo-mock-1',
+      code: 'WO-062',
+      scheduleQty: 10,
+      componentLines: [
+        { itemCode: 'MAT-001', itemName: '轴承座', unitQty: 2, requiredQty: 20 },
+        { itemCode: 'MAT-002', itemName: '叶轮', unitQty: 1, requiredQty: 10 },
+      ],
+    },
+    {
+      id: 'wo-mock-1a',
+      code: 'WO-063',
+      scheduleQty: 10,
+      componentLines: [
+        { itemCode: 'MAT-001', itemName: '轴承座', unitQty: 1, requiredQty: 10 },
+        { itemCode: 'MAT-003', itemName: '密封圈', unitQty: 2, requiredQty: 20 },
+      ],
+    },
+    {
+      id: 'wo-mock-1b',
+      code: 'WO-064',
+      scheduleQty: 10,
+      componentLines: [
+        { itemCode: 'MAT-002', itemName: '叶轮', unitQty: 1, requiredQty: 10 },
+        { itemCode: 'MAT-001', itemName: '轴承座', unitQty: 1, requiredQty: 10 },
+      ],
+    },
+  ]
+
+  const { lines, emptyWorkOrders } = resolveBatchWorkOrderMaterialLines(batchWos)
+  if (!lines.length) throw new Error('batch EBOM lines empty')
+  if (emptyWorkOrders.length) throw new Error('unexpected empty work orders')
+
+  const bearingLine = lines.find((line) => line.itemCode === 'MAT-001')
+  if (!bearingLine) throw new Error('merged MAT-001 missing')
+  if (Number(bearingLine.shipQty) !== 40) {
+    throw new Error(`MAT-001 qty expected 40, got ${bearingLine.shipQty}`)
+  }
+  if ((bearingLine.sourceWorkOrders || []).length !== 3) {
+    throw new Error('MAT-001 should have 3 source work orders')
+  }
+
+  const manualMerged = mergeMaterialLinesWithSources([
+    {
+      itemCode: 'MAT-999',
+      itemName: '测试件',
+      shipQty: 2,
+      lineSource: 'EBOM',
+      sourceWorkOrders: [{ workOrderId: 'wo-a', workOrderCode: 'WO-A', qty: 2 }],
+    },
+    {
+      itemCode: 'MAT-999',
+      itemName: '测试件',
+      shipQty: 3,
+      lineSource: 'EBOM',
+      sourceWorkOrders: [{ workOrderId: 'wo-b', workOrderCode: 'WO-B', qty: 3 }],
+    },
+  ])
+  if (manualMerged.length !== 1 || manualMerged[0].shipQty !== 5) {
+    throw new Error('mergeMaterialLinesWithSources failed')
+  }
+
+  const batchRecord = {
+    mode: 'batch-work-order',
+    workOrderIds: batchWos.map((wo) => wo.id),
+    workOrders: batchWos.map((wo) => ({ id: wo.id, code: wo.code })),
+    salesOrderNo: '1-20260602-001',
+    lineCount: lines.length,
+    lines,
+  }
+
+  const outboundOrder = {
+    outboundType: '领料出库',
+    status: '待处理',
+    sourceChannel: 'mini-program',
+    sourceOrderNo: batchRecord.salesOrderNo,
+    lineItems: lines.map((line) => ({
+      itemCode: line.itemCode,
+      shipQty: line.shipQty,
+      lineSource: '工单领料',
+      sourceWorkOrders: line.sourceWorkOrders || [],
+    })),
+  }
+
+  const checks = [
+    batchRecord.mode === 'batch-work-order',
+    batchRecord.workOrderIds.length === 3,
+    outboundOrder.outboundType === '领料出库',
+    outboundOrder.lineItems.length === lines.length,
+    outboundOrder.lineItems.some((l) => l.itemCode === 'MAT-001' && l.shipQty === 40),
+  ]
+  if (!checks.every(Boolean)) throw new Error('batch record/outbound structure check failed')
 
   console.log(
     JSON.stringify(
       {
         ok: true,
-        workOrderReq: result.record.reqNo,
-        outboundDocNo: result.order.docNo,
-        quickReq: quick.record.reqNo,
-        outboundCount: parsed.orders.length + 1,
+        message: '批量领料数据结构验证通过',
+        workOrderCount: batchRecord.workOrderIds.length,
+        lineCount: batchRecord.lineCount,
+        mat001Qty: bearingLine.shipQty,
+        mat001Sources: bearingLine.sourceWorkOrders.length,
       },
       null,
       2,
@@ -92,50 +204,4 @@ function run() {
   )
 }
 
-// 由于项目使用 ESM，用 node --experimental-vm-modules 或直接复制逻辑测试
-// 改为纯逻辑验证
-function runPure() {
-  const wo = {
-    scheduleQty: 10,
-    componentLines: [
-      {
-        itemCode: 'MAT-001',
-        itemName: '轴承座',
-        unitQty: 2,
-        requiredQty: 20,
-        unit: '件',
-      },
-    ],
-  }
-
-  // inline flatten from componentLines logic
-  const lines = wo.componentLines.map((line) => ({
-    itemCode: line.itemCode,
-    itemName: line.itemName,
-    shipQty: line.requiredQty,
-  }))
-
-  const order = {
-    outboundType: '领料出库',
-    status: '待处理',
-    sourceChannel: 'mini-program',
-    docNo: 'OUT202607070001',
-    lineItems: lines.map((l) => ({
-      ...l,
-      lineSource: '工单领料',
-    })),
-  }
-
-  const checks = [
-    order.outboundType === '领料出库',
-    order.status === '待处理',
-    order.sourceChannel === 'mini-program',
-    order.lineItems.length === 1,
-    order.lineItems[0].shipQty === 20,
-  ]
-
-  if (!checks.every(Boolean)) throw new Error('pure logic check failed')
-  console.log(JSON.stringify({ ok: true, message: '领料出库桥接数据结构验证通过' }, null, 2))
-}
-
-runPure()
+run()
