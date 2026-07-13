@@ -53,7 +53,6 @@ export const workbenchModules = [
     color: '#722ed1',
     path: '/pages/approval/index',
     placeholder: false,
-    stub: true,
   },
   {
     key: 'material-req',

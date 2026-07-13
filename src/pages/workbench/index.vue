@@ -1,13 +1,9 @@
 <template>
   <view class="workbench">
-    <view class="header">
-      <view class="user-block">
-        <text class="hello">你好，{{ userName }}</text>
-        <text class="factory">{{ factoryName }}</text>
-      </view>
-      <view class="stat">
-        <text class="stat-num">{{ myPendingCount }}</text>
-        <text class="stat-label">我的待办</text>
+    <view class="platform-banner">
+      <text class="platform-title">工业互联网平台</text>
+      <view class="platform-slogan-pill">
+        <text class="platform-slogan">让制造更简单 · 让产业更智慧</text>
       </view>
     </view>
 
@@ -25,22 +21,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import ModuleCard from '@/components/ModuleCard.vue'
 import { workbenchModules, openModule } from '@/utils/nav'
 import { getUser, isLoggedIn } from '@/utils/auth'
-import { getPendingQcCount } from '@/mock/factoryQc'
-import { getPendingTaskCount } from '@/mock/disassemblyTasks'
 import { getMyPendingCount } from '@/mock/myPending'
 
 const modules = workbenchModules
-const myPendingCount = ref(0)
 const pendingQc = ref(0)
 const pendingTodo = ref(0)
-
-const userName = computed(() => getUser()?.displayName || '用户')
-const factoryName = computed(() => getUser()?.factory || '默认工厂')
 
 onShow(() => {
   if (!isLoggedIn()) {
@@ -49,7 +39,6 @@ onShow(() => {
   }
   const user = getUser()
   const pending = getMyPendingCount(user)
-  myPendingCount.value = pending.total
   pendingQc.value = pending.qc
   pendingTodo.value = pending.todo
 })
@@ -65,46 +54,37 @@ function onModuleTap(mod) {
   padding-bottom: 32rpx;
 }
 
-.header {
+.platform-banner {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  background: linear-gradient(135deg, #1677ff, #4096ff);
-  border-radius: $radius;
-  padding: 32rpx;
-  margin-bottom: 32rpx;
-  color: #fff;
+  justify-content: center;
+  padding: 56rpx 32rpx 48rpx;
+  margin-bottom: 24rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(180deg, #fafff9 0%, #edf9e6 45%, #d8f2cc 100%);
+  box-shadow: 0 8rpx 24rpx rgba(82, 196, 26, 0.08);
 }
 
-.hello {
-  display: block;
-  font-size: 34rpx;
-  font-weight: 600;
-}
-
-.factory {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 24rpx;
-  opacity: 0.9;
-}
-
-.stat {
-  text-align: center;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12rpx;
-  padding: 16rpx 24rpx;
-}
-
-.stat-num {
-  display: block;
-  font-size: 40rpx;
+.platform-title {
+  font-size: 52rpx;
   font-weight: 700;
+  color: #5cadff;
+  letter-spacing: 4rpx;
+  line-height: 1.3;
 }
 
-.stat-label {
-  font-size: 22rpx;
-  opacity: 0.9;
+.platform-slogan-pill {
+  margin-top: 24rpx;
+  padding: 14rpx 32rpx;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 999rpx;
+}
+
+.platform-slogan {
+  font-size: 24rpx;
+  color: rgba(0, 0, 0, 0.65);
+  line-height: 1.4;
 }
 
 .section-title {
