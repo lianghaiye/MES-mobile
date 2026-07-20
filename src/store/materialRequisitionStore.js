@@ -112,39 +112,42 @@ export function submitMaterialRequisition(payload) {
     ? `小程序领料申请：${payload.remark}`
     : `小程序领料申请（${modeLabel(payload.mode)}）`
 
-  const outboundResult = appendOutboundFromRequisition({
-    id: outboundId,
-    handler: userName,
-    creator: userName,
-    warehouseKeeper: userName,
-    workshop,
-    requisitionDept: workshop,
-    receiveWarehouse: payload.receiveWarehouse || '',
-    sourceOrderNo,
-    warehouse: payload.warehouse || '',
-    remark: remarkBase,
-    lineItems: lines.map((line) => ({
-      itemCode: line.itemCode,
-      itemName: line.itemName,
-      itemType: line.itemType || '物料',
-      specModel: line.specModel,
-      specAttr: line.specAttr || '',
-      material: line.material,
-      drawingNo: line.drawingNo,
-      shipQty: line.shipQty,
-      unit: line.unit || '件',
-      shipWarehouse: line.shipWarehouse || payload.warehouse || '',
-      stockQty: line.warehouseStockQty ?? null,
-      warehouseStockQty: line.warehouseStockQty ?? null,
-      lineSource: line.lineSource === 'EBOM' ? '工单领料' : '手工添加',
-      sourceDocNo: resolveLineSourceDocNo(payload, line),
-      itemId: line.itemId || '',
-      sourceWorkOrders: line.sourceWorkOrders || [],
-    })),
-  })
+  const autoApprove = isMaterialRequisitionAutoApprove()
+  const auditStatus = autoApprove ? '审核通过' : '待审核'
 
-  if (!outboundResult.ok) {
-    return outboundResult
+  let outboundResult = { ok: true, order: null }
+  if (autoApprove) {
+    outboundResult = appendOutboundFromRequisition({
+      id: outboundId,
+      handler: userName,
+      creator: userName,
+      warehouseKeeper: userName,
+      workshop,
+      requisitionDept: workshop,
+      receiveWarehouse: payload.receiveWarehouse || '',
+      sourceOrderNo,
+      warehouse: payload.warehouse || '',
+      remark: remarkBase,
+      lineItems: lines.map((line) => ({
+        itemCode: line.itemCode,
+        itemName: line.itemName,
+        itemType: line.itemType || '物料',
+        specModel: line.specModel,
+        specAttr: line.specAttr || '',
+        material: line.material,
+        drawingNo: line.drawingNo,
+        shipQty: line.shipQty,
+        unit: line.unit || '件',
+        shipWarehouse: line.shipWarehouse || payload.warehouse || '',
+        stockQty: line.warehouseStockQty ?? null,
+        warehouseStockQty: line.warehouseStockQty ?? null,
+        lineSource: line.lineSource === 'EBOM' ? '工单领料' : '手工添加',
+        sourceDocNo: resolveLineSourceDocNo(payload, line),
+        itemId: line.itemId || '',
+        sourceWorkOrders: line.sourceWorkOrders || [],
+      })),
+    })
+    if (!outboundResult.ok) return outboundResult
   }
 
   const record = {
@@ -165,14 +168,37 @@ export function submitMaterialRequisition(payload) {
     lineCount: lines.length,
     totalQty: lines.reduce((s, l) => s + (Number(l.shipQty) || 0), 0),
     lines,
-    outboundId: outboundResult.order.id,
-    outboundDocNo: outboundResult.order.docNo,
-    outboundStatus: outboundResult.order.status,
+    outboundId: outboundResult.order?.id || '',
+    outboundDocNo: outboundResult.order?.docNo || '',
+    outboundStatus: outboundResult.order?.status || '—',
+    auditStatus,
+    rejectReason: '',
     applicant: userName,
     createdAt: formatDateTime(),
+    _outboundDraft: autoApprove
+      ? undefined
+      : {
+          remarkBase,
+          sourceOrderNo,
+          warehouse: payload.warehouse || '',
+          lineItems: lines,
+          receiveWarehouse: payload.receiveWarehouse || '',
+          workshop,
+        },
   }
 
   existing.unshift(record)
   saveReqs(existing)
   return { ok: true, record, order: outboundResult.order }
+}
+
+function isMaterialRequisitionAutoApprove() {
+  try {
+    const raw = uni.getStorageSync('i_doms_function_params')
+    if (!raw) return false
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return Boolean(parsed?.autoApproveDocs?.materialRequisition)
+  } catch {
+    return false
+  }
 }

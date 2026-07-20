@@ -440,5 +440,5 @@ export function createLaborWageSeed() {
   })
 }
 
-export const LABOR_WAGE_SEED_VERSION = '7'
+export const LABOR_WAGE_SEED_VERSION = '8'
 export const LABOR_WAGE_SEED_VERSION_KEY = 'i_doms_labor_wage_seed_v'

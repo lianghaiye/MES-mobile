@@ -10,106 +10,178 @@
       </view>
     </view>
 
-    <view class="tabs">
-      <view
-        v-for="tab in tabs"
-        :key="tab.key"
-        class="tab"
-        :class="{ active: activeTab === tab.key }"
-        @tap="activeTab = tab.key"
-      >{{ tab.label }}</view>
+    <view class="tabs-row">
+      <view class="tabs">
+        <view
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="tab"
+          :class="{ active: activeTab === tab.key }"
+          @tap="activeTab = tab.key"
+        >{{ tab.label }}</view>
+      </view>
+      <view class="view-switch">
+        <view
+          class="view-btn"
+          :class="{ active: viewMode === 'card' }"
+          @tap="setViewMode('card')"
+        >卡片</view>
+        <view
+          class="view-btn"
+          :class="{ active: viewMode === 'table' }"
+          @tap="setViewMode('table')"
+        >表格</view>
+      </view>
     </view>
 
-    <scroll-view scroll-y class="list-scroll" :class="{ 'has-footer': showFooterBar }">
-      <view v-for="item in list" :key="item.id" class="card" @tap="goDetail(item)">
-        <view class="card-head">
-          <text class="task-no">{{ item.taskNo || '—' }}</text>
-          <text class="status" :class="statusClass(item.taskStatus)">{{ item.taskStatus }}</text>
+    <scroll-view
+      scroll-y
+      class="list-scroll"
+      :class="{ 'has-footer': showFooterBar, 'is-table': viewMode === 'table' }"
+    >
+      <!-- 卡片视图 -->
+      <template v-if="viewMode === 'card'">
+        <view v-for="item in list" :key="'c-' + item.id" class="card" @tap="goDetail(item)">
+          <view class="card-head">
+            <text class="task-no">{{ item.taskNo || '—' }}</text>
+            <text class="status" :class="statusClass(item.taskStatus)">{{ item.taskStatus }}</text>
+          </view>
+          <view class="card-title-row">
+            <view class="title-main">
+              <text class="proc-name">{{ item.processName }}</text>
+              <text class="product-name">{{ item.materialName }}</text>
+            </view>
+            <text class="mode">【{{ item.reportTypeLabel }}】</text>
+          </view>
+          <view class="fields">
+            <view class="row">
+              <text class="label">销售订单</text>
+              <text class="val">{{ item.salesOrderNo || '—' }}</text>
+            </view>
+            <view class="row">
+              <text class="label">工单编号</text>
+              <text class="val">{{ item.workOrderCode || '—' }}</text>
+            </view>
+            <view class="row">
+              <text class="label">产品编码</text>
+              <text class="val">{{ item.materialCode || '—' }}</text>
+            </view>
+            <view class="row">
+              <text class="label">报工时间</text>
+              <text class="val">{{ item.reportTime }}</text>
+            </view>
+            <view class="row">
+              <text class="label">报工数量</text>
+              <text class="val blue">{{ item.reportQty }}</text>
+            </view>
+            <view v-if="item.reportType === '时长报工'" class="row">
+              <text class="label">报工时长</text>
+              <text class="val">{{ item.reportDuration }}h</text>
+            </view>
+            <view v-if="showFinalAccountHours(item)" class="row">
+              <text class="label">最终核算工时</text>
+              <text class="val">{{ item.finalAccountHours }}h</text>
+            </view>
+          </view>
+
+          <view class="adjust-box">
+            <view v-if="showMoney(item.goodWage)" class="row">
+              <text class="label">良品工资</text>
+              <text class="val">{{ formatMoney(item.goodWage) }}元</text>
+            </view>
+            <view v-if="showMoney(item.defectWage)" class="row">
+              <text class="label">不良品工资</text>
+              <text class="val">{{ formatMoney(item.defectWage) }}元</text>
+            </view>
+            <view v-if="showQty(item.subsidyReportQty)" class="row">
+              <text class="label">补贴工数</text>
+              <text class="val">{{ item.subsidyReportQty }}</text>
+            </view>
+            <view v-if="showQty(item.subsidyHours)" class="row">
+              <text class="label">补贴工时</text>
+              <text class="val">{{ item.subsidyHours }}h</text>
+            </view>
+            <view v-if="showMoney(item.subsidyAmount)" class="row">
+              <text class="label">补贴金额</text>
+              <text class="val">{{ formatMoney(item.subsidyAmount) }}元</text>
+            </view>
+            <view v-if="hasAdjustQty(item.adjustedGoodQty)" class="row">
+              <text class="label">调整良品数</text>
+              <text class="val">{{ item.adjustedGoodQty }}</text>
+            </view>
+            <view v-if="hasAdjustQty(item.adjustedDefectQty)" class="row">
+              <text class="label">调整不良品数</text>
+              <text class="val">{{ item.adjustedDefectQty }}</text>
+            </view>
+            <view v-if="showMoney(item.qualityDeduction || item.manualQualityDeduction)" class="row">
+              <text class="label">质量扣款</text>
+              <text class="val deduct">{{
+                formatMoney(item.qualityDeduction || item.manualQualityDeduction)
+              }}元</text>
+            </view>
+            <view v-if="item.adjustReason" class="row">
+              <text class="label">调整原因</text>
+              <text class="val reason">{{ item.adjustReason }}</text>
+            </view>
+            <view v-if="item.subsidyReason" class="row">
+              <text class="label">补贴原因</text>
+              <text class="val reason">{{ item.subsidyReason }}</text>
+            </view>
+            <view class="row salary-row">
+              <text class="label">计薪</text>
+              <text class="salary">{{ formatMoney(item.salaryAmount) }}元</text>
+            </view>
+          </view>
         </view>
-        <view class="card-title-row">
-          <view class="title-main">
-            <text class="proc-name">{{ item.processName }}</text>
-            <text class="product-name">{{ item.materialName }}</text>
+      </template>
+
+      <!-- 表格视图 -->
+      <view v-else-if="list.length" class="table-board">
+        <view class="fixed-side">
+          <view class="tr head">
+            <view class="th col-date">日期</view>
+            <view class="th col-proc">工序</view>
           </view>
-          <text class="mode">【{{ item.reportTypeLabel }}】</text>
-        </view>
-        <view class="fields">
-          <view class="row">
-            <text class="label">销售订单</text>
-            <text class="val">{{ item.salesOrderNo || '—' }}</text>
-          </view>
-          <view class="row">
-            <text class="label">工单编号</text>
-            <text class="val">{{ item.workOrderCode || '—' }}</text>
-          </view>
-          <view class="row">
-            <text class="label">产品编码</text>
-            <text class="val">{{ item.materialCode || '—' }}</text>
-          </view>
-          <view class="row">
-            <text class="label">报工时间</text>
-            <text class="val">{{ item.reportTime }}</text>
-          </view>
-          <view class="row">
-            <text class="label">报工数量</text>
-            <text class="val blue">{{ item.reportQty }}</text>
-          </view>
-          <view v-if="item.reportType === '时长报工'" class="row">
-            <text class="label">报工时长</text>
-            <text class="val">{{ item.reportDuration }}h</text>
-          </view>
-          <view v-if="showFinalAccountHours(item)" class="row">
-            <text class="label">最终核算工时</text>
-            <text class="val">{{ item.finalAccountHours }}h</text>
+          <view
+            v-for="item in list"
+            :key="'f-' + item.id"
+            class="tr body"
+            @tap="goDetail(item)"
+          >
+            <view class="td col-date">{{ formatDate(item.reportTime) }}</view>
+            <view class="td col-proc">{{ item.processName || '—' }}</view>
           </view>
         </view>
 
-        <view class="adjust-box">
-          <view v-if="showMoney(item.goodWage)" class="row">
-            <text class="label">良品工资</text>
-            <text class="val">{{ formatMoney(item.goodWage) }}元</text>
+        <scroll-view scroll-x class="scroll-side" :show-scrollbar="true">
+          <view class="scroll-inner">
+            <view class="tr head">
+              <view class="th col-product">产品</view>
+              <view class="th col-wo">工单</view>
+              <view class="th col-mode">类型</view>
+              <view class="th col-qty">数量/时长</view>
+              <view class="th col-hours">核算工时</view>
+              <view class="th col-salary">计薪</view>
+              <view class="th col-status">状态</view>
+            </view>
+            <view
+              v-for="item in list"
+              :key="'s-' + item.id"
+              class="tr body"
+              @tap="goDetail(item)"
+            >
+              <view class="td col-product">{{ item.materialName || '—' }}</view>
+              <view class="td col-wo">{{ item.workOrderCode || '—' }}</view>
+              <view class="td col-mode">{{ item.reportTypeLabel || '—' }}</view>
+              <view class="td col-qty">{{ formatQtyDuration(item) }}</view>
+              <view class="td col-hours">{{ formatAccountHours(item) }}</view>
+              <view class="td col-salary salary">{{ formatMoney(item.salaryAmount) }}</view>
+              <view class="td col-status" :class="statusClass(item.taskStatus)">{{
+                item.taskStatus || '—'
+              }}</view>
+            </view>
           </view>
-          <view v-if="showMoney(item.defectWage)" class="row">
-            <text class="label">不良品工资</text>
-            <text class="val">{{ formatMoney(item.defectWage) }}元</text>
-          </view>
-          <view v-if="showQty(item.subsidyReportQty)" class="row">
-            <text class="label">补贴工数</text>
-            <text class="val">{{ item.subsidyReportQty }}</text>
-          </view>
-          <view v-if="showQty(item.subsidyHours)" class="row">
-            <text class="label">补贴工时</text>
-            <text class="val">{{ item.subsidyHours }}h</text>
-          </view>
-          <view v-if="showMoney(item.subsidyAmount)" class="row">
-            <text class="label">补贴金额</text>
-            <text class="val">{{ formatMoney(item.subsidyAmount) }}元</text>
-          </view>
-          <view v-if="hasAdjustQty(item.adjustedGoodQty)" class="row">
-            <text class="label">调整良品数</text>
-            <text class="val">{{ item.adjustedGoodQty }}</text>
-          </view>
-          <view v-if="hasAdjustQty(item.adjustedDefectQty)" class="row">
-            <text class="label">调整不良品数</text>
-            <text class="val">{{ item.adjustedDefectQty }}</text>
-          </view>
-          <view v-if="showMoney(item.qualityDeduction || item.manualQualityDeduction)" class="row">
-            <text class="label">质量扣款</text>
-            <text class="val deduct">{{ formatMoney(item.qualityDeduction || item.manualQualityDeduction) }}元</text>
-          </view>
-          <view v-if="item.adjustReason" class="row">
-            <text class="label">调整原因</text>
-            <text class="val reason">{{ item.adjustReason }}</text>
-          </view>
-          <view v-if="item.subsidyReason" class="row">
-            <text class="label">补贴原因</text>
-            <text class="val reason">{{ item.subsidyReason }}</text>
-          </view>
-          <view class="row salary-row">
-            <text class="label">计薪</text>
-            <text class="salary">{{ formatMoney(item.salaryAmount) }}元</text>
-          </view>
-        </view>
+        </scroll-view>
       </view>
 
       <view v-if="!list.length" class="empty">暂无已推送的工时工资记录</view>
@@ -219,7 +291,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, reactive } from 'vue'
+import { ref, watch, computed, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getUser, isLoggedIn } from '@/utils/auth'
 import { createEmptyLaborWageFilters, hasTimeFilter, sumLaborWageSalary } from '@/utils/laborWageFilter'
@@ -229,6 +301,9 @@ import {
   getWorkerMonthSalary,
   TASK_STATUS,
 } from '@/mock/laborWageStore'
+
+const VIEW_MODE_KEY = 'i_doms_mobile_work_hours_view_mode'
+const LEGACY_DENSITY_KEY = 'i_doms_mobile_work_hours_density'
 
 const tabs = [
   { key: 'all', label: '全部' },
@@ -245,6 +320,7 @@ const productKeyword = ref('')
 const processKeyword = ref('')
 const filterOptions = ref({ products: [], processes: [] })
 const filterScrollHeight = ref(400)
+const viewMode = ref('card')
 
 const isTimeFiltered = computed(() => hasTimeFilter(appliedFilters.value))
 
@@ -269,6 +345,31 @@ const filteredProcesses = computed(() => {
   return filterOptions.value.processes.filter((name) => name.toLowerCase().includes(kw))
 })
 
+function loadViewMode() {
+  try {
+    const saved = uni.getStorageSync(VIEW_MODE_KEY)
+    if (saved === 'card' || saved === 'table') {
+      viewMode.value = saved
+      return
+    }
+    // 兼容旧「舒适/紧凑」本地偏好
+    const legacy = uni.getStorageSync(LEGACY_DENSITY_KEY)
+    if (legacy === 'compact') viewMode.value = 'table'
+    else if (legacy === 'comfort') viewMode.value = 'card'
+  } catch {
+    /* ignore */
+  }
+}
+
+function setViewMode(next) {
+  viewMode.value = next
+  try {
+    uni.setStorageSync(VIEW_MODE_KEY, next)
+  } catch {
+    /* ignore */
+  }
+}
+
 function refresh() {
   const user = getUser()
   filterOptions.value = getWorkerLaborWageFilterOptions(user)
@@ -283,6 +384,10 @@ function syncDraftFromApplied() {
 }
 
 watch(activeTab, refresh)
+
+onMounted(() => {
+  loadViewMode()
+})
 
 onShow(() => {
   if (!isLoggedIn()) {
@@ -387,6 +492,14 @@ function showQty(v) {
   return Number(v) > 0
 }
 
+function formatDate(reportTime) {
+  if (!reportTime) return '—'
+  const text = String(reportTime).trim()
+  const m = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (m) return m[1].slice(5)
+  return text.slice(0, 10)
+}
+
 function isBatchPieceSalary(item) {
   return item?.reportType === '批量计件' && item?.salaryMethod === '计件工资'
 }
@@ -395,11 +508,27 @@ function isHourlySalary(item) {
   return item?.salaryMethod === '计时工资'
 }
 
-/** 最终核算工时：仅计时工资模式展示；批量计件+计件工资不展示 */
 function showFinalAccountHours(item) {
   if (!item || isBatchPieceSalary(item) || !isHourlySalary(item)) return false
   const hours = item.finalAccountHours
   return hours != null && hours !== '' && Number(hours) > 0
+}
+
+function formatQtyDuration(item) {
+  if (!item) return '—'
+  if (item.reportType === '时长报工') {
+    const h = item.reportDuration
+    if (h == null || h === '') return '—'
+    return `${h}h`
+  }
+  const qty = item.reportQty
+  if (qty == null || qty === '') return '—'
+  return String(qty)
+}
+
+function formatAccountHours(item) {
+  if (!showFinalAccountHours(item)) return '—'
+  return `${item.finalAccountHours}h`
 }
 
 function goDetail(item) {
@@ -409,10 +538,12 @@ function goDetail(item) {
 
 <style lang="scss" scoped>
 .page {
-  min-height: 100vh;
+  height: 100vh;
   background: #f0f2f5;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .custom-nav {
@@ -421,6 +552,7 @@ function goDetail(item) {
   justify-content: space-between;
   padding: calc(env(safe-area-inset-top, 0px) + 12rpx) 24rpx 16rpx;
   background: #fff;
+  flex-shrink: 0;
 }
 
 .nav-back,
@@ -447,10 +579,18 @@ function goDetail(item) {
   color: #595959;
 }
 
-.tabs {
+.tabs-row {
   display: flex;
+  align-items: stretch;
   background: #fff;
   border-bottom: 1rpx solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.tabs {
+  flex: 1;
+  display: flex;
+  min-width: 0;
 }
 
 .tab {
@@ -478,10 +618,40 @@ function goDetail(item) {
   }
 }
 
+.view-switch {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 0 16rpx 0 8rpx;
+  flex-shrink: 0;
+  border-left: 1rpx solid #f0f0f0;
+}
+
+.view-btn {
+  padding: 8rpx 16rpx;
+  font-size: 22rpx;
+  color: #8c8c8c;
+  border: 1rpx solid #d9d9d9;
+  border-radius: 8rpx;
+  background: #fafafa;
+
+  &.active {
+    color: #1677ff;
+    border-color: #1677ff;
+    background: #e6f4ff;
+    font-weight: 600;
+  }
+}
+
 .list-scroll {
   flex: 1;
-  padding: 16rpx 24rpx;
+  height: 0;
   box-sizing: border-box;
+  padding: 16rpx 24rpx;
+
+  &.is-table {
+    padding: 0;
+  }
 
   &.has-footer {
     padding-bottom: 120rpx;
@@ -590,6 +760,132 @@ function goDetail(item) {
   font-size: 30rpx;
 }
 
+.table-board {
+  display: flex;
+  align-items: flex-start;
+  background: #fff;
+  margin-bottom: 16rpx;
+  border-top: 1rpx solid #f0f0f0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.fixed-side {
+  flex-shrink: 0;
+  background: #fff;
+  z-index: 2;
+  box-shadow: 4rpx 0 8rpx rgba(0, 0, 0, 0.04);
+}
+
+.scroll-side {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.scroll-inner {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.tr {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1rpx solid #f0f0f0;
+
+  &.head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #fafafa;
+  }
+
+  &.body:active {
+    background: #f5f5f5;
+  }
+}
+
+.fixed-side .tr.head {
+  z-index: 4;
+}
+
+.th,
+.td {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 12rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 72rpx;
+  font-size: 22rpx;
+}
+
+.th {
+  color: #8c8c8c;
+  font-weight: 600;
+  background: #fafafa;
+}
+
+.td {
+  color: #262626;
+}
+
+.col-date {
+  width: 100rpx;
+  flex-shrink: 0;
+}
+
+.col-proc {
+  width: 140rpx;
+  flex-shrink: 0;
+}
+
+.col-product {
+  width: 180rpx;
+  flex-shrink: 0;
+}
+
+.col-wo {
+  width: 160rpx;
+  flex-shrink: 0;
+}
+
+.col-mode {
+  width: 180rpx;
+  flex-shrink: 0;
+}
+
+.col-qty {
+  width: 120rpx;
+  flex-shrink: 0;
+}
+
+.col-hours {
+  width: 120rpx;
+  flex-shrink: 0;
+}
+
+.col-salary {
+  width: 140rpx;
+  flex-shrink: 0;
+
+  &.salary {
+    color: #52c41a;
+    font-weight: 700;
+  }
+}
+
+.col-status {
+  width: 100rpx;
+  flex-shrink: 0;
+  color: #fa8c16;
+
+  &.confirmed {
+    color: #1677ff;
+  }
+}
+
 .footer-bar {
   position: fixed;
   left: 0;
@@ -602,6 +898,7 @@ function goDetail(item) {
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   font-size: 30rpx;
   font-weight: 600;
+  z-index: 100;
 }
 
 .empty {

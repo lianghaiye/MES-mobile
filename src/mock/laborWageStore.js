@@ -22,12 +22,13 @@ function formatDate(d = new Date()) {
 }
 
 function resolveUserNames(user) {
-  if (!user) return []
-  const names = [user.displayName, user.name, user.nickname, user.username].filter(Boolean)
-  if (user.displayName === '管理员' || user.username === 'admin') {
-    return [...new Set([...names, '张三', 'admin', '管理员'])]
+  const displayName = user?.displayName || ''
+  const username = user?.username || ''
+  const names = [displayName, user?.name, user?.nickname, username].filter(Boolean)
+  // 演示账号：可查看种子数据中张三等执行人的已推送工时工资
+  if (displayName === '管理员' || username === 'admin' || !names.length) {
+    return [...new Set([...names, '管理员', 'admin', '张三', '李四', '王五'])]
   }
-  if (!names.length) return ['张三']
   return [...new Set(names)]
 }
 

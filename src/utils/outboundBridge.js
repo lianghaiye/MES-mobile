@@ -104,7 +104,7 @@ export function appendOutboundFromRequisition(payload) {
     id: payload.id || `ob-${Date.now()}`,
     docNo,
     outboundType: '领料出库',
-    status: '待处理',
+    status: resolveMiniOutboundStatus(),
     warehouse: payload.warehouse || lineItems.find((l) => l.shipWarehouse)?.shipWarehouse || '',
     handler: payload.handler || payload.creator || '',
     creator: payload.creator || payload.handler || '',
@@ -121,6 +121,18 @@ export function appendOutboundFromRequisition(payload) {
   orders.unshift(order)
   saveOutboundOrders(orders)
   return { ok: true, order }
+}
+
+function resolveMiniOutboundStatus() {
+  try {
+    const raw = uni.getStorageSync('i_doms_business_rules')
+    if (!raw) return '待处理'
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (parsed?.productionMode === 'minimal') return '待出库'
+  } catch {
+    /* ignore */
+  }
+  return '待处理'
 }
 
 export function getOutboundOrderById(id) {
