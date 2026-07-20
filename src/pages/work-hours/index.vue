@@ -170,8 +170,12 @@
               class="tr body"
               @tap="goDetail(item)"
             >
-              <view class="td col-product">{{ item.materialName || '—' }}</view>
-              <view class="td col-wo">{{ item.workOrderCode || '—' }}</view>
+              <view class="td col-product">
+                <text class="cell-text">{{ item.materialName || '—' }}</text>
+              </view>
+              <view class="td col-wo">
+                <text class="cell-text">{{ item.workOrderCode || '—' }}</text>
+              </view>
               <view class="td col-mode">{{ item.reportTypeLabel || '—' }}</view>
               <view class="td col-qty">{{ formatQtyDuration(item) }}</view>
               <view class="td col-hours">{{ formatAccountHours(item) }}</view>
@@ -765,15 +769,14 @@ function goDetail(item) {
   align-items: flex-start;
   background: #fff;
   margin-bottom: 16rpx;
-  border-top: 1rpx solid #f0f0f0;
-  border-bottom: 1rpx solid #f0f0f0;
+  border: 1rpx solid #d9d9d9;
+  border-right: none;
 }
 
 .fixed-side {
   flex-shrink: 0;
   background: #fff;
   z-index: 2;
-  box-shadow: 4rpx 0 8rpx rgba(0, 0, 0, 0.04);
 }
 
 .scroll-side {
@@ -790,7 +793,11 @@ function goDetail(item) {
 .tr {
   display: flex;
   align-items: stretch;
-  border-bottom: 1rpx solid #f0f0f0;
+  border-bottom: 1rpx solid #d9d9d9;
+
+  &:last-child {
+    border-bottom: none;
+  }
 
   &.head {
     position: sticky;
@@ -813,62 +820,80 @@ function goDetail(item) {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  padding: 0 12rpx;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  height: 72rpx;
+  padding: 0 16rpx;
+  height: 80rpx;
   font-size: 22rpx;
+  border-right: 1rpx solid #d9d9d9;
 }
 
 .th {
   color: #8c8c8c;
   font-weight: 600;
   background: #fafafa;
+  white-space: nowrap;
 }
 
 .td {
   color: #262626;
 }
 
+.cell-text {
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
 .col-date {
   width: 100rpx;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .col-proc {
   width: 140rpx;
   flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .col-product {
-  width: 180rpx;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  min-width: 280rpx;
+  max-width: none;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .col-wo {
-  width: 160rpx;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  min-width: 260rpx;
+  max-width: none;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .col-mode {
   width: 180rpx;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .col-qty {
   width: 120rpx;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .col-hours {
   width: 120rpx;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .col-salary {
   width: 140rpx;
   flex-shrink: 0;
+  white-space: nowrap;
 
   &.salary {
     color: #52c41a;
@@ -879,6 +904,7 @@ function goDetail(item) {
 .col-status {
   width: 100rpx;
   flex-shrink: 0;
+  white-space: nowrap;
   color: #fa8c16;
 
   &.confirmed {
