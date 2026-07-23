@@ -6,6 +6,11 @@
         <text class="action-title">工单领料</text>
         <text class="action-desc">选择工单，支持单工单或批量合并</text>
       </view>
+      <view class="action-card" @tap="goSalesOrder">
+        <text class="action-icon">📄</text>
+        <text class="action-title">订单领料</text>
+        <text class="action-desc">按销售订单选择关联工单领料</text>
+      </view>
       <view class="action-card" @tap="goQuick">
         <text class="action-icon">⚡</text>
         <text class="action-title">快速领料</text>
@@ -72,6 +77,10 @@ function goWorkOrder() {
   uni.navigateTo({ url: '/pages/material-req/work-order-select' })
 }
 
+function goSalesOrder() {
+  uni.navigateTo({ url: '/pages/material-req/work-order-select?tab=sales' })
+}
+
 function goQuick() {
   uni.navigateTo({ url: '/pages/material-req/create-quick' })
 }
@@ -82,15 +91,23 @@ function goDetail(item) {
 
 function modeLabel(mode) {
   if (mode === 'quick') return '快速领料'
-  if (mode === 'batch-work-order') return '批量领料'
+  if (mode === 'sales-order') return '订单领料'
+  if (mode === 'batch-work-order') return '工单领料'
   return '工单领料'
 }
 
 function displayMain(item) {
+  if (item.mode === 'sales-order') {
+    if (item.salesOrderNo && item.salesOrderNo !== 'MULTI') {
+      return `${item.salesOrderNo} · ${item.lineCount || 0} 项物料`
+    }
+    const count = item.workOrderIds?.length || item.workOrders?.length || 0
+    return count ? `${count} 个工单 · ${item.lineCount || 0} 项物料` : item.productName || '订单领料'
+  }
   if (item.mode === 'batch-work-order') {
     const count = item.workOrderIds?.length || item.workOrders?.length || 0
     if (count) return `${count} 个工单 · ${item.lineCount || 0} 项物料`
-    return item.productName || '批量领料'
+    return item.productName || '工单领料'
   }
   if (item.productName) return item.productName
   const first = item.lines?.[0]?.itemName
@@ -117,15 +134,16 @@ $primary: #1677ff;
 
 .action-row {
   display: flex;
-  gap: 16rpx;
+  gap: 12rpx;
   margin-bottom: 24rpx;
 }
 
 .action-card {
   flex: 1;
+  min-width: 0;
   background: #fff;
   border-radius: 16rpx;
-  padding: 28rpx 20rpx;
+  padding: 24rpx 16rpx;
 }
 
 .action-card.primary {

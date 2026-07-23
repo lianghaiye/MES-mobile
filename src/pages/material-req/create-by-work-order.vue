@@ -106,6 +106,7 @@ const workOrder = ref(null)
 const lines = ref([])
 const pickerOpen = ref(false)
 const submitting = ref(false)
+const fromSalesOrder = ref(false)
 
 const form = reactive({
   workshop: '',
@@ -128,6 +129,7 @@ const totalQty = computed(() =>
 )
 
 onLoad((query) => {
+  fromSalesOrder.value = query.from === 'sales'
   const wo = getWorkOrderById(query.workOrderId)
   if (!wo) {
     uni.showToast({ title: '工单不存在', icon: 'none' })
@@ -168,10 +170,21 @@ function onSubmit() {
   submitting.value = true
   const wo = workOrder.value
   const result = submitMaterialRequisition({
-    mode: 'work-order',
+    mode: fromSalesOrder.value ? 'sales-order' : 'work-order',
     workOrderId: wo.id,
     workOrderCode: wo.code,
     workOrderName: wo.name,
+    workOrderIds: [wo.id],
+    workOrders: [
+      {
+        id: wo.id,
+        code: wo.code,
+        productName: wo.productName,
+        scheduleQty: wo.scheduleQty,
+        salesOrderNo: wo.salesOrderNo,
+      },
+    ],
+    salesOrderNo: wo.salesOrderNo || '',
     productName: wo.productName,
     orderCategory: wo.orderCategory,
     workshop: form.workshop,

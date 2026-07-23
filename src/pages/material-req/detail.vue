@@ -9,7 +9,7 @@
         <text class="label">领料方式</text>
         <text class="val">{{ modeLabel(record.mode) }}</text>
       </view>
-      <view v-if="record.mode === 'batch-work-order' && record.workOrders?.length" class="info-row">
+      <view v-if="(record.mode === 'batch-work-order' || record.mode === 'sales-order') && record.workOrders?.length" class="info-row">
         <text class="label">关联工单</text>
         <text class="val">{{ record.workOrders.length }} 个</text>
       </view>
@@ -51,7 +51,7 @@
       </view>
     </view>
 
-    <view v-if="record?.mode === 'batch-work-order' && record.workOrders?.length" class="card">
+    <view v-if="(record?.mode === 'batch-work-order' || record?.mode === 'sales-order') && record.workOrders?.length" class="card">
       <text class="section-title">工单清单</text>
       <view v-for="wo in record.workOrders" :key="wo.id" class="wo-row">
         <text class="wo-code">{{ wo.code }}</text>
@@ -108,7 +108,8 @@ function formatReceiveWarehouse(value) {
 
 function modeLabel(mode) {
   if (mode === 'quick') return '快速领料'
-  if (mode === 'batch-work-order') return '批量领料'
+  if (mode === 'sales-order') return '订单领料'
+  if (mode === 'batch-work-order') return '工单领料'
   return '工单领料'
 }
 

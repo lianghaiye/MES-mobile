@@ -30,7 +30,8 @@ function currentUserName() {
 
 function modeLabel(mode) {
   if (mode === 'quick') return '快速领料'
-  if (mode === 'batch-work-order') return '批量领料'
+  if (mode === 'sales-order') return '订单领料'
+  if (mode === 'batch-work-order') return '工单领料'
   return '工单领料'
 }
 
@@ -46,8 +47,8 @@ function resolveBatchSourceOrderNo(payload) {
 }
 
 function resolveLineSourceDocNo(payload, line) {
-  if (payload.mode !== 'batch-work-order') {
-    return payload.workOrderCode || ''
+  if (payload.mode !== 'batch-work-order' && payload.mode !== 'sales-order') {
+    return payload.workOrderCode || payload.salesOrderNo || ''
   }
   const sources = line.sourceWorkOrders || []
   if (sources.length === 1) return sources[0].workOrderCode || ''
@@ -83,11 +84,11 @@ function enrichRequisition(row) {
 
 /**
  * @param {object} payload
- * @param {'work-order'|'quick'|'batch-work-order'} payload.mode
+ * @param {'work-order'|'quick'|'batch-work-order'|'sales-order'} payload.mode
  */
 export function submitMaterialRequisition(payload) {
-  const isBatch = payload.mode === 'batch-work-order'
-  const mergeFn = isBatch ? mergeMaterialLinesWithSources : mergeMaterialLines
+  const isMulti = payload.mode === 'batch-work-order' || payload.mode === 'sales-order'
+  const mergeFn = isMulti ? mergeMaterialLinesWithSources : mergeMaterialLines
   const lines = mergeFn(payload.lines || [])
   if (!lines.length) {
     return { ok: false, message: '请至少添加一条领料明细' }
@@ -104,9 +105,9 @@ export function submitMaterialRequisition(payload) {
   const workshop = payload.workshop || payload.requisitionDept || '默认工厂'
   const outboundId = `ob-${Date.now()}`
 
-  const sourceOrderNo = isBatch
+  const sourceOrderNo = isMulti
     ? resolveBatchSourceOrderNo(payload)
-    : payload.workOrderCode || ''
+    : payload.workOrderCode || payload.salesOrderNo || ''
 
   const remarkBase = payload.remark
     ? `小程序领料申请：${payload.remark}`

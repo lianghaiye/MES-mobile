@@ -259,14 +259,15 @@ function toggleAllInGroup() {
 
 function navigateWithIds(ids) {
   if (!ids.length) return
+  const fromSales = activeTab.value === 'sales' ? '&from=sales' : ''
   if (ids.length === 1) {
     uni.navigateTo({
-      url: `/pages/material-req/create-by-work-order?workOrderId=${ids[0]}`,
+      url: `/pages/material-req/create-by-work-order?workOrderId=${ids[0]}${fromSales}`,
     })
     return
   }
   uni.navigateTo({
-    url: `/pages/material-req/create-batch-work-order?workOrderIds=${ids.join(',')}`,
+    url: `/pages/material-req/create-batch-work-order?workOrderIds=${ids.join(',')}${fromSales}`,
   })
 }
 

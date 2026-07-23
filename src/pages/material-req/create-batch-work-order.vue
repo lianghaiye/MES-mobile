@@ -110,6 +110,7 @@ const emptyWorkOrderCodes = ref([])
 const pickerOpen = ref(false)
 const submitting = ref(false)
 const woListExpanded = ref(false)
+const fromSalesOrder = ref(false)
 
 const form = reactive({
   workshop: '',
@@ -172,6 +173,7 @@ function loadBatchMaterials(orders) {
 }
 
 onLoad((query) => {
+  fromSalesOrder.value = query.from === 'sales'
   const ids = String(query.workOrderIds || '')
     .split(',')
     .map((id) => id.trim())
@@ -216,7 +218,7 @@ function onSubmit() {
   }
   submitting.value = true
   const result = submitMaterialRequisition({
-    mode: 'batch-work-order',
+    mode: fromSalesOrder.value ? 'sales-order' : 'batch-work-order',
     workOrderIds: workOrders.value.map((wo) => wo.id),
     workOrders: workOrders.value.map((wo) => ({
       id: wo.id,
