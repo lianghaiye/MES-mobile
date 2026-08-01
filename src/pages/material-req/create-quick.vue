@@ -3,7 +3,32 @@
     <view class="card">
       <view class="field-row">
         <text class="field-label">领用车间</text>
-        <input v-model="form.workshop" class="field-input" placeholder="请输入领用部门/车间" />
+        <input
+          v-model="form.workshop"
+          class="field-input"
+          placeholder="请输入领用部门/车间"
+          @blur="syncReceiveWarehouse"
+        />
+      </view>
+      <view class="field-block">
+        <view class="field-row wh-row">
+          <text class="field-label">领入仓库</text>
+          <WarehouseSelectField
+            v-if="receiveWarehouseOptions.length"
+            v-model="form.receiveWarehouse"
+            :options="receiveWarehouseOptions"
+            title="选择领入仓库"
+            placeholder="请选择领入仓库"
+          />
+          <text v-else class="field-empty">未配置线边仓</text>
+        </view>
+        <text class="field-hint">物料从下方「领料仓库」出库后，领入至此线边暂存</text>
+        <text v-if="receiveWarehouseOptions.length && !hasMatchedReceiveWarehouse" class="field-warning">
+          当前车间未匹配到默认线边仓，请手动选择领入仓库
+        </text>
+        <text v-if="!receiveWarehouseOptions.length" class="field-warning">
+          系统暂未配置线边仓，请在 WEB「仓库管理」中维护
+        </text>
       </view>
       <view class="field-row">
         <text class="field-label">备注</text>
@@ -42,18 +67,37 @@
 import { computed, reactive, ref } from 'vue'
 import MaterialLineEditor from '@/components/material-req/MaterialLineEditor.vue'
 import MaterialPicker from '@/components/material-req/MaterialPicker.vue'
+import WarehouseSelectField from '@/components/common/WarehouseSelectField.vue'
 import { createManualMaterialLine } from '@/utils/workOrderEbomMaterials'
+import {
+  getReceiveWarehouseOptions,
+  hasMatchedReceiveWarehouseForWorkCenter,
+  resolveDefaultReceiveWarehouse,
+} from '@/utils/warehouseBridge'
 import { submitMaterialRequisition } from '@/store/materialRequisitionStore'
 import { getUser } from '@/utils/auth'
 
 const form = reactive({
   workshop: getUser()?.factory || '默认工厂',
+  receiveWarehouse: '',
   remark: '',
 })
 
 const lines = ref([])
 const pickerOpen = ref(false)
 const submitting = ref(false)
+
+const receiveWarehouseOptions = computed(() => getReceiveWarehouseOptions())
+
+const hasMatchedReceiveWarehouse = computed(() =>
+  hasMatchedReceiveWarehouseForWorkCenter(form.workshop),
+)
+
+form.receiveWarehouse = resolveDefaultReceiveWarehouse(form.workshop)
+
+function syncReceiveWarehouse() {
+  form.receiveWarehouse = resolveDefaultReceiveWarehouse(form.workshop, form.receiveWarehouse)
+}
 
 const totalQty = computed(() =>
   lines.value.reduce((sum, line) => sum + (Number(line.shipQty) || 0), 0),
@@ -79,10 +123,15 @@ function onPickMaterial(item) {
 
 function onSubmit() {
   if (submitting.value) return
+  if (!form.receiveWarehouse) {
+    uni.showToast({ title: '请选择领入仓库', icon: 'none' })
+    return
+  }
   submitting.value = true
   const result = submitMaterialRequisition({
     mode: 'quick',
     workshop: form.workshop,
+    receiveWarehouse: form.receiveWarehouse,
     remark: form.remark,
     lines: lines.value,
   })
@@ -121,6 +170,32 @@ $primary: #1677ff;
   border-bottom: 1rpx solid #f0f0f0;
 }
 
+.field-block {
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.field-block .field-row {
+  padding: 0;
+  border-bottom: none;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #8c8c8c;
+  line-height: 1.5;
+}
+
+.field-warning {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #fa8c16;
+  line-height: 1.5;
+}
+
 .field-row:last-child {
   border-bottom: none;
 }
@@ -134,6 +209,24 @@ $primary: #1677ff;
 .field-input {
   flex: 1;
   font-size: 28rpx;
+}
+
+.field-row.wh-row {
+  align-items: flex-start;
+}
+
+.field-row.wh-row .field-label {
+  padding-top: 4rpx;
+}
+
+.field-empty {
+  flex: 1;
+  font-size: 28rpx;
+  color: #fa8c16;
+}
+
+.field-row.wh-row :deep(.wh-field) {
+  flex: 1;
 }
 
 .section-head {

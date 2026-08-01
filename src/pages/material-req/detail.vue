@@ -66,8 +66,10 @@
           <text class="line-name">{{ line.itemName }}</text>
           <text class="line-code">{{ line.itemCode }}</text>
         </view>
-        <view class="line-sub">
-          <text>{{ line.specModel || '—' }}</text>
+        <view class="line-sub line-meta">
+          <text>规格：{{ line.specModel || '—' }}</text>
+          <text v-if="line.drawingNo">图号：{{ line.drawingNo }}</text>
+          <text v-if="lineBlankSizeText(line)">下料尺寸：{{ lineBlankSizeText(line) }}</text>
         </view>
         <view class="line-sub">
           <text>仓库：{{ line.shipWarehouse || '—' }}</text>
@@ -99,11 +101,16 @@ import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMaterialRequisitionById } from '@/store/materialRequisitionStore'
 import { formatReceiveWarehouseLabel } from '@/utils/warehouseBridge'
+import { resolveLineBlankSizeText } from '@/utils/blankSizeDisplay'
 
 const record = ref(null)
 
 function formatReceiveWarehouse(value) {
   return formatReceiveWarehouseLabel(value)
+}
+
+function lineBlankSizeText(line) {
+  return resolveLineBlankSizeText(line)
 }
 
 function modeLabel(mode) {
@@ -214,6 +221,12 @@ $primary: #1677ff;
   margin-top: 8rpx;
   font-size: 24rpx;
   color: #595959;
+}
+
+.line-sub.line-meta {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 12rpx 24rpx;
 }
 
 .line-qty {

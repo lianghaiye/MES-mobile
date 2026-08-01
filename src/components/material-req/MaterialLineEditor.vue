@@ -11,6 +11,7 @@
       <text>规格：{{ line.specModel || '—' }}</text>
       <text>材质：{{ line.material || '—' }}</text>
       <text>图号：{{ line.drawingNo || '—' }}</text>
+      <text v-if="blankSizeText">下料尺寸：{{ blankSizeText }}</text>
     </view>
 
     <view v-if="showWarehouse" class="warehouse-row">
@@ -56,8 +57,10 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import WarehouseSelectField from '@/components/common/WarehouseSelectField.vue'
 import { pickWarehouseOptions, enrichLineWithStock } from '@/utils/inventoryStockBridge'
+import { resolveLineBlankSizeText } from '@/utils/blankSizeDisplay'
 
 const props = defineProps({
   line: { type: Object, required: true },
@@ -66,6 +69,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:line', 'remove'])
+
+const blankSizeText = computed(() => resolveLineBlankSizeText(props.line))
 
 function formatStock(val) {
   if (val == null || val === '') return '—'

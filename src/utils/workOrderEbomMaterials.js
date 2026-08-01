@@ -1,5 +1,17 @@
 import { createLineId } from '@/utils/materialRequisitionNo'
 import { enrichLinesWithStock, resolvePickWarehouseForItem } from '@/utils/inventoryStockBridge'
+import { resolveLineBlankSizeText } from '@/utils/blankSizeDisplay'
+
+function pickBlankSizeFields(source = {}) {
+  const blankSize = source.blankSize || null
+  const blankSizeText =
+    String(source.blankSizeText || '').trim() || resolveLineBlankSizeText({ blankSize }) || ''
+  return {
+    blankSize,
+    blankSizeText,
+    blankLength: source.blankLength ?? null,
+  }
+}
 
 const BOM_STORAGE_KEY = 'i_doms_product_bom'
 
@@ -30,6 +42,7 @@ function flattenMaterialTree(materials = [], scheduleQty = 1, acc = []) {
       specModel: mat.spec || mat.specModel || '',
       material: mat.material || '',
       drawingNo: mat.drawingNo || '',
+      ...pickBlankSizeFields(mat),
       unit: mat.unit || '件',
       unitUsage,
       suggestedQty: Number(demandQty) || 0,
@@ -55,6 +68,7 @@ function fromComponentLines(lines = [], scheduleQty = 1) {
       specModel: line.specModel || '',
       material: line.material || '',
       drawingNo: line.drawingNo || '',
+      ...pickBlankSizeFields(line),
       unit: line.unit || '件',
       unitUsage: unitQty,
       suggestedQty: Number(requiredQty) || 0,
@@ -78,6 +92,7 @@ function fromBomLineItems(bom, scheduleQty = 1) {
       specModel: line.specModel || '',
       material: line.material || '',
       drawingNo: line.drawingNo || '',
+      ...pickBlankSizeFields(line),
       unit: line.unit || '件',
       unitUsage: unitQty,
       suggestedQty: demandQty,
@@ -99,6 +114,7 @@ function fromDisassemblyEbomTree(nodes = [], scheduleQty = 1, acc = []) {
       specModel: node.specModel || '',
       material: node.material || '',
       drawingNo: node.drawingNo || '',
+      ...pickBlankSizeFields(node),
       unit: node.unit || '件',
       unitUsage: unitQty,
       suggestedQty: demandQty,
@@ -144,6 +160,7 @@ export function createManualMaterialLine(item, qty = 1, warehouse) {
         specModel: item.spec || item.specModel || '',
         material: item.material || '',
         drawingNo: item.drawingNo || '',
+        ...pickBlankSizeFields(item),
         unit: item.unit || '件',
         unitUsage: 1,
         suggestedQty: 0,
@@ -169,6 +186,10 @@ export function mergeMaterialLines(lines = []) {
       continue
     }
     existing.shipQty = Number(existing.shipQty || 0) + Number(line.shipQty || 0)
+    if (!existing.blankSizeText && line.blankSizeText) {
+      existing.blankSizeText = line.blankSizeText
+      existing.blankSize = line.blankSize || existing.blankSize
+    }
     if (line.lineSource === '手工添加') existing.lineSource = '手工添加'
   }
   return [...map.values()].filter((l) => Number(l.shipQty) > 0)
@@ -224,6 +245,10 @@ export function mergeMaterialLinesWithSources(lines = []) {
       existing.sourceWorkOrders,
       line.sourceWorkOrders,
     )
+    if (!existing.blankSizeText && line.blankSizeText) {
+      existing.blankSizeText = line.blankSizeText
+      existing.blankSize = line.blankSize || existing.blankSize
+    }
     if (line.lineSource === '手工添加') existing.lineSource = '手工添加'
   }
   return [...map.values()].filter((l) => Number(l.shipQty) > 0)
