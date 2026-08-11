@@ -1,6 +1,7 @@
 import { buildMockPickableWorkOrders } from '@/mock/materialRequisitionSeed'
 import { buildMockCompletedWorkOrders } from '@/mock/productInboundSeed'
 import { listMaterialRequisitions } from '@/store/materialRequisitionStore'
+import { listProductInbounds } from '@/store/productInboundStore'
 
 const WORK_ORDER_SOURCES = [
   { key: 'production', storageKey: 'i_doms_work_orders', field: 'orders', category: '生产工单' },
@@ -25,17 +26,21 @@ const STATUS_SORT_RANK = {
   已关闭: 3,
 }
 
-/** 工单类型筛选：生产 / 总装 / 维修 */
+/** 工单类型筛选：生产 / 总装 / 部装 / 外协 / 维修 */
 export const WORK_ORDER_TYPE_FILTERS = [
   { value: '', label: '全部类型' },
   { value: 'production', label: '生产' },
   { value: 'assembly', label: '总装' },
+  { value: 'subAssembly', label: '部装' },
+  { value: 'outsource', label: '外协' },
   { value: 'maintenance', label: '维修' },
 ]
 
 const ORDER_TYPE_CATEGORIES = {
-  production: ['生产工单', '外协工单', '试制工单'],
+  production: ['生产工单', '试制工单'],
   assembly: ['总装工单'],
+  subAssembly: ['部装工单'],
+  outsource: ['外协工单'],
   maintenance: ['维修工单', '返修工单'],
 }
 
@@ -346,16 +351,31 @@ export function listSalesOrdersWithPickableWorkOrders({
     .sort((a, b) => String(b.salesOrderNo).localeCompare(String(a.salesOrderNo)))
 }
 
-export function filterCompletedWorkOrders({ keyword = '', workCenter = '' } = {}) {
+function resolveCompletedWorkOrderSource() {
+  const stored = loadOrdersFromStorage()
+  if (stored.length) {
+    return loadAllWorkOrders().filter(isCompletedWorkOrder)
+  }
+  // 无本地工单时，使用成品入库演示种子（含时间/类型筛选样例）
+  return buildMockCompletedWorkOrders()
+}
+
+export function filterCompletedWorkOrders({
+  keyword = '',
+  workCenter = '',
+  dateRange = '',
+  orderType = '',
+} = {}) {
   const kw = String(keyword || '')
     .trim()
     .toLowerCase()
   const wc = String(workCenter || '').trim()
-  const fromStorage = loadAllWorkOrders().filter(isCompletedWorkOrder)
-  const source = fromStorage.length ? fromStorage : buildMockCompletedWorkOrders()
-  return source
-    .filter((o) => {
+  const source = resolveCompletedWorkOrderSource()
+  return sortWorkOrdersForMaterialReq(
+    source.filter((o) => {
       if (wc && o.workCenter !== wc) return false
+      if (!matchDateRange(o, dateRange)) return false
+      if (!matchOrderType(o, orderType)) return false
       if (!kw) return true
       const hay = [
         o.code,
@@ -370,30 +390,31 @@ export function filterCompletedWorkOrders({ keyword = '', workCenter = '' } = {}
         .join(' ')
         .toLowerCase()
       return hay.includes(kw)
-    })
-    .sort((a, b) => String(b.code).localeCompare(String(a.code)))
+    }),
+  )
 }
 
 export function getCompletedWorkOrdersByIds(ids = []) {
   const idSet = new Set((ids || []).filter(Boolean))
   if (!idSet.size) return []
-  const fromStorage = loadAllWorkOrders().filter(isCompletedWorkOrder)
-  const source = fromStorage.length ? fromStorage : buildMockCompletedWorkOrders()
-  return source.filter((o) => idSet.has(o.id))
+  return resolveCompletedWorkOrderSource().filter((o) => idSet.has(o.id))
 }
 
 export function listDistinctCompletedWorkCenters() {
   const set = new Set()
-  const fromStorage = loadAllWorkOrders().filter(isCompletedWorkOrder)
-  const source = fromStorage.length ? fromStorage : buildMockCompletedWorkOrders()
-  for (const wo of source) {
+  for (const wo of resolveCompletedWorkOrderSource()) {
     if (wo.workCenter) set.add(wo.workCenter)
   }
   return [...set].sort()
 }
 
-export function listSalesOrdersWithCompletedWorkOrders({ keyword = '', workCenter = '' } = {}) {
-  const orders = filterCompletedWorkOrders({ keyword, workCenter })
+export function listSalesOrdersWithCompletedWorkOrders({
+  keyword = '',
+  workCenter = '',
+  dateRange = '',
+  orderType = '',
+} = {}) {
+  const orders = filterCompletedWorkOrders({ keyword, workCenter, dateRange, orderType })
   const map = new Map()
   for (const wo of orders) {
     const key = wo.salesOrderNo || '(无销售订单)'
@@ -426,4 +447,34 @@ export function listSalesOrdersWithCompletedWorkOrders({ keyword = '', workCente
       workOrders: group.workOrders,
     }))
     .sort((a, b) => String(b.salesOrderNo).localeCompare(String(a.salesOrderNo)))
+}
+
+/**
+ * 已申请过成品入库的工单 id / code 集合
+ * @returns {{ ids: Set<string>, codes: Set<string> }}
+ */
+export function getAppliedProductInboundWorkOrderKeys() {
+  const ids = new Set()
+  const codes = new Set()
+  for (const req of listProductInbounds()) {
+    if (req.mode === 'quick') continue
+    if (req.workOrderId) ids.add(String(req.workOrderId))
+    if (req.workOrderCode) codes.add(String(req.workOrderCode))
+    for (const id of req.workOrderIds || []) {
+      if (id) ids.add(String(id))
+    }
+    for (const wo of req.workOrders || []) {
+      if (wo?.id) ids.add(String(wo.id))
+      if (wo?.code) codes.add(String(wo.code))
+    }
+  }
+  return { ids, codes }
+}
+
+export function isWorkOrderProductInboundApplied(order, appliedKeys) {
+  if (!order) return false
+  const keys = appliedKeys || getAppliedProductInboundWorkOrderKeys()
+  if (order.id && keys.ids.has(String(order.id))) return true
+  if (order.code && keys.codes.has(String(order.code))) return true
+  return false
 }

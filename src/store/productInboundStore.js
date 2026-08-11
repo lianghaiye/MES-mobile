@@ -5,6 +5,54 @@ import { generateProductInboundNo, formatDateTime } from '@/utils/productInbound
 import { mergeProductInboundLinesWithSources } from '@/utils/productInboundHelpers'
 
 const STORAGE_KEY = 'i_doms_mobile_product_inbounds'
+const SEED_VERSION_KEY = 'i_doms_mobile_product_inbounds_seed_v'
+const SEED_VERSION = '2'
+
+function ensureSeedRecords() {
+  try {
+    if (uni.getStorageSync(SEED_VERSION_KEY) === SEED_VERSION) return
+    const existing = loadRecords()
+    const hasDemo = existing.some((r) => r.id === 'pi-seed-applied-1')
+    if (!hasDemo) {
+      existing.unshift({
+        id: 'pi-seed-applied-1',
+        inboundNo: 'CPRK-SEED-001',
+        mode: 'work-order',
+        workOrderId: 'wo-done-1',
+        workOrderCode: 'WO20260608001',
+        workOrderName: '清水离心泵生产',
+        workOrderIds: ['wo-done-1'],
+        workOrders: [
+          {
+            id: 'wo-done-1',
+            code: 'WO20260608001',
+            productName: '清水离心泵 ISG50-160',
+            scheduleQty: 10,
+          },
+        ],
+        salesOrderNo: '1-20260602-001',
+        productName: '清水离心泵 ISG50-160',
+        productCode: 'CP2610001',
+        orderCategory: '生产工单',
+        workshop: '总装车间',
+        remark: '演示：已申请入库标记',
+        lineCount: 1,
+        totalQty: 10,
+        lines: [],
+        inboundId: '',
+        inboundDocNo: '',
+        inboundStatus: '待处理',
+        miniProgramTaskId: '',
+        applicant: '演示用户',
+        createdAt: '2026-08-11 09:00',
+      })
+      saveRecords(existing)
+    }
+    uni.setStorageSync(SEED_VERSION_KEY, SEED_VERSION)
+  } catch {
+    /* ignore */
+  }
+}
 
 function loadRecords() {
   try {
@@ -70,6 +118,7 @@ function enrichRecord(row) {
 }
 
 export function listProductInbounds() {
+  ensureSeedRecords()
   return loadRecords()
     .map(enrichRecord)
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))

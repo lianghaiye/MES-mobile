@@ -1,5 +1,17 @@
 /** 演示用已完成工单（存储无数据时回退） */
 
+function dayOffsetDate(offsetDays = 0, hour = 9, minute = 30) {
+  const d = new Date()
+  d.setHours(hour, minute, 0, 0)
+  d.setDate(d.getDate() + offsetDays)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${hh}:${mm}`
+}
+
 export function buildMockCompletedWorkOrders() {
   return [
     {
@@ -15,6 +27,7 @@ export function buildMockCompletedWorkOrders() {
       status: '已完成',
       workCenter: '总装车间',
       scheduleQty: 10,
+      createdAt: dayOffsetDate(0, 10, 20),
       bom: '清水离心泵',
       source: 'production',
     },
@@ -31,6 +44,7 @@ export function buildMockCompletedWorkOrders() {
       status: '已完成',
       workCenter: '总装车间',
       scheduleQty: 10,
+      createdAt: dayOffsetDate(0, 8, 15),
       bom: '泵体组件',
       source: 'production',
     },
@@ -47,6 +61,7 @@ export function buildMockCompletedWorkOrders() {
       status: '已完成',
       workCenter: '总装车间',
       scheduleQty: 10,
+      createdAt: dayOffsetDate(-1, 14, 0),
       bom: '叶轮组件',
       source: 'production',
     },
@@ -63,6 +78,7 @@ export function buildMockCompletedWorkOrders() {
       status: '已完成',
       workCenter: '装配车间',
       scheduleQty: 5,
+      createdAt: dayOffsetDate(-1, 16, 30),
       bom: '立式多级泵',
       source: 'assembly',
     },
@@ -79,7 +95,59 @@ export function buildMockCompletedWorkOrders() {
       status: '已完成',
       workCenter: '机加车间',
       scheduleQty: 8,
+      createdAt: dayOffsetDate(-2, 11, 0),
       bom: '深井潜水泵',
+      source: 'production',
+    },
+    {
+      id: 'wo-done-wx-1',
+      code: 'WX-WO-DONE-001',
+      name: '清水泵维修完工',
+      productName: '清水离心泵 ISG50-160',
+      productCode: 'CP2610001',
+      material: 'HT200',
+      drawingNo: 'ISG50-160-DWG',
+      salesOrderNo: '1-20260801-WX',
+      orderCategory: '维修工单',
+      status: '已完成',
+      workCenter: '维修车间',
+      scheduleQty: 1,
+      createdAt: dayOffsetDate(0, 13, 10),
+      bom: '',
+      source: 'production',
+    },
+    {
+      id: 'wo-done-bz-1',
+      code: 'BZ-WO-DONE-001',
+      name: '电机部装完工',
+      productName: '电机总成',
+      productCode: 'CP2610004-DJ',
+      material: 'Q235',
+      drawingNo: 'DJ-DWG-010',
+      salesOrderNo: '1-20260605-001',
+      orderCategory: '部装工单',
+      status: '已完成',
+      workCenter: '装配车间',
+      scheduleQty: 5,
+      createdAt: dayOffsetDate(-1, 9, 30),
+      bom: '电机总成',
+      source: 'assembly',
+    },
+    {
+      id: 'wo-done-os-1',
+      code: 'WXGD-DONE-001',
+      name: '叶轮外协完工',
+      productName: '叶轮组件',
+      productCode: 'CP2610001-YL',
+      material: '不锈钢304',
+      drawingNo: 'YL-DWG-002',
+      salesOrderNo: '1-20260602-001',
+      orderCategory: '外协工单',
+      status: '已完成',
+      workCenter: '机加车间',
+      scheduleQty: 10,
+      createdAt: dayOffsetDate(0, 16, 0),
+      bom: '',
       source: 'production',
     },
   ]
