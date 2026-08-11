@@ -1,7 +1,19 @@
 /** 演示用可领料工单（存储无数据时回退） */
 
+function dayOffsetDate(offsetDays = 0, hour = 9, minute = 30) {
+  const d = new Date()
+  d.setHours(hour, minute, 0, 0)
+  d.setDate(d.getDate() + offsetDays)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${hh}:${mm}`
+}
+
 export function buildMockPickableWorkOrders() {
-  return [
+  const list = [
     {
       id: 'wo-mock-1',
       code: 'WO-062',
@@ -15,6 +27,7 @@ export function buildMockPickableWorkOrders() {
       status: '执行中',
       workCenter: '机加车间',
       scheduleQty: 10,
+      createdAt: dayOffsetDate(0, 10, 20),
       bomId: '',
       bom: '立式多级泵',
       componentLines: [
@@ -58,6 +71,7 @@ export function buildMockPickableWorkOrders() {
       status: '执行中',
       workCenter: '机加车间',
       scheduleQty: 10,
+      createdAt: dayOffsetDate(0, 8, 15),
       bomId: '',
       bom: '泵体 EBOM',
       componentLines: [
@@ -98,9 +112,10 @@ export function buildMockPickableWorkOrders() {
       drawingNo: 'YL-DWG-002',
       salesOrderNo: '1-20260602-001',
       orderCategory: '生产工单',
-      status: '执行中',
+      status: '待下发',
       workCenter: '机加车间',
       scheduleQty: 10,
+      createdAt: dayOffsetDate(-1, 14, 0),
       bomId: '',
       bom: '叶轮 EBOM',
       componentLines: [
@@ -144,6 +159,7 @@ export function buildMockPickableWorkOrders() {
       status: '执行中',
       workCenter: '总装车间',
       scheduleQty: 5,
+      createdAt: dayOffsetDate(-1, 9, 40),
       bomId: '',
       bom: '电机 EBOM',
       componentLines: [
@@ -187,6 +203,7 @@ export function buildMockPickableWorkOrders() {
       status: '执行中',
       workCenter: '总装车间',
       scheduleQty: 5,
+      createdAt: dayOffsetDate(0, 11, 5),
       bomId: '',
       bom: '泵体组件 EBOM',
       componentLines: [
@@ -238,9 +255,10 @@ export function buildMockPickableWorkOrders() {
       drawingNo: 'QJ200-40/3-DWG',
       salesOrderNo: '1-20260605-001',
       orderCategory: '总装工单',
-      status: '执行中',
+      status: '待下发',
       workCenter: '总装车间',
       scheduleQty: 5,
+      createdAt: dayOffsetDate(-2, 16, 20),
       bomId: '',
       bom: '潜水电泵',
       componentLines: [
@@ -284,6 +302,7 @@ export function buildMockPickableWorkOrders() {
       status: '执行中',
       workCenter: '拆解车间',
       scheduleQty: 3,
+      createdAt: dayOffsetDate(-2, 8, 0),
       bomId: '',
       bom: '污水泵 EBOM',
       componentLines: [],
@@ -321,6 +340,7 @@ export function buildMockPickableWorkOrders() {
       status: '待下发',
       workCenter: '质检车间',
       scheduleQty: 2,
+      createdAt: dayOffsetDate(-3, 10, 0),
       bomId: '',
       bom: '',
       componentLines: [
@@ -340,5 +360,72 @@ export function buildMockPickableWorkOrders() {
       skipEbom: false,
       source: 'qc',
     },
+    {
+      id: 'wo-mock-5',
+      code: 'WX-WO-001',
+      name: '清水泵现场维修',
+      productName: '清水离心泵 ISG50-160',
+      productCode: 'CP2610001',
+      material: 'HT200',
+      drawingNo: 'ISG50-160-DWG',
+      salesOrderNo: '1-20260801-WX',
+      orderCategory: '维修工单',
+      status: '执行中',
+      workCenter: '维修车间',
+      scheduleQty: 1,
+      createdAt: dayOffsetDate(0, 13, 30),
+      bomId: '',
+      bom: '',
+      componentLines: [
+        {
+          id: 'comp-wx-1',
+          itemCode: 'MAT-003',
+          itemName: '密封圈',
+          specModel: 'DN50',
+          material: '橡胶',
+          drawingNo: 'MF-DWG-003',
+          unit: '件',
+          unitQty: 2,
+          requiredQty: 2,
+        },
+      ],
+      ebomSnapshot: null,
+      skipEbom: false,
+      source: 'production',
+    },
+    {
+      id: 'wo-mock-6',
+      code: 'WO-050',
+      name: '法兰盘已完工',
+      productName: '法兰盘 DN150',
+      productCode: 'CP-FL-150',
+      material: 'Q235',
+      drawingNo: 'FL-DN150-01',
+      salesOrderNo: '1-20260520-010',
+      orderCategory: '生产工单',
+      status: '完成',
+      workCenter: '机加车间',
+      scheduleQty: 20,
+      createdAt: dayOffsetDate(-1, 18, 0),
+      bomId: '',
+      bom: '',
+      componentLines: [
+        {
+          id: 'comp-done-1',
+          itemCode: 'MAT-030',
+          itemName: '法兰毛坯',
+          specModel: 'DN150',
+          material: 'Q235',
+          drawingNo: 'FL-BL-150',
+          unit: '件',
+          unitQty: 1,
+          requiredQty: 20,
+        },
+      ],
+      ebomSnapshot: null,
+      skipEbom: false,
+      source: 'production',
+    },
   ]
+  return list
 }

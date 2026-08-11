@@ -7,6 +7,48 @@ import {
 } from '@/utils/workOrderEbomMaterials'
 
 const STORAGE_KEY = 'i_doms_mobile_material_reqs'
+const SEED_VERSION_KEY = 'i_doms_mobile_material_reqs_seed_v'
+const SEED_VERSION = '2'
+
+function ensureSeedReqs() {
+  try {
+    if (uni.getStorageSync(SEED_VERSION_KEY) === SEED_VERSION) return
+    const existing = loadReqs()
+    const hasDemo = existing.some((r) => r.id === 'mr-seed-applied-1')
+    if (!hasDemo) {
+      existing.unshift({
+        id: 'mr-seed-applied-1',
+        reqNo: 'LL-SEED-001',
+        mode: 'work-order',
+        workOrderId: 'wo-mock-1',
+        workOrderCode: 'WO-062',
+        workOrderName: '立式多级离心泵生产',
+        workOrderIds: ['wo-mock-1'],
+        workOrders: [{ id: 'wo-mock-1', code: 'WO-062', productName: '立式多级离心泵', scheduleQty: 10 }],
+        salesOrderNo: '1-20260602-001',
+        productName: '立式多级离心泵',
+        orderCategory: '生产工单',
+        workshop: '机加车间',
+        receiveWarehouse: '库线边仓',
+        remark: '演示：已申请领料标记',
+        lineCount: 1,
+        totalQty: 10,
+        lines: [],
+        outboundId: '',
+        outboundDocNo: '',
+        outboundStatus: '待处理',
+        auditStatus: '审核通过',
+        rejectReason: '',
+        applicant: '演示用户',
+        createdAt: '2026-08-11 09:00',
+      })
+      saveReqs(existing)
+    }
+    uni.setStorageSync(SEED_VERSION_KEY, SEED_VERSION)
+  } catch {
+    /* ignore */
+  }
+}
 
 function loadReqs() {
   try {
@@ -63,6 +105,7 @@ function resolveLineSourceDocNo(payload, line) {
 }
 
 export function listMaterialRequisitions() {
+  ensureSeedReqs()
   return loadReqs()
     .map(enrichRequisition)
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))

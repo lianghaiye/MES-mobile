@@ -26,26 +26,34 @@
         placeholder="搜索工单号 / 产品 / 图号 / 销售订单"
         confirm-type="search"
       />
-    </view>
-
-    <scroll-view
-      v-if="workCenterOptions.length"
-      scroll-x
-      class="work-center-scroll"
-      :show-scrollbar="false"
-    >
-      <view class="work-center-chips">
+      <view class="filter-selectors">
         <view
-          v-for="item in workCenterOptions"
-          :key="item.value"
-          class="chip"
-          :class="{ active: workCenter === item.value }"
-          @tap="workCenter = item.value"
+          class="filter-cell"
+          :class="{ active: !!dateRange }"
+          @tap="openDatePicker"
         >
-          {{ item.label }}
+          <text class="filter-cell-text">{{ dateRangeLabel }}</text>
+          <text class="filter-arrow">▾</text>
         </view>
+        <view
+          class="filter-cell"
+          :class="{ active: !!orderType }"
+          @tap="openTypePicker"
+        >
+          <text class="filter-cell-text">{{ orderTypeLabel }}</text>
+          <text class="filter-arrow">▾</text>
+        </view>
+        <view
+          class="filter-cell"
+          :class="{ active: !!workCenter }"
+          @tap="openWorkCenterPicker"
+        >
+          <text class="filter-cell-text">{{ workCenterLabel }}</text>
+          <text class="filter-arrow">▾</text>
+        </view>
+        <text v-if="hasActiveFilters" class="filter-reset" @tap="resetFilters">重置</text>
       </view>
-    </scroll-view>
+    </view>
 
     <!-- 工单列表 -->
     <template v-if="activeTab === 'list'">
@@ -67,7 +75,10 @@
         </view>
         <view class="wo-body">
           <view class="wo-head">
-            <text class="wo-code">{{ item.code }}</text>
+            <view class="wo-head-left">
+              <text class="wo-code">{{ item.code }}</text>
+              <text v-if="isApplied(item)" class="applied-badge">已申请领料</text>
+            </view>
             <text class="wo-tag">{{ item.orderCategory }}</text>
           </view>
           <text class="wo-product">{{ item.productName }} · {{ item.productCode || '—' }}</text>
@@ -81,7 +92,7 @@
           <view class="wo-meta">
             <text>数量 {{ item.scheduleQty }}</text>
             <text>{{ item.workCenter }}</text>
-            <text class="status">{{ item.status }}</text>
+            <text class="status" :class="statusClass(item.status)">{{ item.status }}</text>
           </view>
         </view>
       </view>
@@ -134,9 +145,12 @@
               <text v-if="sheetSelectedIds.has(wo.id)">✓</text>
             </view>
             <view class="wo-info">
-              <text class="wo-code">{{ wo.code }}</text>
+              <view class="wo-info-head">
+                <text class="wo-code">{{ wo.code }}</text>
+                <text v-if="isApplied(wo)" class="applied-badge sm">已申请领料</text>
+              </view>
               <text class="wo-product">{{ wo.productName }} · {{ wo.scheduleQty }} 件</text>
-              <text class="wo-center">{{ wo.workCenter }}</text>
+              <text class="wo-center">{{ wo.workCenter }} · {{ wo.status }}</text>
             </view>
           </view>
         </scroll-view>
@@ -154,29 +168,99 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import {
   filterWorkOrders,
+  getAppliedMaterialReqWorkOrderKeys,
+  isWorkOrderMaterialReqApplied,
   listDistinctWorkCenters,
   listSalesOrdersWithPickableWorkOrders,
+  WORK_ORDER_DATE_FILTERS,
+  WORK_ORDER_TYPE_FILTERS,
 } from '@/mock/workOrderBridge'
 
 const activeTab = ref('list')
 const keyword = ref('')
 const workCenter = ref('')
+const dateRange = ref('')
+const orderType = ref('')
 const selectedIds = ref(new Set())
 const activeGroup = ref(null)
 const sheetSelectedIds = ref(new Set())
+const appliedKeys = ref(getAppliedMaterialReqWorkOrderKeys())
+
+const dateFilterOptions = WORK_ORDER_DATE_FILTERS
+const typeFilterOptions = WORK_ORDER_TYPE_FILTERS
 
 const workCenterOptions = computed(() => [
   { value: '', label: '全部车间' },
   ...listDistinctWorkCenters().map((wc) => ({ value: wc, label: wc })),
 ])
 
+const dateRangeLabel = computed(() => {
+  if (!dateRange.value) return '时间'
+  const hit = dateFilterOptions.find((o) => o.value === dateRange.value)
+  return hit?.label || '时间'
+})
+
+const orderTypeLabel = computed(() => {
+  if (!orderType.value) return '类型'
+  const hit = typeFilterOptions.find((o) => o.value === orderType.value)
+  return hit?.label || '类型'
+})
+
+const workCenterLabel = computed(() => {
+  if (!workCenter.value) return '车间'
+  return workCenter.value
+})
+
+const hasActiveFilters = computed(
+  () => Boolean(dateRange.value || orderType.value || workCenter.value),
+)
+
+function pickFromOptions(options, currentValue, onSelect) {
+  const itemList = options.map((o) => o.label)
+  uni.showActionSheet({
+    itemList,
+    success: (res) => {
+      const picked = options[res.tapIndex]
+      if (!picked) return
+      onSelect(picked.value)
+    },
+  })
+}
+
+function openDatePicker() {
+  pickFromOptions(dateFilterOptions, dateRange.value, (v) => {
+    dateRange.value = v
+  })
+}
+
+function openTypePicker() {
+  pickFromOptions(typeFilterOptions, orderType.value, (v) => {
+    orderType.value = v
+  })
+}
+
+function openWorkCenterPicker() {
+  pickFromOptions(workCenterOptions.value, workCenter.value, (v) => {
+    workCenter.value = v
+  })
+}
+
+function resetFilters() {
+  dateRange.value = ''
+  orderType.value = ''
+  workCenter.value = ''
+}
+
 const list = computed(() =>
   filterWorkOrders({
     keyword: keyword.value,
     workCenter: workCenter.value,
+    dateRange: dateRange.value,
+    orderType: orderType.value,
+    includeCompleted: true,
   }),
 )
 
@@ -184,6 +268,8 @@ const salesOrderGroups = computed(() =>
   listSalesOrdersWithPickableWorkOrders({
     keyword: keyword.value,
     workCenter: workCenter.value,
+    dateRange: dateRange.value,
+    orderType: orderType.value,
   }),
 )
 
@@ -210,6 +296,23 @@ const sheetConfirmLabel = computed(() => {
 onLoad((query) => {
   if (query.tab === 'sales') activeTab.value = 'sales'
 })
+
+onShow(() => {
+  appliedKeys.value = getAppliedMaterialReqWorkOrderKeys()
+})
+
+function isApplied(item) {
+  return isWorkOrderMaterialReqApplied(item, appliedKeys.value)
+}
+
+function statusClass(status) {
+  if (status === '执行中' || status === '进行中') return 'running'
+  if (status === '待下发') return 'pending'
+  if (status === '完成' || status === '已完成' || status === '已完工' || status === '已关闭') {
+    return 'done'
+  }
+  return ''
+}
 
 function toggleItem(id) {
   const next = new Set(selectedIds.value)
@@ -334,31 +437,61 @@ $primary: #1677ff;
   box-sizing: border-box;
 }
 
-.work-center-scroll {
-  width: 100%;
-  margin-bottom: 16rpx;
-  white-space: nowrap;
-}
-
-.work-center-chips {
-  display: inline-flex;
+.filter-selectors {
+  display: flex;
+  align-items: center;
   gap: 12rpx;
-  padding: 4rpx 0;
+  margin-top: 12rpx;
 }
 
-.chip {
-  display: inline-block;
-  padding: 12rpx 24rpx;
-  border-radius: 32rpx;
+.filter-cell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
   background: #fff;
-  font-size: 26rpx;
-  color: #595959;
-  flex-shrink: 0;
+  border-radius: 10rpx;
+  padding: 14rpx 10rpx;
+  border: 1rpx solid #f0f0f0;
 }
 
-.chip.active {
-  background: $primary;
-  color: #fff;
+.filter-cell.active {
+  border-color: #91caff;
+  background: #e6f4ff;
+}
+
+.filter-cell-text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 24rpx;
+  color: #595959;
+}
+
+.filter-cell.active .filter-cell-text {
+  color: $primary;
+  font-weight: 500;
+}
+
+.filter-arrow {
+  flex-shrink: 0;
+  font-size: 20rpx;
+  color: #bfbfbf;
+  line-height: 1;
+}
+
+.filter-cell.active .filter-arrow {
+  color: $primary;
+}
+
+.filter-reset {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: $primary;
+  padding: 0 4rpx;
 }
 
 .quick-actions {
@@ -408,7 +541,16 @@ $primary: #1677ff;
 .wo-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.wo-head-left {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 8rpx 12rpx;
+  min-width: 0;
 }
 
 .wo-code {
@@ -417,12 +559,27 @@ $primary: #1677ff;
   color: $primary;
 }
 
+.applied-badge {
+  font-size: 20rpx;
+  color: #d46b08;
+  background: #fff7e6;
+  border: 1rpx solid #ffd591;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  line-height: 1.4;
+}
+
+.applied-badge.sm {
+  font-size: 20rpx;
+}
+
 .wo-tag {
   font-size: 22rpx;
   color: #8c8c8c;
   background: #f5f6f8;
   padding: 4rpx 10rpx;
   border-radius: 6rpx;
+  flex-shrink: 0;
 }
 
 .wo-product {
@@ -443,7 +600,19 @@ $primary: #1677ff;
 }
 
 .status {
+  color: #8c8c8c;
+}
+
+.status.running {
   color: #52c41a;
+}
+
+.status.pending {
+  color: #1677ff;
+}
+
+.status.done {
+  color: #8c8c8c;
 }
 
 .so-card {
@@ -574,6 +743,13 @@ $primary: #1677ff;
   gap: 16rpx;
   padding: 20rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
+}
+
+.wo-info-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8rpx 12rpx;
 }
 
 .wo-info .wo-code {
