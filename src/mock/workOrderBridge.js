@@ -44,12 +44,14 @@ const ORDER_TYPE_CATEGORIES = {
   maintenance: ['维修工单', '返修工单'],
 }
 
-/** 时间筛选：今日 / 昨日 / 近三天 */
+/** 时间筛选：今日 / 昨日 / 近三天 / 近7天 / 近15天 */
 export const WORK_ORDER_DATE_FILTERS = [
   { value: '', label: '全部时间' },
   { value: 'today', label: '今日' },
   { value: 'yesterday', label: '昨日' },
   { value: 'last3', label: '近三天' },
+  { value: 'last7', label: '近7天' },
+  { value: 'last15', label: '近15天' },
 ]
 
 function loadJson(key, field) {
@@ -196,6 +198,8 @@ function matchDateRange(order, dateRange) {
   if (range === 'today') return orderDay === today
   if (range === 'yesterday') return orderDay === today - dayMs
   if (range === 'last3') return orderDay >= today - 2 * dayMs && orderDay <= today
+  if (range === 'last7') return orderDay >= today - 6 * dayMs && orderDay <= today
+  if (range === 'last15') return orderDay >= today - 14 * dayMs && orderDay <= today
   return true
 }
 
