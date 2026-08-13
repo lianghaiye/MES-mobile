@@ -6,7 +6,7 @@ import { mergeProductInboundLinesWithSources } from '@/utils/productInboundHelpe
 
 const STORAGE_KEY = 'i_doms_mobile_product_inbounds'
 const SEED_VERSION_KEY = 'i_doms_mobile_product_inbounds_seed_v'
-const SEED_VERSION = '2'
+const SEED_VERSION = '3'
 
 function ensureSeedRecords() {
   try {
@@ -27,12 +27,18 @@ function ensureSeedRecords() {
             id: 'wo-done-1',
             code: 'WO20260608001',
             productName: '清水离心泵 ISG50-160',
+            productCode: 'CP2610001',
+            specModel: 'ISG50-160',
+            material: '',
+            drawingNo: '',
+            planQty: 10,
             scheduleQty: 10,
           },
         ],
         salesOrderNo: '1-20260602-001',
         productName: '清水离心泵 ISG50-160',
         productCode: 'CP2610001',
+        specModel: 'ISG50-160',
         orderCategory: '生产工单',
         workshop: '总装车间',
         remark: '演示：已申请入库标记',
@@ -47,6 +53,25 @@ function ensureSeedRecords() {
         createdAt: '2026-08-11 09:00',
       })
       saveRecords(existing)
+    } else {
+      // 升级已有演示种子的工单清单字段
+      const row = existing.find((r) => r.id === 'pi-seed-applied-1')
+      if (row) {
+        row.workOrders = [
+          {
+            id: row.workOrderId || 'wo-done-1',
+            code: row.workOrderCode || 'WO20260608001',
+            productName: row.productName || '清水离心泵 ISG50-160',
+            productCode: row.productCode || 'CP2610001',
+            specModel: row.specModel || 'ISG50-160',
+            material: row.material || '',
+            drawingNo: row.drawingNo || '',
+            planQty: 10,
+            scheduleQty: 10,
+          },
+        ]
+        saveRecords(existing)
+      }
     }
     uni.setStorageSync(SEED_VERSION_KEY, SEED_VERSION)
   } catch {
@@ -107,13 +132,55 @@ function resolveLineSourceDocNo(payload, line) {
   return resolveBatchSourceOrderNo(payload)
 }
 
+function listInboundRefs(row) {
+  const fromList = Array.isArray(row.inboundOrders)
+    ? row.inboundOrders
+        .map((o) => ({
+          id: o.id || '',
+          docNo: o.docNo || '',
+          warehouse: o.warehouse || '',
+          status: o.status || '',
+        }))
+        .filter((o) => o.id || o.docNo)
+    : []
+  if (fromList.length) return fromList
+  if (row.inboundId || row.inboundDocNo) {
+    return [
+      {
+        id: row.inboundId || '',
+        docNo: row.inboundDocNo || '',
+        warehouse: '',
+        status: row.inboundStatus || '',
+      },
+    ]
+  }
+  return []
+}
+
 function enrichRecord(row) {
-  const inbound = row.inboundId ? getInboundOrderById(row.inboundId) : null
+  const refs = listInboundRefs(row)
+  const enrichedRefs = refs.map((ref) => {
+    const live = getInboundOrderById(ref.id)
+    return {
+      id: live?.id || ref.id || '',
+      docNo: live?.docNo || ref.docNo || '',
+      warehouse: live?.warehouse || ref.warehouse || '',
+      status: live?.status || ref.status || '',
+    }
+  })
+  const docNos = enrichedRefs.map((r) => r.docNo).filter(Boolean)
+  const statuses = enrichedRefs.map((r) => r.status).filter(Boolean)
   const task = row.miniProgramTaskId ? getInboundTaskById(row.miniProgramTaskId) : null
+  let inboundStatus = row.inboundStatus || task?.inboundStatus || '—'
+  if (statuses.length) {
+    inboundStatus = statuses.every((s) => s === statuses[0]) ? statuses[0] : '多单进行中'
+  }
   return {
     ...row,
-    inboundStatus: inbound?.status || task?.inboundStatus || row.inboundStatus || '—',
-    inboundDocNo: inbound?.docNo || row.inboundDocNo || '',
+    inboundOrders: enrichedRefs,
+    inboundStatus,
+    inboundDocNo: docNos.join('、') || row.inboundDocNo || task?.inboundDocNo || '',
+    inboundId: enrichedRefs[0]?.id || row.inboundId || '',
   }
 }
 
@@ -175,7 +242,7 @@ export function submitProductInbound(payload) {
     workOrderCode: isBatch ? sourceOrderNo : payload.workOrderCode || '',
     productName: payload.productName || lines[0]?.itemName || '',
     remark: remarkBase,
-    warehouse: lines.length === 1 ? lines[0].warehouse : '',
+    warehouse: '',
     lineItems: lines.map((line) => ({
       itemCode: line.itemCode,
       itemName: line.itemName,
@@ -199,6 +266,14 @@ export function submitProductInbound(payload) {
     return inboundResult
   }
 
+  const createdOrders = inboundResult.orders || (inboundResult.order ? [inboundResult.order] : [])
+  const inboundRefs = createdOrders.map((o) => ({
+    id: o.id,
+    docNo: o.docNo,
+    warehouse: o.warehouse || '',
+    status: o.status || '',
+  }))
+
   const record = {
     id: `pi-${Date.now()}`,
     inboundNo,
@@ -220,9 +295,14 @@ export function submitProductInbound(payload) {
     lineCount: lines.length,
     totalQty: lines.reduce((s, l) => s + (Number(l.qty) || 0), 0),
     lines,
-    inboundId: inboundResult.order.id,
-    inboundDocNo: inboundResult.order.docNo,
-    inboundStatus: inboundResult.order.status,
+    inboundOrders: inboundRefs,
+    inboundId: inboundRefs[0]?.id || '',
+    inboundDocNo: inboundRefs.map((r) => r.docNo).filter(Boolean).join('、'),
+    inboundStatus: inboundRefs.length
+      ? inboundRefs.every((r) => r.status === inboundRefs[0].status)
+        ? inboundRefs[0].status
+        : '多单进行中'
+      : '—',
     miniProgramTaskId: inboundResult.taskId,
     applicant: userName,
     createdAt: formatDateTime(),
@@ -230,5 +310,5 @@ export function submitProductInbound(payload) {
 
   existing.unshift(record)
   saveRecords(existing)
-  return { ok: true, record, order: inboundResult.order }
+  return { ok: true, record, order: createdOrders[0] || null, orders: createdOrders }
 }

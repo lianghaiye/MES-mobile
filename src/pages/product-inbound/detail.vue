@@ -9,36 +9,9 @@
         <text class="label">入库方式</text>
         <text class="val">{{ modeLabel(record.mode) }}</text>
       </view>
-      <view v-if="record.mode === 'batch-work-order' && record.workOrders?.length" class="info-row">
-        <text class="label">关联工单</text>
-        <text class="val">{{ record.workOrders.length }} 个</text>
-      </view>
-      <view v-else-if="record.workOrderCode" class="info-row">
-        <text class="label">关联工单</text>
-        <text class="val">{{ record.workOrderCode }}</text>
-      </view>
-      <view v-if="record.salesOrderNo && record.salesOrderNo !== 'MULTI'" class="info-row">
-        <text class="label">销售订单</text>
-        <text class="val">{{ record.salesOrderNo }}</text>
-      </view>
-      <view v-if="record.productName" class="info-row info-product-row">
-        <text class="label">产品</text>
-        <view class="val-block">
-          <text class="val">{{ record.productName }}</text>
-          <view class="product-meta">
-            <text>规格：{{ record.specModel || '—' }}</text>
-            <text>材质：{{ record.material || '—' }}</text>
-            <text>图号：{{ record.drawingNo || '—' }}</text>
-          </view>
-        </view>
-      </view>
       <view class="info-row">
         <text class="label">来源车间</text>
         <text class="val">{{ record.workshop }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">入库单号</text>
-        <text class="val primary">{{ record.inboundDocNo || '—' }}</text>
       </view>
       <view class="info-row">
         <text class="label">申请人</text>
@@ -54,11 +27,24 @@
       </view>
     </view>
 
-    <view v-if="record?.mode === 'batch-work-order' && record.workOrders?.length" class="card">
+    <view v-if="record" class="card">
+      <text class="section-title">入库信息（{{ inboundOrders.length }}）</text>
+      <view v-if="!inboundOrders.length" class="empty-hint">暂无入库单</view>
+      <view v-for="order in inboundOrders" :key="order.id || order.docNo" class="doc-row">
+        <view class="doc-main">
+          <text class="doc-no">{{ order.docNo || '—' }}</text>
+          <text v-if="order.warehouse" class="doc-wh">{{ formatWarehouse(order.warehouse) }}</text>
+        </view>
+        <text class="doc-status">{{ order.status || '—' }}</text>
+      </view>
+    </view>
+
+    <view v-if="workOrderList.length" class="card">
       <text class="section-title">工单清单</text>
-      <view v-for="wo in record.workOrders" :key="wo.id" class="wo-row">
-        <text class="wo-code">{{ wo.code }}</text>
-        <text class="wo-product">{{ wo.productName }} · {{ wo.scheduleQty }} 件</text>
+      <view v-for="wo in workOrderList" :key="wo.id || wo.code" class="wo-row">
+        <text class="wo-title">{{ wo.productName || '—' }} · {{ wo.productCode || '—' }}</text>
+        <text class="wo-attrs">{{ wo.specModel || '—' }}、{{ wo.material || '—' }}、{{ wo.drawingNo || '—' }}</text>
+        <text class="wo-code">{{ wo.code || '—' }}</text>
       </view>
     </view>
 
@@ -91,18 +77,54 @@
     </view>
 
     <view v-if="record" class="tip-card">
-      <text>提交后已在 WEB 端入库管理生成「成品入库」单，状态为待审批，需仓管审批后方可确认入库。</text>
+      <text>多仓入库会按仓库拆成多张入库单；仓管在 WEB 入库管理审批/确认。</text>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getProductInboundById } from '@/store/productInboundStore'
 import { formatFinishedWarehouseLabel } from '@/utils/warehouseBridge'
 
 const record = ref(null)
+
+const inboundOrders = computed(() => {
+  const list = record.value?.inboundOrders
+  if (Array.isArray(list) && list.length) return list.filter((o) => o.docNo || o.id)
+  if (record.value?.inboundDocNo) {
+    return [
+      {
+        id: record.value.inboundId || '',
+        docNo: record.value.inboundDocNo,
+        warehouse: '',
+        status: record.value.inboundStatus || '',
+      },
+    ]
+  }
+  return []
+})
+
+const workOrderList = computed(() => {
+  const row = record.value
+  if (!row) return []
+  if (Array.isArray(row.workOrders) && row.workOrders.length) return row.workOrders
+  if (row.workOrderCode || row.workOrderId) {
+    return [
+      {
+        id: row.workOrderId,
+        code: row.workOrderCode,
+        productName: row.productName,
+        productCode: row.productCode,
+        specModel: row.specModel,
+        material: row.material,
+        drawingNo: row.drawingNo,
+      },
+    ]
+  }
+  return []
+})
 
 function formatWarehouse(value) {
   return formatFinishedWarehouseLabel(value)
@@ -167,11 +189,6 @@ $primary: #1677ff;
   border-bottom: 1rpx solid #f5f5f5;
 }
 
-.info-product-row {
-  align-items: flex-start;
-  gap: 16rpx;
-}
-
 .info-row:last-child {
   border-bottom: none;
 }
@@ -179,22 +196,6 @@ $primary: #1677ff;
 .label {
   color: #8c8c8c;
   flex-shrink: 0;
-}
-
-.val-block {
-  flex: 1;
-  min-width: 0;
-  text-align: right;
-}
-
-.product-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8rpx 20rpx;
-  margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #595959;
 }
 
 .val.primary {
@@ -207,6 +208,53 @@ $primary: #1677ff;
   font-size: 30rpx;
   font-weight: 600;
   margin-bottom: 16rpx;
+}
+
+.empty-hint {
+  font-size: 26rpx;
+  color: #8c8c8c;
+  padding: 8rpx 0;
+}
+
+.doc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.doc-row:last-child {
+  border-bottom: none;
+}
+
+.doc-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.doc-no {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: $primary;
+}
+
+.doc-wh {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
+.doc-status {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: #fa8c16;
+  background: #fff7e6;
+  padding: 6rpx 14rpx;
+  border-radius: 8rpx;
 }
 
 .line-row {
@@ -245,7 +293,7 @@ $primary: #1677ff;
 }
 
 .wo-row {
-  padding: 14rpx 0;
+  padding: 16rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
 }
 
@@ -253,17 +301,25 @@ $primary: #1677ff;
   border-bottom: none;
 }
 
-.wo-code {
+.wo-title {
   display: block;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
+  color: #262626;
 }
 
-.wo-product {
+.wo-attrs {
   display: block;
+  margin-top: 6rpx;
   font-size: 24rpx;
   color: #8c8c8c;
-  margin-top: 4rpx;
+}
+
+.wo-code {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #595959;
 }
 
 .source-list {

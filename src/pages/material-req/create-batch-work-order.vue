@@ -15,8 +15,9 @@
       </view>
       <view v-if="woListExpanded" class="wo-list">
         <view v-for="wo in workOrders" :key="wo.id" class="wo-item">
-          <text class="wo-code">{{ wo.code }}</text>
-          <text class="wo-product">{{ wo.productName }} · {{ wo.scheduleQty }} 件</text>
+          <text class="wo-title">{{ wo.productName || '—' }} · {{ wo.productCode || '—' }}</text>
+          <text class="wo-attrs">{{ wo.specModel || '—' }}、{{ wo.material || '—' }}、{{ wo.drawingNo || '—' }}</text>
+          <text class="wo-code">{{ wo.code || '—' }}</text>
         </view>
       </view>
     </view>
@@ -309,7 +310,7 @@ $primary: #1677ff;
 }
 
 .wo-item {
-  padding: 10rpx 0;
+  padding: 16rpx 0;
   border-bottom: 1rpx solid #f5f5f5;
 }
 
@@ -317,17 +318,25 @@ $primary: #1677ff;
   border-bottom: none;
 }
 
-.wo-code {
+.wo-title {
   display: block;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
+  color: #262626;
 }
 
-.wo-product {
+.wo-attrs {
   display: block;
+  margin-top: 6rpx;
   font-size: 24rpx;
   color: #8c8c8c;
-  margin-top: 4rpx;
+}
+
+.wo-code {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #595959;
 }
 
 .warn-card {

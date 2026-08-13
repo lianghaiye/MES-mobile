@@ -9,29 +9,6 @@
         <text class="label">领料方式</text>
         <text class="val">{{ modeLabel(record.mode) }}</text>
       </view>
-      <view v-if="(record.mode === 'batch-work-order' || record.mode === 'sales-order') && record.workOrders?.length" class="info-row">
-        <text class="label">关联工单</text>
-        <text class="val">{{ record.workOrders.length }} 个</text>
-      </view>
-      <view v-else-if="record.workOrderCode" class="info-row">
-        <text class="label">关联工单</text>
-        <text class="val">{{ record.workOrderCode }}</text>
-      </view>
-      <view v-if="record.salesOrderNo && record.salesOrderNo !== 'MULTI'" class="info-row">
-        <text class="label">销售订单</text>
-        <text class="val">{{ record.salesOrderNo }}</text>
-      </view>
-      <view v-if="record.productName" class="info-row info-product-row">
-        <text class="label">产品</text>
-        <view class="val-block">
-          <text class="val">{{ record.productName }}</text>
-          <view class="product-meta">
-            <text>规格：{{ record.specModel || '—' }}</text>
-            <text>材质：{{ record.material || '—' }}</text>
-            <text>图号：{{ record.drawingNo || '—' }}</text>
-          </view>
-        </view>
-      </view>
       <view class="info-row">
         <text class="label">领用车间</text>
         <text class="val">{{ record.workshop }}</text>
@@ -39,10 +16,6 @@
       <view v-if="record.receiveWarehouse" class="info-row">
         <text class="label">领入仓库</text>
         <text class="val">{{ formatReceiveWarehouse(record.receiveWarehouse) }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">出库单号</text>
-        <text class="val primary">{{ record.outboundDocNo || '—' }}</text>
       </view>
       <view class="info-row">
         <text class="label">申请人</text>
@@ -58,21 +31,24 @@
       </view>
     </view>
 
-    <view v-if="record?.workOrders?.length" class="card">
+    <view v-if="record" class="card">
+      <text class="section-title">出库信息（{{ outboundOrders.length }}）</text>
+      <view v-if="!outboundOrders.length" class="empty-hint">暂无出库单（审核通过后按仓库生成）</view>
+      <view v-for="order in outboundOrders" :key="order.id || order.docNo" class="doc-row">
+        <view class="doc-main">
+          <text class="doc-no">{{ order.docNo || '—' }}</text>
+          <text v-if="order.warehouse" class="doc-wh">{{ order.warehouse }}</text>
+        </view>
+        <text class="doc-status">{{ order.status || '—' }}</text>
+      </view>
+    </view>
+
+    <view v-if="workOrderList.length" class="card">
       <text class="section-title">工单清单</text>
-      <view v-for="wo in record.workOrders" :key="wo.id || wo.code" class="wo-row">
-        <text class="wo-code">{{ wo.code }}</text>
-        <text class="wo-product">{{ wo.productName || '—' }}</text>
-        <view class="wo-meta">
-          <text>编号：{{ wo.productCode || '—' }}</text>
-          <text>规格：{{ wo.specModel || '—' }}</text>
-          <text>材质：{{ wo.material || '—' }}</text>
-          <text>图号：{{ wo.drawingNo || '—' }}</text>
-        </view>
-        <view class="wo-meta">
-          <text>关联BOM：{{ wo.bom || '—' }}</text>
-          <text>计划数量：{{ wo.planQty ?? wo.scheduleQty ?? '—' }}</text>
-        </view>
+      <view v-for="wo in workOrderList" :key="wo.id || wo.code" class="wo-row">
+        <text class="wo-title">{{ wo.productName || '—' }} · {{ wo.productCode || '—' }}</text>
+        <text class="wo-attrs">{{ wo.specModel || '—' }}、{{ wo.material || '—' }}、{{ wo.drawingNo || '—' }}</text>
+        <text class="wo-code">{{ wo.code || '—' }}</text>
       </view>
     </view>
 
@@ -108,19 +84,55 @@
     </view>
 
     <view v-if="record" class="tip-card">
-      <text>提交后已在 WEB 端出库管理生成「领料出库」单，状态为待处理，需仓管审批后出库。</text>
+      <text>多仓领料会按仓库拆成多张出库单；仓管在 WEB 出库管理确认出库。</text>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getMaterialRequisitionById } from '@/store/materialRequisitionStore'
 import { formatReceiveWarehouseLabel } from '@/utils/warehouseBridge'
 import { resolveLineBlankSizeText } from '@/utils/blankSizeDisplay'
 
 const record = ref(null)
+
+const outboundOrders = computed(() => {
+  const list = record.value?.outboundOrders
+  if (Array.isArray(list) && list.length) return list.filter((o) => o.docNo || o.id)
+  if (record.value?.outboundDocNo) {
+    return [
+      {
+        id: record.value.outboundId || '',
+        docNo: record.value.outboundDocNo,
+        warehouse: '',
+        status: record.value.outboundStatus || '',
+      },
+    ]
+  }
+  return []
+})
+
+const workOrderList = computed(() => {
+  const row = record.value
+  if (!row) return []
+  if (Array.isArray(row.workOrders) && row.workOrders.length) return row.workOrders
+  if (row.workOrderCode || row.workOrderId) {
+    return [
+      {
+        id: row.workOrderId,
+        code: row.workOrderCode,
+        productName: row.productName,
+        productCode: row.productCode,
+        specModel: row.specModel,
+        material: row.material,
+        drawingNo: row.drawingNo,
+      },
+    ]
+  }
+  return []
+})
 
 function formatReceiveWarehouse(value) {
   return formatReceiveWarehouseLabel(value)
@@ -190,11 +202,6 @@ $primary: #1677ff;
   border-bottom: 1rpx solid #f5f5f5;
 }
 
-.info-product-row {
-  align-items: flex-start;
-  gap: 16rpx;
-}
-
 .info-row:last-child {
   border-bottom: none;
 }
@@ -202,22 +209,6 @@ $primary: #1677ff;
 .label {
   color: #8c8c8c;
   flex-shrink: 0;
-}
-
-.val-block {
-  flex: 1;
-  min-width: 0;
-  text-align: right;
-}
-
-.product-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8rpx 20rpx;
-  margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #595959;
 }
 
 .val.primary {
@@ -230,6 +221,53 @@ $primary: #1677ff;
   font-size: 30rpx;
   font-weight: 600;
   margin-bottom: 16rpx;
+}
+
+.empty-hint {
+  font-size: 26rpx;
+  color: #8c8c8c;
+  padding: 8rpx 0;
+}
+
+.doc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.doc-row:last-child {
+  border-bottom: none;
+}
+
+.doc-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.doc-no {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: $primary;
+}
+
+.doc-wh {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
+.doc-status {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: #fa8c16;
+  background: #fff7e6;
+  padding: 6rpx 14rpx;
+  border-radius: 8rpx;
 }
 
 .line-row {
@@ -274,7 +312,7 @@ $primary: #1677ff;
 }
 
 .wo-row {
-  padding: 14rpx 0;
+  padding: 16rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
 }
 
@@ -282,26 +320,25 @@ $primary: #1677ff;
   border-bottom: none;
 }
 
+.wo-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #262626;
+}
+
+.wo-attrs {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
 .wo-code {
   display: block;
-  font-size: 26rpx;
-  font-weight: 600;
-}
-
-.wo-product {
-  display: block;
+  margin-top: 6rpx;
   font-size: 24rpx;
   color: #595959;
-  margin-top: 4rpx;
-}
-
-.wo-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8rpx 20rpx;
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #8c8c8c;
 }
 
 .source-list {

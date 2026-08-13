@@ -116,12 +116,54 @@ export function getMaterialRequisitionById(id) {
   return row ? enrichRequisition(row) : null
 }
 
+function listOutboundRefs(row) {
+  const fromList = Array.isArray(row.outboundOrders)
+    ? row.outboundOrders
+        .map((o) => ({
+          id: o.id || '',
+          docNo: o.docNo || '',
+          warehouse: o.warehouse || '',
+          status: o.status || '',
+        }))
+        .filter((o) => o.id || o.docNo)
+    : []
+  if (fromList.length) return fromList
+  if (row.outboundId || row.outboundDocNo) {
+    return [
+      {
+        id: row.outboundId || '',
+        docNo: row.outboundDocNo || '',
+        warehouse: '',
+        status: row.outboundStatus || '',
+      },
+    ]
+  }
+  return []
+}
+
 function enrichRequisition(row) {
-  const outbound = row.outboundId ? getOutboundOrderById(row.outboundId) : null
+  const refs = listOutboundRefs(row)
+  const enrichedRefs = refs.map((ref) => {
+    const live = getOutboundOrderById(ref.id)
+    return {
+      id: live?.id || ref.id || '',
+      docNo: live?.docNo || ref.docNo || '',
+      warehouse: live?.warehouse || ref.warehouse || '',
+      status: live?.status || ref.status || '',
+    }
+  })
+  const docNos = enrichedRefs.map((r) => r.docNo).filter(Boolean)
+  const statuses = enrichedRefs.map((r) => r.status).filter(Boolean)
+  let outboundStatus = row.outboundStatus || '—'
+  if (statuses.length) {
+    outboundStatus = statuses.every((s) => s === statuses[0]) ? statuses[0] : '多单进行中'
+  }
   return {
     ...row,
-    outboundStatus: outbound?.status || row.outboundStatus || '—',
-    outboundDocNo: outbound?.docNo || row.outboundDocNo || '',
+    outboundOrders: enrichedRefs,
+    outboundStatus,
+    outboundDocNo: docNos.join('、') || row.outboundDocNo || '',
+    outboundId: enrichedRefs[0]?.id || row.outboundId || '',
   }
 }
 
@@ -147,6 +189,7 @@ export function submitMaterialRequisition(payload) {
   const userName = currentUserName()
   const workshop = payload.workshop || payload.requisitionDept || '默认工厂'
   const outboundId = `ob-${Date.now()}`
+  const reqId = `mr-${Date.now()}`
 
   const sourceOrderNo = isMulti
     ? resolveBatchSourceOrderNo(payload)
@@ -159,10 +202,12 @@ export function submitMaterialRequisition(payload) {
   const autoApprove = isMaterialRequisitionAutoApprove()
   const auditStatus = autoApprove ? '审核通过' : '待审核'
 
-  let outboundResult = { ok: true, order: null }
+  let outboundResult = { ok: true, order: null, orders: [] }
   if (autoApprove) {
     outboundResult = appendOutboundFromRequisition({
       id: outboundId,
+      materialReqId: reqId,
+      materialReqNo: reqNo,
       handler: userName,
       creator: userName,
       warehouseKeeper: userName,
@@ -194,8 +239,16 @@ export function submitMaterialRequisition(payload) {
     if (!outboundResult.ok) return outboundResult
   }
 
+  const createdOrders = outboundResult.orders || (outboundResult.order ? [outboundResult.order] : [])
+  const outboundRefs = createdOrders.map((o) => ({
+    id: o.id,
+    docNo: o.docNo,
+    warehouse: o.warehouse || '',
+    status: o.status || '',
+  }))
+
   const record = {
-    id: `mr-${Date.now()}`,
+    id: reqId,
     reqNo,
     mode: payload.mode,
     workOrderId: payload.workOrderId || '',
@@ -216,9 +269,14 @@ export function submitMaterialRequisition(payload) {
     lineCount: lines.length,
     totalQty: lines.reduce((s, l) => s + (Number(l.shipQty) || 0), 0),
     lines,
-    outboundId: outboundResult.order?.id || '',
-    outboundDocNo: outboundResult.order?.docNo || '',
-    outboundStatus: outboundResult.order?.status || '—',
+    outboundOrders: outboundRefs,
+    outboundId: outboundRefs[0]?.id || '',
+    outboundDocNo: outboundRefs.map((r) => r.docNo).filter(Boolean).join('、'),
+    outboundStatus: outboundRefs.length
+      ? outboundRefs.every((r) => r.status === outboundRefs[0].status)
+        ? outboundRefs[0].status
+        : '多单进行中'
+      : '—',
     auditStatus,
     rejectReason: '',
     applicant: userName,
@@ -237,7 +295,7 @@ export function submitMaterialRequisition(payload) {
 
   existing.unshift(record)
   saveReqs(existing)
-  return { ok: true, record, order: outboundResult.order }
+  return { ok: true, record, order: createdOrders[0] || null, orders: createdOrders }
 }
 
 function isMaterialRequisitionAutoApprove() {

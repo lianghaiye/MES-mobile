@@ -79,48 +79,70 @@ function createOutboundOrder(partial = {}) {
 }
 
 /**
- * 将小程序领料申请写入 WEB 出库单存储
- * @returns {{ ok: boolean, order?: object, message?: string }}
+ * 将小程序领料申请写入 WEB 出库单存储（按领料仓库拆分，一仓一张）
+ * @returns {{ ok: boolean, order?: object, orders?: object[], message?: string }}
  */
 export function appendOutboundFromRequisition(payload) {
-  const orders = loadOutboundOrders()
-  const docNo = payload.docNo || generateOutboundDocNo(orders)
-  if (orders.some((o) => o.docNo === docNo)) {
-    return { ok: false, message: '出库单号已存在' }
-  }
   if (!payload.lineItems?.length) {
     return { ok: false, message: '请至少添加一条明细' }
   }
 
-  const lineItems = payload.lineItems.map((line) =>
+  const mappedLines = payload.lineItems.map((line) =>
     createOutboundLine({
       ...line,
       shipQty: Number(line.shipQty) || 0,
-      shipWarehouse: line.shipWarehouse || payload.warehouse || '',
+      shipWarehouse:
+        String(line.shipWarehouse || payload.warehouse || '').trim() || '未指定仓库',
     }),
   )
 
-  const order = createOutboundOrder({
-    id: payload.id || `ob-${Date.now()}`,
-    docNo,
-    outboundType: '领料出库',
-    status: resolveMiniOutboundStatus(),
-    warehouse: payload.warehouse || lineItems.find((l) => l.shipWarehouse)?.shipWarehouse || '',
-    handler: payload.handler || payload.creator || '',
-    creator: payload.creator || payload.handler || '',
-    warehouseKeeper: payload.warehouseKeeper || payload.handler || '',
-    requisitionDept: payload.requisitionDept || payload.workshop || '',
-    workshop: payload.workshop || payload.requisitionDept || '默认工厂',
-    receiveWarehouse: payload.receiveWarehouse || '',
-    sourceOrderNo: payload.sourceOrderNo || '',
-    remark: payload.remark || '小程序领料申请',
-    sourceChannel: 'mini-program',
-    lineItems,
+  const groups = new Map()
+  mappedLines.forEach((line) => {
+    const wh = line.shipWarehouse
+    if (!groups.has(wh)) groups.set(wh, [])
+    groups.get(wh).push(line)
   })
 
-  orders.unshift(order)
+  const orders = loadOutboundOrders()
+  const created = []
+  let index = 0
+  const remarkBase = payload.remark || '小程序领料申请'
+  const status = resolveMiniOutboundStatus()
+
+  for (const [warehouse, lineItems] of groups) {
+    index += 1
+    const docNo = generateOutboundDocNo(orders.concat(created))
+    if (orders.concat(created).some((o) => o.docNo === docNo)) {
+      return { ok: false, message: '出库单号已存在' }
+    }
+    const remark = groups.size > 1 ? `${remarkBase}（仓库：${warehouse}）` : remarkBase
+    const order = createOutboundOrder({
+      id: payload.id
+        ? `${payload.id}-${index}`
+        : `ob-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 5)}`,
+      docNo,
+      outboundType: '领料出库',
+      status,
+      warehouse,
+      handler: payload.handler || payload.creator || '',
+      creator: payload.creator || payload.handler || '',
+      warehouseKeeper: payload.warehouseKeeper || payload.handler || '',
+      requisitionDept: payload.requisitionDept || payload.workshop || '',
+      workshop: payload.workshop || payload.requisitionDept || '默认工厂',
+      receiveWarehouse: payload.receiveWarehouse || '',
+      sourceOrderNo: payload.sourceOrderNo || '',
+      materialReqId: payload.materialReqId || '',
+      materialReqNo: payload.materialReqNo || '',
+      remark,
+      sourceChannel: 'mini-program',
+      lineItems,
+    })
+    created.push(order)
+  }
+
+  orders.unshift(...created)
   saveOutboundOrders(orders)
-  return { ok: true, order }
+  return { ok: true, order: created[0] || null, orders: created }
 }
 
 function resolveMiniOutboundStatus() {

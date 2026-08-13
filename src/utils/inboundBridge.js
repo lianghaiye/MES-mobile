@@ -80,75 +80,89 @@ function createInboundOrder(partial = {}) {
 }
 
 /**
- * 将小程序成品入库写入 WEB 入库单存储
- * @returns {{ ok: boolean, order?: object, taskId?: string, message?: string }}
+ * 将小程序成品入库写入 WEB 入库单存储（按入库仓库拆分，一仓一张）
+ * @returns {{ ok: boolean, order?: object, orders?: object[], taskId?: string, message?: string }}
  */
 export function appendInboundFromMiniProgram(payload) {
-  const orders = loadInboundOrders()
-  const docNo = payload.docNo || generateInboundDocNo(orders)
-  if (orders.some((o) => o.docNo === docNo)) {
-    return { ok: false, message: '入库单号已存在' }
-  }
   if (!payload.lineItems?.length) {
     return { ok: false, message: '请至少添加一条入库明细' }
   }
 
-  const lineItems = payload.lineItems.map((line) =>
+  const mappedLines = payload.lineItems.map((line) =>
     createInboundLine({
       ...line,
       qty: Number(line.qty) || 0,
-      warehouse: line.warehouse || payload.warehouse || '',
+      warehouse: String(line.warehouse || payload.warehouse || '').trim(),
       lineSource: payload.workOrderCode ? '工单入库' : '快速入库',
       sourceDocNo: payload.workOrderCode || '',
     }),
   )
 
-  const invalid = lineItems.find((line) => !line.warehouse || !line.qty || line.qty <= 0)
+  const invalid = mappedLines.find((line) => !line.warehouse || !line.qty || line.qty <= 0)
   if (invalid) {
     return { ok: false, message: '请完善入库仓库和入库数量' }
   }
 
-  const headerWarehouse =
-    payload.warehouse || lineItems.find((line) => line.warehouse)?.warehouse || ''
-  const taskId = payload.miniProgramTaskId || createInboundTaskId()
-  const inboundId = payload.inboundId || `ib-${Date.now()}`
-
-  const order = createInboundOrder({
-    id: inboundId,
-    docNo,
-    inboundType: '成品入库',
-    status: '待审批',
-    warehouse: headerWarehouse || undefined,
-    warehouseKeeper: payload.warehouseKeeper || payload.handler || '',
-    itemType: '产品',
-    sourceOrderNo: payload.workOrderCode || '',
-    sourceType: payload.workOrderCode ? '生产工单' : '小程序',
-    sourceWorkshop: payload.workshop || '',
-    handler: payload.handler || payload.creator || '',
-    creator: payload.creator || payload.handler || '',
-    remark: payload.remark || '小程序成品入库',
-    miniProgramTaskId: taskId,
-    sourceChannel: 'mini-program',
-    lineItems,
+  const groups = new Map()
+  mappedLines.forEach((line) => {
+    const wh = line.warehouse
+    if (!groups.has(wh)) groups.set(wh, [])
+    groups.get(wh).push(line)
   })
 
-  orders.unshift(order)
+  const orders = loadInboundOrders()
+  const created = []
+  let index = 0
+  const taskId = payload.miniProgramTaskId || createInboundTaskId()
+  const remarkBase = payload.remark || '小程序成品入库'
+  const baseId = payload.inboundId || `ib-${Date.now()}`
+
+  for (const [warehouse, lineItems] of groups) {
+    index += 1
+    const docNo = generateInboundDocNo(orders.concat(created))
+    if (orders.concat(created).some((o) => o.docNo === docNo)) {
+      return { ok: false, message: '入库单号已存在' }
+    }
+    const remark = groups.size > 1 ? `${remarkBase}（仓库：${warehouse}）` : remarkBase
+    const order = createInboundOrder({
+      id: groups.size > 1 ? `${baseId}-${index}` : baseId,
+      docNo,
+      inboundType: '成品入库',
+      status: '待审批',
+      warehouse,
+      warehouseKeeper: payload.warehouseKeeper || payload.handler || '',
+      itemType: '产品',
+      sourceOrderNo: payload.workOrderCode || '',
+      sourceType: payload.workOrderCode ? '生产工单' : '小程序',
+      sourceWorkshop: payload.workshop || '',
+      handler: payload.handler || payload.creator || '',
+      creator: payload.creator || payload.handler || '',
+      remark,
+      miniProgramTaskId: taskId,
+      sourceChannel: 'mini-program',
+      lineItems,
+    })
+    created.push(order)
+  }
+
+  orders.unshift(...created)
   saveInboundOrders(orders)
 
   upsertInboundTask({
     id: taskId,
     status: '已提交',
-    inboundId: order.id,
-    inboundDocNo: order.docNo,
-    inboundStatus: order.status,
+    inboundId: created[0]?.id || '',
+    inboundDocNo: created.map((o) => o.docNo).filter(Boolean).join('、'),
+    inboundOrderIds: created.map((o) => o.id),
+    inboundStatus: created[0]?.status || '待审批',
     workOrderCode: payload.workOrderCode || '',
-    productName: payload.productName || lineItems[0]?.itemName || '',
+    productName: payload.productName || created[0]?.lineItems?.[0]?.itemName || '',
     mode: payload.mode || '',
     workshop: payload.workshop || '',
-    createdAt: order.createdAt,
+    createdAt: created[0]?.createdAt || formatDateTime(),
   })
 
-  return { ok: true, order, taskId }
+  return { ok: true, order: created[0] || null, orders: created, taskId }
 }
 
 export function getInboundOrderById(id) {
