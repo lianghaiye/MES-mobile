@@ -10,20 +10,23 @@ const WORK_ORDER_SOURCES = [
   { key: 'qc', storageKey: 'i_doms_qc_work_orders', field: 'orders', category: '质检工单' },
 ]
 
-const PICKABLE_STATUSES = new Set(['待下发', '执行中', '待报工', '已报工', '进行中'])
-const COMPLETED_STATUSES = new Set(['已完成', '完成', '已完工', '已关闭'])
+const PICKABLE_STATUSES = new Set(['待下发', '已下发', '执行中', '待报工', '已报工', '进行中'])
+const COMPLETED_STATUSES = new Set(['已完成', '完成', '已完工', '已关闭', '终止'])
 
-/** 工单领料列表状态排序：执行中 > 待下发 > 完成 */
+/** 工单领料列表状态排序：执行中 > 已下发 > 待下发 > 完成 */
 const STATUS_SORT_RANK = {
   执行中: 1,
   进行中: 1,
   待报工: 1,
   已报工: 1,
-  待下发: 2,
-  完成: 3,
-  已完成: 3,
-  已完工: 3,
-  已关闭: 3,
+  已下发: 2,
+  待下发: 3,
+  完成: 4,
+  已完成: 4,
+  已完工: 4,
+  已关闭: 4,
+  暂停: 5,
+  终止: 6,
 }
 
 /** 工单类型筛选：生产 / 总装 / 部装 / 外协 / 维修 */

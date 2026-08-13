@@ -17,7 +17,7 @@ import { getProcessReportMode } from '@/utils/iodomsStorage'
 import { resolveLaborConfig } from '@/utils/laborWageCalc'
 import { isDurationReportMode } from '@/utils/reportMode'
 import { isParallelTaskDispatch } from '@/utils/businessRuleBridge'
-import { updateWorkOrderStatus } from '@/utils/workOrderStatusBridge'
+import { updateWorkOrderStatus, markWorkOrderClaimedOnClaim } from '@/utils/workOrderStatusBridge'
 import {
   resolveWorkerDisplayName,
   getGroupLeaderName,
@@ -179,10 +179,14 @@ function enrichTask(task, user, options = {}) {
   const remainingQty = getTaskRemainingQty(task)
   const isGroupTask = isGroupReportTask(task)
   const isPersonalTask = isPersonalLeaderTask(task, leaderName)
+  const displayTaskStatus =
+    task.controlStatus === '暂停' && task.taskStatus !== '已完成' ? '暂停' : task.taskStatus
 
   let status = 'pending'
   if (task.taskStatus === '已完成' || remainingQty <= 0) {
     status = 'reported'
+  } else if (task.controlStatus === '暂停') {
+    status = 'locked'
   } else if (task.serialLocked) {
     status = 'locked'
   } else if (!REPORTABLE_TASK_STATUS.includes(task.taskStatus) && remainingQty > 0) {
@@ -191,6 +195,7 @@ function enrichTask(task, user, options = {}) {
 
   return {
     ...task,
+    taskStatus: displayTaskStatus,
     workOrderNo: task.workOrderCode,
     productCode: task.itemCode || task.productCode || '',
     targetQty,
@@ -254,6 +259,13 @@ function isTaskInTodayScope(task, today) {
   return false
 }
 
+function isTaskHiddenFromMobile(task) {
+  if (!task) return true
+  if (task.hiddenByTerminate) return true
+  if (task.controlStatus === '终止' && task.taskStatus === '终止') return true
+  return false
+}
+
 export function getClaimableReportTasks(user) {
   mergePcSyncedTasks()
   const executorNames = resolveExecutorNames(user)
@@ -261,6 +273,8 @@ export function getClaimableReportTasks(user) {
 
   return getAllTasks()
     .filter((t) => REPORTABLE_CATEGORIES.includes(t.orderCategory))
+    .filter((t) => !isTaskHiddenFromMobile(t))
+    .filter((t) => t.controlStatus !== '暂停')
     .filter((t) => isTaskClaimableForUser(t, executorNames))
     .filter((t) => isTaskInTodayScope(t, today) || isUnclaimedPoolTask(t))
     .map(enrichClaimTask)
@@ -277,7 +291,11 @@ export function getClaimableReportTaskById(taskId, user) {
 
 export function claimReportTask(taskId, user) {
   const userName = resolveWorkerDisplayName(user)
-  return claimTask(taskId, userName)
+  const result = claimTask(taskId, userName)
+  if (result?.ok && result.task?.workOrderId) {
+    markWorkOrderClaimedOnClaim(result.task.workOrderId, result.task.orderCategory || '生产工单')
+  }
+  return result
 }
 
 export function getTodayReportTasks(user, options = {}) {
@@ -289,6 +307,7 @@ export function getTodayReportTasks(user, options = {}) {
 
   return getAllTasks()
     .filter((t) => REPORTABLE_CATEGORIES.includes(t.orderCategory))
+    .filter((t) => !isTaskHiddenFromMobile(t))
     .filter((t) => isTaskVisibleToUser(t, executorNames))
     .filter((t) => {
       if (isMultiGroupTask(t) && t.placement === 'claim') {
@@ -304,7 +323,7 @@ export function getTodayReportTasks(user, options = {}) {
       return isTaskForUser(t, [reportForMember])
     })
     .map((t) => enrichTask(t, user, { reportForMember }))
-    .filter((t) => t.status !== 'locked')
+    .filter((t) => t.status !== 'locked' || t.taskStatus === '暂停')
     .sort((a, b) => {
       const order = { pending: 0, reported: 1, locked: 2 }
       const diff = (order[a.status] ?? 9) - (order[b.status] ?? 9)
@@ -334,24 +353,26 @@ function isParallelDispatchForWorkOrder(workOrderId) {
   return isParallelTaskDispatch()
 }
 
-/** 极简报工：全部工序任务报工完成后，工单自动变更为「完成」 */
+/** 极简报工：全部工序任务报工完成后，工单自动变更为「已完成」 */
 export function tryAutoCompleteWorkOrder(workOrderId) {
   if (!workOrderId) return false
   if (!isParallelDispatchForWorkOrder(workOrderId)) return false
 
-  const tasks = getAllTasks().filter((t) => t.workOrderId === workOrderId)
+  const tasks = getAllTasks().filter((t) => t.workOrderId === workOrderId && !t.hiddenByTerminate)
   if (!tasks.length) return false
 
   const category = tasks[0].orderCategory || '生产工单'
   if (!AUTO_COMPLETE_CATEGORIES.includes(category)) return false
   if (!tasks.every((t) => t.taskStatus === '已完成')) return false
 
-  return updateWorkOrderStatus(workOrderId, '完成', category)
+  return updateWorkOrderStatus(workOrderId, '已完成', category)
 }
 
 export function markTaskReported(taskId, payload = {}) {
   const task = getTaskById(taskId)
   if (!task) return null
+  if (task.controlStatus === '暂停') return null
+  if (task.hiddenByTerminate) return null
 
   if (isCollaborativeTask(task) && isDurationReportMode(task.reportMode || getProcessReportMode(task.processName))) {
     const finishedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')
