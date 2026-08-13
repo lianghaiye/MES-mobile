@@ -21,9 +21,16 @@
         <text class="label">销售订单</text>
         <text class="val">{{ record.salesOrderNo }}</text>
       </view>
-      <view v-if="record.productName" class="info-row">
+      <view v-if="record.productName" class="info-row info-product-row">
         <text class="label">产品</text>
-        <text class="val">{{ record.productName }}</text>
+        <view class="val-block">
+          <text class="val">{{ record.productName }}</text>
+          <view class="product-meta">
+            <text>规格：{{ record.specModel || '—' }}</text>
+            <text>材质：{{ record.material || '—' }}</text>
+            <text>图号：{{ record.drawingNo || '—' }}</text>
+          </view>
+        </view>
       </view>
       <view class="info-row">
         <text class="label">领用车间</text>
@@ -51,11 +58,21 @@
       </view>
     </view>
 
-    <view v-if="(record?.mode === 'batch-work-order' || record?.mode === 'sales-order') && record.workOrders?.length" class="card">
+    <view v-if="record?.workOrders?.length" class="card">
       <text class="section-title">工单清单</text>
-      <view v-for="wo in record.workOrders" :key="wo.id" class="wo-row">
+      <view v-for="wo in record.workOrders" :key="wo.id || wo.code" class="wo-row">
         <text class="wo-code">{{ wo.code }}</text>
-        <text class="wo-product">{{ wo.productName }} · {{ wo.scheduleQty }} 件</text>
+        <text class="wo-product">{{ wo.productName || '—' }}</text>
+        <view class="wo-meta">
+          <text>编号：{{ wo.productCode || '—' }}</text>
+          <text>规格：{{ wo.specModel || '—' }}</text>
+          <text>材质：{{ wo.material || '—' }}</text>
+          <text>图号：{{ wo.drawingNo || '—' }}</text>
+        </view>
+        <view class="wo-meta">
+          <text>关联BOM：{{ wo.bom || '—' }}</text>
+          <text>计划数量：{{ wo.planQty ?? wo.scheduleQty ?? '—' }}</text>
+        </view>
       </view>
     </view>
 
@@ -173,12 +190,34 @@ $primary: #1677ff;
   border-bottom: 1rpx solid #f5f5f5;
 }
 
+.info-product-row {
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
 .info-row:last-child {
   border-bottom: none;
 }
 
 .label {
   color: #8c8c8c;
+  flex-shrink: 0;
+}
+
+.val-block {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8rpx 20rpx;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #595959;
 }
 
 .val.primary {
@@ -252,8 +291,17 @@ $primary: #1677ff;
 .wo-product {
   display: block;
   font-size: 24rpx;
-  color: #8c8c8c;
+  color: #595959;
   margin-top: 4rpx;
+}
+
+.wo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 20rpx;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #8c8c8c;
 }
 
 .source-list {

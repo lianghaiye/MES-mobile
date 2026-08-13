@@ -21,9 +21,16 @@
         <text class="label">销售订单</text>
         <text class="val">{{ record.salesOrderNo }}</text>
       </view>
-      <view v-if="record.productName" class="info-row">
+      <view v-if="record.productName" class="info-row info-product-row">
         <text class="label">产品</text>
-        <text class="val">{{ record.productName }}</text>
+        <view class="val-block">
+          <text class="val">{{ record.productName }}</text>
+          <view class="product-meta">
+            <text>规格：{{ record.specModel || '—' }}</text>
+            <text>材质：{{ record.material || '—' }}</text>
+            <text>图号：{{ record.drawingNo || '—' }}</text>
+          </view>
+        </view>
       </view>
       <view class="info-row">
         <text class="label">来源车间</text>
@@ -160,12 +167,34 @@ $primary: #1677ff;
   border-bottom: 1rpx solid #f5f5f5;
 }
 
+.info-product-row {
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
 .info-row:last-child {
   border-bottom: none;
 }
 
 .label {
   color: #8c8c8c;
+  flex-shrink: 0;
+}
+
+.val-block {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8rpx 20rpx;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #595959;
 }
 
 .val.primary {

@@ -82,6 +82,7 @@
           </view>
           <text class="wo-product">{{ item.productName }} · {{ item.productCode || '—' }}</text>
           <view class="wo-detail">
+            <text>规格：{{ item.specModel || '—' }}</text>
             <text>材质：{{ item.material || '—' }}</text>
             <text>图号：{{ item.drawingNo || '—' }}</text>
           </view>

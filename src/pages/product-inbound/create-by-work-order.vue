@@ -5,9 +5,16 @@
         <text class="label">工单号</text>
         <text class="val primary">{{ workOrder.code }}</text>
       </view>
-      <view class="wo-row">
+      <view class="wo-row wo-product-row">
         <text class="label">产品</text>
-        <text class="val">{{ workOrder.productName }}</text>
+        <view class="val-block">
+          <text class="val">{{ workOrder.productName }}</text>
+          <view class="product-meta">
+            <text>规格：{{ workOrder.specModel || '—' }}</text>
+            <text>材质：{{ workOrder.material || '—' }}</text>
+            <text>图号：{{ workOrder.drawingNo || '—' }}</text>
+          </view>
+        </view>
       </view>
       <view class="wo-row">
         <text class="label">计划数量</text>
@@ -91,6 +98,9 @@ function onSubmit() {
     workOrderName: wo.name,
     productName: wo.productName,
     productCode: wo.productCode,
+    specModel: wo.specModel || '',
+    material: wo.material || '',
+    drawingNo: wo.drawingNo || '',
     orderCategory: wo.orderCategory,
     workshop: form.workshop,
     remark: form.remark,
@@ -135,8 +145,30 @@ $primary: #1677ff;
   font-size: 28rpx;
 }
 
+.wo-product-row {
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
 .label {
   color: #8c8c8c;
+  flex-shrink: 0;
+}
+
+.val-block {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8rpx 20rpx;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #595959;
 }
 
 .val.primary {

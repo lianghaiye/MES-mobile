@@ -37,6 +37,7 @@ export function buildMockCompletedWorkOrders() {
       name: '泵体组件完工',
       productName: '泵体组件',
       productCode: 'CP2610001-BT',
+      specModel: 'Q200',
       material: 'HT200',
       drawingNo: 'BT-DWG-001',
       salesOrderNo: '1-20260602-001',
