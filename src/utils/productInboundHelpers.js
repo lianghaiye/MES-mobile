@@ -1,20 +1,38 @@
 import { createInboundLineId } from '@/utils/productInboundNo'
 import { resolveDefaultFinishedWarehouse } from '@/utils/warehouseBridge'
+import { resolveInboundTypeByProduct, resolveProductInboundKind } from '@/utils/resolveInboundType'
 
 /** 从已完成工单解析成品入库行（单产品） */
 export function resolveWorkOrderProductLine(workOrder) {
   if (!workOrder) return null
-  const warehouse = resolveDefaultFinishedWarehouse(workOrder.workCenter)
+  const warehouse =
+    workOrder.warehouse || resolveDefaultFinishedWarehouse(workOrder.workCenter)
+  const materialType = workOrder.raw?.materialType || workOrder.materialType || ''
+  const productKind = resolveProductInboundKind({
+    itemCode: workOrder.productCode || workOrder.raw?.materialCode || '',
+    itemName: workOrder.productName || workOrder.name || '',
+    materialType,
+    warehouse,
+    raw: workOrder.raw,
+  })
   return {
     id: createInboundLineId(),
     itemCode: workOrder.productCode || workOrder.raw?.materialCode || '',
     itemName: workOrder.productName || workOrder.name || '',
-    specModel: workOrder.raw?.specModel || workOrder.spec || '',
+    specModel: workOrder.raw?.specModel || workOrder.specModel || workOrder.spec || '',
     specAttr: workOrder.raw?.specAttr || '',
     material: workOrder.material || workOrder.raw?.material || '',
     drawingNo: workOrder.drawingNo || workOrder.raw?.drawingNo || '',
     unit: workOrder.raw?.inventoryUnit || '件',
-    itemType: '产品',
+    itemType: productKind === '半成品' ? '物料' : '产品',
+    materialType: materialType || (productKind === '半成品' ? '半成品' : ''),
+    inboundType: resolveInboundTypeByProduct({
+      itemCode: workOrder.productCode || workOrder.raw?.materialCode || '',
+      itemName: workOrder.productName || workOrder.name || '',
+      materialType,
+      warehouse,
+      raw: workOrder.raw,
+    }),
     qty: workOrder.scheduleQty || 1,
     warehouse,
     suggestedQty: workOrder.scheduleQty || 0,
@@ -23,6 +41,8 @@ export function resolveWorkOrderProductLine(workOrder) {
 
 /** 从主数据产品创建快速入库行 */
 export function createProductInboundLine(product, qty = 1) {
+  const materialType = product.materialType || ''
+  const warehouse = product.warehouse || resolveDefaultFinishedWarehouse()
   return {
     id: createInboundLineId(),
     itemCode: product.code,
@@ -32,9 +52,16 @@ export function createProductInboundLine(product, qty = 1) {
     material: product.material || '',
     drawingNo: product.drawingNo || '',
     unit: product.unit || '件',
-    itemType: '产品',
+    itemType: product.itemType === '物料' ? '物料' : '产品',
+    materialType,
+    inboundType: resolveInboundTypeByProduct({
+      itemCode: product.code,
+      itemName: product.name,
+      materialType,
+      warehouse,
+    }),
     qty,
-    warehouse: resolveDefaultFinishedWarehouse(),
+    warehouse,
     suggestedQty: 0,
     itemId: product.id || '',
   }

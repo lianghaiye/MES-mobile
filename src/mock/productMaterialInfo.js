@@ -24,6 +24,8 @@ function mapProduct(p) {
     spec: p.specModel || '',
     material: p.material || '',
     drawingNo: p.drawingNo || '',
+    materialType: p.materialType || '',
+    warehouse: p.production?.defaultWarehouse || p.defaultWarehouse || '',
   }
 }
 
@@ -36,6 +38,8 @@ function mapMaterial(m) {
     spec: m.specModel || '',
     material: m.material || '',
     drawingNo: m.drawingNo || '',
+    materialType: m.materialType || '',
+    warehouse: m.production?.defaultWarehouse || m.defaultWarehouse || '',
   }
 }
 

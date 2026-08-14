@@ -166,6 +166,7 @@ function enrichRecord(row) {
       docNo: live?.docNo || ref.docNo || '',
       warehouse: live?.warehouse || ref.warehouse || '',
       status: live?.status || ref.status || '',
+      inboundType: live?.inboundType || ref.inboundType || '',
     }
   })
   const docNos = enrichedRefs.map((r) => r.docNo).filter(Boolean)
@@ -228,8 +229,29 @@ export function submitProductInbound(payload) {
     : payload.workOrderCode || ''
 
   const remarkBase = payload.remark
-    ? `小程序成品入库：${payload.remark}`
-    : `小程序成品入库（${modeLabel(payload.mode)}）`
+    ? `小程序入库：${payload.remark}`
+    : `小程序入库（${modeLabel(payload.mode)}）`
+
+  const workOrdersPayload =
+    Array.isArray(payload.workOrders) && payload.workOrders.length
+      ? payload.workOrders
+      : payload.workOrderCode || payload.workOrderId
+        ? [
+            {
+              id: payload.workOrderId,
+              code: payload.workOrderCode,
+              productName: payload.productName,
+              productCode: payload.productCode,
+              specModel: payload.specModel,
+              material: payload.material,
+              drawingNo: payload.drawingNo,
+              planQty: payload.planQty ?? payload.scheduleQty,
+              scheduleQty: payload.scheduleQty,
+              salesOrderNo: payload.salesOrderNo,
+              bom: payload.bom,
+            },
+          ]
+        : []
 
   const inboundResult = appendInboundFromMiniProgram({
     inboundId,
@@ -243,10 +265,13 @@ export function submitProductInbound(payload) {
     productName: payload.productName || lines[0]?.itemName || '',
     remark: remarkBase,
     warehouse: '',
+    workOrders: workOrdersPayload,
     lineItems: lines.map((line) => ({
       itemCode: line.itemCode,
       itemName: line.itemName,
-      itemType: '产品',
+      itemType: line.itemType || '产品',
+      materialType: line.materialType || '',
+      inboundType: line.inboundType || '',
       specModel: line.specModel,
       specAttr: line.specAttr || '',
       material: line.material,
@@ -272,6 +297,7 @@ export function submitProductInbound(payload) {
     docNo: o.docNo,
     warehouse: o.warehouse || '',
     status: o.status || '',
+    inboundType: o.inboundType || '',
   }))
 
   const record = {

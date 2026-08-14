@@ -33,7 +33,11 @@
       <view v-for="order in inboundOrders" :key="order.id || order.docNo" class="doc-row">
         <view class="doc-main">
           <text class="doc-no">{{ order.docNo || '—' }}</text>
-          <text v-if="order.warehouse" class="doc-wh">{{ formatWarehouse(order.warehouse) }}</text>
+          <text class="doc-wh">
+            <text v-if="order.inboundType">{{ order.inboundType }}</text>
+            <text v-if="order.inboundType && order.warehouse"> · </text>
+            <text v-if="order.warehouse">{{ formatWarehouse(order.warehouse) }}</text>
+          </text>
         </view>
         <text class="doc-status">{{ order.status || '—' }}</text>
       </view>
@@ -77,7 +81,7 @@
     </view>
 
     <view v-if="record" class="tip-card">
-      <text>多仓入库会按仓库拆成多张入库单；仓管在 WEB 入库管理审批/确认。</text>
+      <text>多仓/多类型会拆成多张入库单（成品入库或半成品入库）；仓管在 WEB 入库管理审批/确认。</text>
     </view>
   </view>
 </template>
