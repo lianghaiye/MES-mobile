@@ -318,7 +318,10 @@ export function getTodayReportTasks(user, options = {}) {
     .filter((t) => isTaskInTodayScope(t, today))
     .filter((t) => {
       if (isGroupLeader(user)) {
-        return isTaskForReportMember(t, reportForMember, leaderName)
+        const members = Array.isArray(options.reportForMembers) && options.reportForMembers.length
+          ? options.reportForMembers
+          : [reportForMember]
+        return members.some((name) => isTaskForReportMember(t, name, leaderName))
       }
       return isTaskForUser(t, [reportForMember])
     })

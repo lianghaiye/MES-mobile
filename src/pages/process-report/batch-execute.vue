@@ -10,6 +10,14 @@
 
     <text class="page-sub">填写各任务报工数量</text>
 
+    <view v-if="selectedWorkerNames.length" class="workers-banner">
+      <text class="workers-label">已选工人</text>
+      <view class="workers-chips">
+        <text v-for="name in selectedWorkerNames" :key="name" class="worker-chip">{{ name }}</text>
+      </view>
+      <text class="workers-hint">请核对代报对象后再提交</text>
+    </view>
+
     <view v-for="item in forms" :key="item.taskId" class="task-card">
       <view class="card-head">
         <text class="product">{{ item.task.productName }} · {{ item.task.productCode }}</text>
@@ -106,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import DefectBreakdownField from '@/components/quick-report/DefectBreakdownField.vue'
 import { getProcessDefectItems } from '@/utils/iodomsStorage'
@@ -131,6 +139,14 @@ const forms = ref([])
 const sharedRemark = ref('')
 const submitting = ref(false)
 const reportForMember = ref('')
+const reportForMembers = ref([])
+const isCollaborativeBatch = ref(false)
+
+const selectedWorkerNames = computed(() => {
+  if (!isCollaborativeBatch.value) return []
+  if (reportForMembers.value.length) return reportForMembers.value
+  return reportForMember.value ? [reportForMember.value] : []
+})
 
 function createFormItem(task) {
   const targetQty = Number(task.targetQty) || 0
@@ -154,11 +170,21 @@ function createFormItem(task) {
 
 onLoad((query) => {
   reportForMember.value = query.reportFor ? decodeURIComponent(query.reportFor) : ''
+  reportForMembers.value = query.reportForMembers
+    ? decodeURIComponent(query.reportForMembers)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : []
+  isCollaborativeBatch.value = query.scope === 'collaborative' || reportForMembers.value.length > 0
   const ids = (query.ids || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-  const options = reportForMember.value ? { reportForMember: reportForMember.value } : {}
+  const options = {
+    reportForMember: reportForMember.value || undefined,
+    reportForMembers: reportForMembers.value.length ? reportForMembers.value : undefined,
+  }
   const tasks = getReportTasksByIds(ids, getUser(), options)
   if (!tasks.length) {
     uni.showToast({ title: '任务不存在或已报工', icon: 'none' })
@@ -307,6 +333,43 @@ $primary: #1677ff;
   font-size: 26rpx;
   color: #8c8c8c;
   margin-bottom: 20rpx;
+}
+
+.workers-banner {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 20rpx;
+  border: 1rpx solid #e6f4ff;
+}
+
+.workers-label {
+  display: block;
+  font-size: 24rpx;
+  color: #8c8c8c;
+  margin-bottom: 12rpx;
+}
+
+.workers-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.worker-chip {
+  padding: 8rpx 20rpx;
+  border-radius: 28rpx;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+.workers-hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #fa8c16;
 }
 
 .task-card,

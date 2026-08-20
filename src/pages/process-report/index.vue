@@ -83,14 +83,15 @@
               v-for="member in ledMembers"
               :key="member.name"
               class="member-chip"
-              :class="{ active: reportForMember === member.name }"
-              @tap="selectReportMember(member.name)"
+              :class="{ active: isReportMemberActive(member.name) }"
+              @tap="onTapReportMember(member.name)"
             >
               <text>{{ member.name }}</text>
               <text v-if="member.isLeader" class="leader-tag">组长</text>
             </view>
           </view>
         </scroll-view>
+        <text v-if="isCollaborativeScope" class="member-multi-hint">可多选参与人</text>
       </view>
 
       <view class="group-chips">
@@ -157,6 +158,10 @@
                 <view class="task-head">
                   <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
                   <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
+                  <text
+                    v-else-if="isGroupCollaborativeTask(task)"
+                    class="task-tag collab-tag"
+                  >多人协作</text>
                   <text v-else-if="task.isGroupTask" class="task-tag group-tag">小组</text>
                   <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
                   <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
@@ -209,6 +214,10 @@
               <view class="task-head">
                 <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
                 <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
+                <text
+                  v-else-if="isGroupCollaborativeTask(task)"
+                  class="task-tag collab-tag"
+                >多人协作</text>
                 <text v-else-if="task.isCollaborative" class="task-tag collab-tag">协作</text>
                 <text v-else-if="task.isGroupTask" class="task-tag group-tag">小组</text>
                 <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
@@ -319,16 +328,8 @@
     <view v-if="activeTab === 'today' && selectedCount > 0" class="batch-bar">
       <text class="batch-count">已选择 {{ selectedCount }} 项任务</text>
       <button class="batch-cancel" @tap="clearSelection">取消</button>
-      <button class="batch-submit" @tap="openBatchConfirm">批量报工 ({{ selectedCount }})</button>
+      <button class="batch-submit" @tap="goBatchExecute">批量报工 ({{ selectedCount }})</button>
     </view>
-
-    <BatchReportConfirmModal
-      :open="batchConfirmOpen"
-      :count="selectedCount"
-      @cancel="closeBatchConfirm"
-      @confirm="onBatchQuickConfirm"
-      @abnormal="onBatchAbnormal"
-    />
   </view>
 </template>
 
@@ -342,7 +343,6 @@ import {
   getClaimableReportTaskCount,
   claimReportTask,
   hasTodayReportTasks,
-  batchReportTasks,
 } from '@/mock/processReportTasks'
 import {
   getDateHeader,
@@ -360,7 +360,6 @@ import {
   resolveWorkerDisplayName,
 } from '@/utils/workerGroup'
 import { getQuickProductByCode } from '@/mock/processReportProducts'
-import BatchReportConfirmModal from '@/components/process-report/BatchReportConfirmModal.vue'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -377,8 +376,8 @@ const activeTab = ref('today')
 const todayGroupMode = ref('task')
 const todayTaskScopeFilter = ref('all')
 const reportForMember = ref('')
+const reportForMembers = ref([])
 const selectedTaskIds = ref([])
-const batchConfirmOpen = ref(false)
 const recordFilter = ref('all')
 const refreshKey = ref(0)
 const dateHeader = getDateHeader()
@@ -392,6 +391,7 @@ const todayTaskScopeFilters = [
   { key: 'all', label: '全部' },
   { key: 'personal', label: '个人' },
   { key: 'group', label: '小组' },
+  { key: 'collaborative', label: '多人协作' },
 ]
 
 const recordFilters = [
@@ -403,6 +403,8 @@ const recordFilters = [
 
 const user = computed(() => getUser())
 
+const isCollaborativeScope = computed(() => todayTaskScopeFilter.value === 'collaborative')
+
 const ledMembers = computed(() => {
   refreshKey.value
   if (!isGroupLeader(user.value)) return []
@@ -412,8 +414,15 @@ const ledMembers = computed(() => {
 const showMemberSelector = computed(() => {
   refreshKey.value
   if (!isGroupLeader(user.value)) return false
+  if (isCollaborativeScope.value) {
+    return ledMembers.value.length > 0
+  }
   return reportTasks.value.some((t) => t.isGroupTask && t.status === 'pending')
 })
+
+function isGroupCollaborativeTask(task) {
+  return !!(task?.isGroupTask && isDurationReportMode(task.reportMode))
+}
 
 function taskQtyText(task) {
   if (task.status === 'reported') {
@@ -429,16 +438,36 @@ function initReportForMember() {
   const name = resolveWorkerDisplayName(user.value)
   if (!reportForMember.value) {
     reportForMember.value = name
+  } else if (
+    ledMembers.value.length &&
+    !ledMembers.value.some((m) => m.name === reportForMember.value)
+  ) {
+    reportForMember.value = name
+  }
+  if (!reportForMembers.value.length) {
+    reportForMembers.value = [reportForMember.value]
     return
   }
-  if (ledMembers.value.length && !ledMembers.value.some((m) => m.name === reportForMember.value)) {
-    reportForMember.value = name
+  const allowed = new Set(ledMembers.value.map((m) => m.name))
+  reportForMembers.value = reportForMembers.value.filter((n) => !allowed.size || allowed.has(n))
+  if (!reportForMembers.value.length) {
+    reportForMembers.value = [reportForMember.value]
   }
 }
 
-const reportOptions = computed(() => ({
-  reportForMember: reportForMember.value || resolveWorkerDisplayName(user.value),
-}))
+const reportOptions = computed(() => {
+  const primary = reportForMember.value || resolveWorkerDisplayName(user.value)
+  if (isCollaborativeScope.value) {
+    const members = reportForMembers.value.length ? [...reportForMembers.value] : [primary]
+    return {
+      reportForMember: members[0] || primary,
+      reportForMembers: members,
+    }
+  }
+  return {
+    reportForMember: primary,
+  }
+})
 
 const claimTasks = computed(() => {
   refreshKey.value
@@ -461,7 +490,10 @@ const scopedReportTasks = computed(() => {
     return tasks.filter((t) => t.isPersonalTask)
   }
   if (todayTaskScopeFilter.value === 'group') {
-    return tasks.filter((t) => t.isGroupTask)
+    return tasks.filter((t) => t.isGroupTask && !isGroupCollaborativeTask(t))
+  }
+  if (todayTaskScopeFilter.value === 'collaborative') {
+    return tasks.filter((t) => isGroupCollaborativeTask(t))
   }
   return tasks
 })
@@ -584,7 +616,21 @@ watch(reportForMember, () => {
   else clearSelection()
 })
 
-watch(todayTaskScopeFilter, () => {
+watch(reportForMembers, () => {
+  if (!isCollaborativeScope.value) return
+  if (activeTab.value === 'today') selectAllPending()
+  else clearSelection()
+})
+
+watch(todayTaskScopeFilter, (key) => {
+  if (key === 'collaborative') {
+    initReportForMember()
+    if (!reportForMembers.value.length) {
+      reportForMembers.value = [
+        reportForMember.value || resolveWorkerDisplayName(user.value),
+      ]
+    }
+  }
   if (activeTab.value === 'today') selectAllPending()
 })
 
@@ -627,42 +673,55 @@ function clearSelection() {
   selectedTaskIds.value = []
 }
 
-function openBatchConfirm() {
+function goBatchExecute() {
   if (!selectedCount.value) return
-  batchConfirmOpen.value = true
-}
-
-function closeBatchConfirm() {
-  batchConfirmOpen.value = false
+  const ids = [...selectedTaskIds.value]
+  const members = isCollaborativeScope.value && reportForMembers.value.length
+    ? reportForMembers.value
+    : [reportForMember.value || resolveWorkerDisplayName(user.value)]
+  const q = [
+    `ids=${encodeURIComponent(ids.join(','))}`,
+    `reportFor=${encodeURIComponent(members[0] || resolveWorkerDisplayName(user.value))}`,
+  ]
+  if (isCollaborativeScope.value) {
+    q.push(`reportForMembers=${encodeURIComponent(members.join(','))}`)
+    q.push('scope=collaborative')
+  }
+  uni.navigateTo({ url: `/pages/process-report/batch-execute?${q.join('&')}` })
 }
 
 function selectReportMember(name) {
   if (reportForMember.value === name) return
   reportForMember.value = name
+  reportForMembers.value = [name]
   refreshKey.value += 1
 }
 
-function onBatchQuickConfirm() {
-  const ids = [...selectedTaskIds.value]
-  closeBatchConfirm()
-  const result = batchReportTasks(ids, user.value, reportOptions.value)
-  if (!result.ok) {
-    uni.showToast({ title: result.message, icon: 'none' })
+function isReportMemberActive(name) {
+  if (isCollaborativeScope.value) {
+    return reportForMembers.value.includes(name)
+  }
+  return reportForMember.value === name
+}
+
+function onTapReportMember(name) {
+  if (!isCollaborativeScope.value) {
+    selectReportMember(name)
     return
   }
-  clearSelection()
+  const set = new Set(reportForMembers.value)
+  if (set.has(name)) {
+    if (set.size <= 1) {
+      uni.showToast({ title: '至少选择一名工人', icon: 'none' })
+      return
+    }
+    set.delete(name)
+  } else {
+    set.add(name)
+  }
+  reportForMembers.value = [...set]
+  reportForMember.value = reportForMembers.value[0] || resolveWorkerDisplayName(user.value)
   refreshKey.value += 1
-  uni.showToast({ title: result.message, icon: 'success' })
-}
-
-function onBatchAbnormal() {
-  const ids = [...selectedTaskIds.value]
-  closeBatchConfirm()
-  const q = [
-    `ids=${encodeURIComponent(ids.join(','))}`,
-    `reportFor=${encodeURIComponent(reportForMember.value || resolveWorkerDisplayName(user.value))}`,
-  ].join('&')
-  uni.navigateTo({ url: `/pages/process-report/batch-execute?${q}` })
 }
 
 function pushStatusClass(record) {
@@ -695,15 +754,27 @@ function goClaimDetail(task) {
 }
 
 function goTaskDetail(task) {
-  const reportFor = encodeURIComponent(
-    reportForMember.value || resolveWorkerDisplayName(user.value),
-  )
+  const members = isCollaborativeScope.value && reportForMembers.value.length
+    ? reportForMembers.value
+    : [reportForMember.value || resolveWorkerDisplayName(user.value)]
+  const reportFor = encodeURIComponent(members[0] || resolveWorkerDisplayName(user.value))
+  const q = [
+    `id=${task.id}`,
+    'mode=report',
+    `reportFor=${reportFor}`,
+  ]
+  if (isCollaborativeScope.value && members.length > 1) {
+    q.push(`reportForMembers=${encodeURIComponent(members.join(','))}`)
+  }
   uni.navigateTo({
-    url: `/pages/process-report/claim-detail?id=${task.id}&mode=report&reportFor=${reportFor}`,
+    url: `/pages/process-report/claim-detail?${q.join('&')}`,
   })
 }
 
 function goWorkReport(task) {
+  const members = isCollaborativeScope.value && reportForMembers.value.length
+    ? reportForMembers.value
+    : [reportForMember.value || resolveWorkerDisplayName(user.value)]
   const q = buildExecuteQuery({
     source: 'workorder',
     taskId: task.id,
@@ -723,7 +794,8 @@ function goWorkReport(task) {
     reportMode: task.reportMode || getProcessReportMode(task.processName),
     groupName: task.groupName || '',
     collaborationLabel: task.collaborationLabel || '',
-    reportFor: reportForMember.value || resolveWorkerDisplayName(user.value),
+    reportFor: members[0] || resolveWorkerDisplayName(user.value),
+    reportForMembers: isCollaborativeScope.value ? members.join(',') : '',
   })
   uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
 }
@@ -969,12 +1041,18 @@ $primary: #1677ff;
 
 .member-bar {
   display: flex;
-  align-items: center;
-  gap: 16rpx;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12rpx;
   margin-bottom: 16rpx;
   padding: 16rpx 20rpx;
   background: #fff;
   border-radius: 16rpx;
+}
+
+.member-multi-hint {
+  font-size: 22rpx;
+  color: #8c8c8c;
 }
 
 .member-bar-label {
@@ -984,7 +1062,7 @@ $primary: #1677ff;
 }
 
 .member-scroll {
-  flex: 1;
+  width: 100%;
   white-space: nowrap;
 }
 

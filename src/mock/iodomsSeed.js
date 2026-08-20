@@ -30,6 +30,7 @@ const PROCESS_DEFECT_MAP = {
   机加工: ['di-2', 'di-6'],
   领料: ['di-1', 'di-7'],
   调试: ['di-1', 'di-8'],
+  试验: ['di-1', 'di-8'],
   磨削: ['di-6', 'di-7'],
   喷涂: ['di-5', 'di-7'],
   总装: ['di-1', 'di-7'],
@@ -50,6 +51,7 @@ const PROCESS_REPORT_MODE = {
   领料: '批量计件',
   调试: '时长报工',
   检验: '时长报工',
+  试验: '时长报工',
   磨削: '批量计件',
   喷涂: '批量计件',
   总装: '批量计件',
@@ -65,18 +67,25 @@ function padCode(n) {
 export function createProcessConfigSeed() {
   const names = [
     '点焊', '打磨', '装配', '车削', '铣削', '热处理', '粗车', '精车',
-    '机加工', '领料', '调试', '磨削', '喷涂', '总装', '轴承装配', '预装',
+    '机加工', '领料', '调试', '检验', '试验', '磨削', '喷涂', '总装', '轴承装配', '预装',
     '下料', '钻孔', '质检', '入库',
   ]
   return names.map((name, i) => ({
     id: `proc-m-${String(i + 1).padStart(3, '0')}`,
     code: padCode(i + 1),
     name,
-    category: '机械',
-    resourceType: '工人',
+    category: name === '试验' || name === '调试' || name === '检验' || name === '装配' ? '组装' : '机械',
+    resourceType:
+      name === '试验' || name === '调试' || name === '检验' || name === '装配' || name === '拆解'
+        ? '工人小组'
+        : '工人',
     position: '机加工岗',
     status: '使用中',
     reportMode: PROCESS_REPORT_MODE[name] || '',
+    taskExecutionMode:
+      name === '试验' || name === '调试' || name === '检验' || name === '热处理'
+        ? 'collaborative'
+        : 'single_claim',
     defectItemIds: [...(PROCESS_DEFECT_MAP[name] || [])],
     defaultExecutors: [],
     createdAt: '2026-05-01',
@@ -89,8 +98,8 @@ export function ensureIodomsSeed() {
     uni.setStorageSync(DEFECT_ITEMS_KEY, JSON.stringify({ items: createDefectItemSeed() }))
     uni.setStorageSync(DEFECT_SEED_VERSION, '1')
   }
-  if (uni.getStorageSync(PROCESS_SEED_VERSION) !== '6') {
+  if (uni.getStorageSync(PROCESS_SEED_VERSION) !== '7') {
     uni.setStorageSync(PROCESS_CONFIG_KEY, JSON.stringify({ processes: createProcessConfigSeed() }))
-    uni.setStorageSync(PROCESS_SEED_VERSION, '6')
+    uni.setStorageSync(PROCESS_SEED_VERSION, '7')
   }
 }
