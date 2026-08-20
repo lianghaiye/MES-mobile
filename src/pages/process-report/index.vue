@@ -328,8 +328,16 @@
     <view v-if="activeTab === 'today' && selectedCount > 0" class="batch-bar">
       <text class="batch-count">已选择 {{ selectedCount }} 项任务</text>
       <button class="batch-cancel" @tap="clearSelection">取消</button>
-      <button class="batch-submit" @tap="goBatchExecute">批量报工 ({{ selectedCount }})</button>
+      <button class="batch-submit" @tap="onBatchReportTap">批量报工 ({{ selectedCount }})</button>
     </view>
+
+    <BatchReportConfirmModal
+      :open="batchConfirmOpen"
+      :count="selectedCount"
+      @cancel="closeBatchConfirm"
+      @confirm="onBatchQuickConfirm"
+      @abnormal="onBatchAbnormal"
+    />
   </view>
 </template>
 
@@ -343,6 +351,7 @@ import {
   getClaimableReportTaskCount,
   claimReportTask,
   hasTodayReportTasks,
+  batchReportTasks,
 } from '@/mock/processReportTasks'
 import {
   getDateHeader,
@@ -360,6 +369,7 @@ import {
   resolveWorkerDisplayName,
 } from '@/utils/workerGroup'
 import { getQuickProductByCode } from '@/mock/processReportProducts'
+import BatchReportConfirmModal from '@/components/process-report/BatchReportConfirmModal.vue'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -378,6 +388,7 @@ const todayTaskScopeFilter = ref('all')
 const reportForMember = ref('')
 const reportForMembers = ref([])
 const selectedTaskIds = ref([])
+const batchConfirmOpen = ref(false)
 const recordFilter = ref('all')
 const refreshKey = ref(0)
 const dateHeader = getDateHeader()
@@ -673,21 +684,54 @@ function clearSelection() {
   selectedTaskIds.value = []
 }
 
-function goBatchExecute() {
+/** 多人协作：直接进异常报工填写页；其他：先弹确认框 */
+function onBatchReportTap() {
   if (!selectedCount.value) return
+  if (isCollaborativeScope.value) {
+    goBatchExecute({ collaborative: true })
+    return
+  }
+  batchConfirmOpen.value = true
+}
+
+function closeBatchConfirm() {
+  batchConfirmOpen.value = false
+}
+
+function goBatchExecute(options = {}) {
+  if (!selectedCount.value) return
+  const collaborative = !!options.collaborative || isCollaborativeScope.value
   const ids = [...selectedTaskIds.value]
-  const members = isCollaborativeScope.value && reportForMembers.value.length
+  const members = collaborative && reportForMembers.value.length
     ? reportForMembers.value
     : [reportForMember.value || resolveWorkerDisplayName(user.value)]
   const q = [
     `ids=${encodeURIComponent(ids.join(','))}`,
     `reportFor=${encodeURIComponent(members[0] || resolveWorkerDisplayName(user.value))}`,
   ]
-  if (isCollaborativeScope.value) {
+  if (collaborative) {
     q.push(`reportForMembers=${encodeURIComponent(members.join(','))}`)
     q.push('scope=collaborative')
   }
+  closeBatchConfirm()
   uni.navigateTo({ url: `/pages/process-report/batch-execute?${q.join('&')}` })
+}
+
+function onBatchQuickConfirm() {
+  const ids = [...selectedTaskIds.value]
+  closeBatchConfirm()
+  const result = batchReportTasks(ids, user.value, reportOptions.value)
+  if (!result.ok) {
+    uni.showToast({ title: result.message, icon: 'none' })
+    return
+  }
+  clearSelection()
+  refreshKey.value += 1
+  uni.showToast({ title: result.message, icon: 'success' })
+}
+
+function onBatchAbnormal() {
+  goBatchExecute({ collaborative: false })
 }
 
 function selectReportMember(name) {

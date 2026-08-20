@@ -822,7 +822,7 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '9'
+const TASK_SEED_VERSION = '10'
 
 function buildSeedTasks() {
   const today = formatTaskDate()

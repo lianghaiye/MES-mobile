@@ -8,9 +8,32 @@
       <view class="nav-placeholder" />
     </view>
 
-    <view class="sub-title">
-      {{ processName }} · {{ productName }} {{ productCode }}
-      <text v-if="collaborationLabel" class="collab-tag">{{ collaborationLabel }}</text>
+    <view class="sub-title-row">
+      <view class="sub-title">
+        {{ processName }} · {{ productName }} {{ productCode }}
+        <text v-if="collaborationLabel" class="collab-tag">{{ collaborationLabel }}</text>
+      </view>
+      <text
+        v-if="!editId && !isQuickSource"
+        class="order-delete"
+        @tap="onRemoveOrder"
+      >删除</text>
+    </view>
+
+    <view v-if="selectedWorkerNames.length" class="workers-banner">
+      <text class="workers-label">已选工人</text>
+      <view class="workers-chips">
+        <view
+          v-for="name in selectedWorkerNames"
+          :key="name"
+          class="worker-chip"
+          @tap="removeSelectedWorker(name)"
+        >
+          <text>{{ name }}</text>
+          <text class="worker-chip-x">×</text>
+        </view>
+      </view>
+      <text class="workers-hint">请核对代报对象；工人至少保留一人</text>
     </view>
 
     <view v-if="collaborationPeers.length" class="collab-card">
@@ -207,6 +230,7 @@ const remainingQty = ref(null)
 const collaborationLabel = ref('')
 const collaborationPeers = ref([])
 const defectItems = ref([])
+const reportForMembers = ref([])
 const context = reactive({
   source: 'quick',
   productId: '',
@@ -238,6 +262,11 @@ const form = reactive({
 
 const isQuickSource = computed(() => isQuickReportSource(context.source))
 
+const selectedWorkerNames = computed(() => {
+  if (reportForMembers.value.length) return reportForMembers.value
+  return []
+})
+
 const showProductMeta = computed(
   () =>
     !isQuickSource.value &&
@@ -266,6 +295,20 @@ function resolveProductId() {
 function nowTime() {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function onRemoveOrder() {
+  uni.showToast({ title: '至少保留一条任务', icon: 'none' })
+}
+
+function removeSelectedWorker(name) {
+  if (reportForMembers.value.length <= 1) {
+    uni.showToast({ title: '至少保留一名工人', icon: 'none' })
+    return
+  }
+  reportForMembers.value = reportForMembers.value.filter((n) => n !== name)
+  context.reportFor = reportForMembers.value[0] || context.reportFor
+  form.reporter = context.reportFor
 }
 
 onLoad((query) => {
@@ -304,6 +347,12 @@ onLoad((query) => {
   context.groupName = query.groupName ? decodeURIComponent(query.groupName) : ''
   context.reportFor = query.reportFor ? decodeURIComponent(query.reportFor) : ''
   context.isGroupTask = query.isGroupTask === '1'
+  reportForMembers.value = query.reportForMembers
+    ? decodeURIComponent(query.reportForMembers)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : []
   collaborationLabel.value = query.collaborationLabel
     ? decodeURIComponent(query.collaborationLabel)
     : ''
@@ -659,10 +708,71 @@ $primary: #1677ff;
   width: 72rpx;
 }
 
+.sub-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+
 .sub-title {
+  flex: 1;
   font-size: 26rpx;
   color: #8c8c8c;
+}
+
+.order-delete {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: #bfbfbf;
+  padding: 4rpx 8rpx;
+}
+
+.workers-banner {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 20rpx;
+  border: 1rpx solid #e6f4ff;
+}
+
+.workers-label {
+  display: block;
+  font-size: 24rpx;
+  color: #8c8c8c;
   margin-bottom: 12rpx;
+}
+
+.workers-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.worker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 16rpx 8rpx 20rpx;
+  border-radius: 28rpx;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+.worker-chip-x {
+  font-size: 28rpx;
+  line-height: 1;
+  color: #69b1ff;
+}
+
+.workers-hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #fa8c16;
 }
 
 .collab-tag {

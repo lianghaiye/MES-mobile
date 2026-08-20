@@ -13,19 +13,34 @@
     <view v-if="selectedWorkerNames.length" class="workers-banner">
       <text class="workers-label">已选工人</text>
       <view class="workers-chips">
-        <text v-for="name in selectedWorkerNames" :key="name" class="worker-chip">{{ name }}</text>
+        <view
+          v-for="name in selectedWorkerNames"
+          :key="name"
+          class="worker-chip"
+          @tap="removeSelectedWorker(name)"
+        >
+          <text>{{ name }}</text>
+          <text class="worker-chip-x">×</text>
+        </view>
       </view>
-      <text class="workers-hint">请核对代报对象后再提交</text>
+      <text class="workers-hint">请核对代报对象后再提交；工人至少保留一人</text>
     </view>
 
     <view v-for="item in forms" :key="item.taskId" class="task-card">
       <view class="card-head">
-        <text class="product">{{ item.task.productName }} · {{ item.task.productCode }}</text>
-        <text class="target-badge piece">
-          目标 {{ item.task.targetQty }} 件
-        </text>
+        <view class="card-head-main">
+          <text class="product">{{ item.task.productName }} · {{ item.task.productCode }}</text>
+          <text class="card-sub">工单 {{ item.task.workOrderNo }} · {{ item.task.processName }}</text>
+        </view>
+        <view class="card-head-actions">
+          <text class="target-badge piece">目标 {{ item.task.targetQty }} 件</text>
+          <text
+            class="card-delete"
+            :class="{ disabled: forms.length <= 1 }"
+            @tap.stop="removeFormItem(item.taskId)"
+          >删除</text>
+        </view>
       </view>
-      <text class="card-sub">工单 {{ item.task.workOrderNo }} · {{ item.task.processName }}</text>
 
       <template v-if="!item.durationMode">
         <view class="field-row">
@@ -198,6 +213,23 @@ function goBack() {
   uni.navigateBack()
 }
 
+function removeFormItem(taskId) {
+  if (forms.value.length <= 1) {
+    uni.showToast({ title: '至少保留一条任务', icon: 'none' })
+    return
+  }
+  forms.value = forms.value.filter((item) => item.taskId !== taskId)
+}
+
+function removeSelectedWorker(name) {
+  if (reportForMembers.value.length <= 1) {
+    uni.showToast({ title: '至少保留一名工人', icon: 'none' })
+    return
+  }
+  reportForMembers.value = reportForMembers.value.filter((n) => n !== name)
+  reportForMember.value = reportForMembers.value[0] || ''
+}
+
 function refreshSnapshot(item) {
   item.qtySnapshot = {
     goodQty: Math.max(0, Number(item.goodQty) || 0),
@@ -357,12 +389,21 @@ $primary: #1677ff;
 }
 
 .worker-chip {
-  padding: 8rpx 20rpx;
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 16rpx 8rpx 20rpx;
   border-radius: 28rpx;
   background: #e6f4ff;
   color: #1677ff;
   font-size: 26rpx;
   font-weight: 500;
+}
+
+.worker-chip-x {
+  font-size: 28rpx;
+  line-height: 1;
+  color: #69b1ff;
 }
 
 .workers-hint {
@@ -385,14 +426,45 @@ $primary: #1677ff;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16rpx;
-  margin-bottom: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.card-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-head-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12rpx;
 }
 
 .product {
   flex: 1;
   font-size: 30rpx;
-  font-weight: 700;
+  font-weight: 600;
   color: #1a1a1a;
+  display: block;
+}
+
+.card-sub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+
+.card-delete {
+  font-size: 26rpx;
+  color: #ff4d4f;
+  padding: 4rpx 8rpx;
+}
+
+.card-delete.disabled {
+  color: #bfbfbf;
 }
 
 .target-badge {
@@ -410,13 +482,6 @@ $primary: #1677ff;
     color: #52c41a;
     background: #f6ffed;
   }
-}
-
-.card-sub {
-  display: block;
-  font-size: 24rpx;
-  color: #8c8c8c;
-  margin-bottom: 20rpx;
 }
 
 .field-row {
