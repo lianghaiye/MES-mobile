@@ -171,7 +171,18 @@
     {
       "path": "pages/approval/index",
       "style": {
-        "navigationBarTitleText": "审批管理"
+        "navigationBarTitleText": "审批管理",
+        "navigationBarBackgroundColor": "#07c160",
+        "navigationBarTextStyle": "white",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/approval/detail",
+      "style": {
+        "navigationBarTitleText": "审批详情",
+        "navigationBarBackgroundColor": "#07c160",
+        "navigationBarTextStyle": "white"
       }
     },
     {

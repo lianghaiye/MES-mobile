@@ -13,7 +13,7 @@
         v-for="mod in modules"
         :key="mod.key"
         :mod="mod"
-        :badge="mod.key === 'qc-task' ? pendingQc : mod.key === 'todo' ? pendingTodo : 0"
+        :badge="mod.key === 'qc-task' ? pendingQc : mod.key === 'todo' ? pendingTodo : mod.key === 'approval' ? pendingApproval : 0"
         @tap="onModuleTap(mod)"
       />
     </view>
@@ -31,6 +31,7 @@ import { getMyPendingCount } from '@/mock/myPending'
 const modules = workbenchModules
 const pendingQc = ref(0)
 const pendingTodo = ref(0)
+const pendingApproval = ref(0)
 
 onShow(() => {
   if (!isLoggedIn()) {
@@ -41,6 +42,7 @@ onShow(() => {
   const pending = getMyPendingCount(user)
   pendingQc.value = pending.qc
   pendingTodo.value = pending.todo
+  pendingApproval.value = pending.approval
 })
 
 function onModuleTap(mod) {

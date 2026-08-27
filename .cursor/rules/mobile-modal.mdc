@@ -1,0 +1,63 @@
+---
+description: i-doms-mobile 底部弹窗/选择器规范（*Modal.vue 组件）
+globs: i-doms-mobile/**/*Modal.vue
+alwaysApply: false
+---
+
+# 弹窗 / 底部抽屉
+
+小程序弹窗统一 **底部上滑面板**，不用居中 Dialog。
+
+## 结构模板
+
+```vue
+<view v-if="visible" class="modal-mask" @tap="onCancel">
+  <view class="modal-panel" @tap.stop>
+    <view class="modal-head">
+      <text class="modal-title">{{ title }}</text>
+      <text class="modal-close" @tap="onCancel">×</text>
+    </view>
+    <!-- 内容区 scroll-view -->
+    <view class="modal-foot">
+      <button class="btn ghost" @tap="onCancel">取消</button>
+      <button class="btn primary" @tap="onConfirm">确定</button>
+    </view>
+  </view>
+</view>
+```
+
+参考：`@ProcessSelectModal.vue`、`@ConfirmModal.vue`
+
+## 样式要点
+
+| 元素 | 约定 |
+|------|------|
+| `.modal-mask` | `fixed; inset:0; z-index:1000; rgba(0,0,0,.45); align-items:flex-end` |
+| `.modal-panel` | `width:100%; max-height:82vh; 上圆角 24rpx; 白底` |
+| `.modal-title` | `32rpx / font-weight 600` |
+| `.modal-foot` | 底栏固定；主按钮 `$primary`，次按钮 ghost |
+
+## 标题
+
+- 选择类：**选择{对象}**（如「选择工序」）
+- 确认类：动词 + 对象（如「调整报工」「补贴」）
+- 成功反馈：独立 `@SubmitSuccessModal.vue` 样式
+
+## 交互
+
+- `props.visible` + `emit('update:visible')` 或 `@confirm`
+- 打开时 reset 搜索/选中态（`watch visible`）
+- 点 mask 关闭 ≡ 取消；内容区 `@tap.stop` 防冒泡
+- 校验失败：`uni.showToast`，**不关闭**弹窗
+
+## 列表选择弹窗
+
+- 顶栏搜索 + 横向 category chip + `scroll-view` 列表
+- 多选：checkbox 风格 + 底栏「已选 N 项」
+- 空态：「暂无可选…」
+
+## 避免
+
+- ❌ 居中窄弹窗（Web 风格）
+- ❌ 无关闭入口、mask 不可点关
+- ❌ 确定后未 emit 结果给父页

@@ -1,0 +1,51 @@
+---
+description: i-doms-mobile 明细行编辑规范（领料/入库等行内卡片编辑，非 Web 弹窗）
+globs: i-doms-mobile/**/*.{vue,js}
+alwaysApply: false
+---
+
+# 明细行编辑（小程序）
+
+小程序**不用 Web 的行内编辑 Modal**；明细多在创建/编辑页以 **卡片（line-card）** 就地编辑，或在独立子页完成。
+
+## 卡片结构
+
+```
+line-head   → 名称 + 编码 + 删除
+line-meta   → 规格/材质/图号/下料尺寸（只读，空值 —）
+stock-row   → 当前库存（可高亮不足）
+可编辑区    → 仓库选择、数量 stepper 等
+```
+
+参考：`@MaterialLineEditor.vue`、`@BatchMaterialLineEditor.vue`
+
+## 字段约定
+
+- 产品信息区 **只读**；可编辑项放在下方独立 row
+- 数量：优先 **stepper**（− / input / +）+ 单位；`type="digit"`
+- 库存不足：`.stock-val.low` 或等价 warning 色
+- 建议数量：小字辅助说明（如「建议 12」）
+- 仓库：复用 `@WarehouseSelectField.vue`，勿各页重写 picker
+
+## 数据流
+
+- 子组件 `props.line` + `emit('update:line', nextLine)`
+- patch 后若涉及仓库，走 `enrichLineWithStock` 等 util 补库存
+- 下料尺寸：统一 `resolveLineBlankSizeText`（`blankSizeDisplay.js`）
+
+## 明细详情页（只读）
+
+- 单头信息 + 分段 `.card` + `.section-title`
+- 明细列表 `.line-row`：名称/编码 → meta → 数量
+- 参考：`pages/material-req/detail.vue`
+
+## 校验
+
+- 即时反馈用 toast；必填/范围在 **提交前统一校验**
+- 数量 normalize 在 `@blur`，避免 `@input` 频繁抖动
+
+## 避免
+
+- ❌ 照搬 Web 三列栅格 + 720px Modal
+- ❌ 保存后整页 reload；应更新 store / 当前列表项
+- ❌ 各模块重复写库存查询逻辑

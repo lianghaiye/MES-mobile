@@ -1,0 +1,45 @@
+---
+description: i-doms-mobile 小程序基础约定（uni-app、目录、样式 token、与 Web 差异）
+globs: i-doms-mobile/**/*
+alwaysApply: false
+---
+
+# i-doms-mobile 基础约定
+
+uni-app + Vue 3 `<script setup>`，目标平台含 **微信小程序**。
+
+## 与 i-doms-web 的差异
+
+- ❌ 不用 Ant Design Vue、不用 `a-modal` / `720px` 弹窗宽
+- ✅ 用 `view` / `text` / `button` / `scroll-view`；弹窗多为 **底部抽屉**
+- ✅ 尺寸用 **rpx**；颜色/圆角优先读 `src/uni.scss`
+
+## 目录
+
+| 路径 | 用途 |
+|------|------|
+| `src/pages/` | 页面（须在 `pages.json` 注册） |
+| `src/components/` | 可复用组件（按业务分子目录） |
+| `src/store/` | 页面级状态 / mock 数据访问 |
+| `src/utils/` | 纯函数、桥接 Web 字段 |
+| `src/mock/` | 本地 mock 种子 |
+
+## 样式 token（`uni.scss`）
+
+- 主色 `$primary: #1677ff`
+- 页面底 `$bg-page: #f5f6f8`；卡片 `$bg-card: #ffffff`
+- 正文 `$text-primary`；次要 `$text-secondary`
+- 圆角 `$radius: 16rpx`
+
+## 通用交互
+
+- 轻提示：`uni.showToast({ title, icon: 'none' })`
+- 确认：`uni.showModal`
+- 跳转：`uni.navigateTo` / `uni.redirectTo`；带参用 query
+- 空值展示：**—**
+
+## 命名
+
+- 页面：`pages/{模块}/index.vue`、`detail.vue`
+- 行编辑组件：`*LineEditor.vue`、`*Editor.vue`
+- 弹窗组件：`*Modal.vue`
