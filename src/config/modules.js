@@ -72,4 +72,13 @@ export const workbenchModules = [
     path: '/pages/product-inbound/index',
     placeholder: false,
   },
+  {
+    key: 'industrial-label',
+    title: '铭牌任务',
+    desc: '按销售单看待刻 SN 与装牌确认',
+    icon: '🏷',
+    color: '#1677ff',
+    path: '/pages/industrial-label/lookup',
+    placeholder: false,
+  },
 ]
