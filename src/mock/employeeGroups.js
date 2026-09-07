@@ -57,7 +57,58 @@ function createSeedGroups() {
         { id: 'emp-2', name: '张三', isLeader: false },
       ],
     },
+    {
+      id: 'eg-6',
+      code: 'WG20260310006',
+      name: '精加小组',
+      workCenter: '机泵',
+      position: '车间工人',
+      status: '启用',
+      leaderName: '张三',
+      workers: [
+        { id: 'emp-2', name: '张三', isLeader: true },
+        { id: 'emp-9', name: '赵六', isLeader: false },
+      ],
+    },
   ]
+}
+
+function mergeMissingSeedGroups(stored) {
+  const seed = createSeedGroups()
+  const byId = new Map(stored.map((g) => [g.id, g]))
+  const byName = new Map(stored.map((g) => [g.name, g]))
+  let changed = false
+  seed.forEach((g) => {
+    if (byId.has(g.id) || byName.has(g.name)) return
+    stored.push(g)
+    changed = true
+  })
+  const jingjia = stored.find((g) => g.id === 'eg-6' || g.name === '精加小组')
+  if (jingjia && jingjia.leaderName !== '张三') {
+    jingjia.leaderName = '张三'
+    jingjia.status = jingjia.status || '启用'
+    jingjia.workers = jingjia.workers?.length
+      ? jingjia.workers.map((w) => ({
+          ...w,
+          isLeader: w.name === '张三',
+        }))
+      : [
+          { id: 'emp-2', name: '张三', isLeader: true },
+          { id: 'emp-9', name: '赵六', isLeader: false },
+        ]
+    if (!jingjia.workers.some((w) => w.name === '张三')) {
+      jingjia.workers.unshift({ id: 'emp-2', name: '张三', isLeader: true })
+    }
+    changed = true
+  }
+  if (changed) {
+    try {
+      uni.setStorageSync(STORAGE_KEY, JSON.stringify({ groups: stored }))
+    } catch {
+      /* ignore */
+    }
+  }
+  return stored
 }
 
 function loadGroups() {
@@ -65,7 +116,9 @@ function loadGroups() {
     const raw = uni.getStorageSync(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed.groups) && parsed.groups.length) return parsed.groups
+      if (Array.isArray(parsed.groups) && parsed.groups.length) {
+        return mergeMissingSeedGroups(parsed.groups)
+      }
     }
   } catch {
     /* ignore */
@@ -75,7 +128,12 @@ function loadGroups() {
 
 export function getEmployeeGroupByName(name = '') {
   if (!name) return null
-  return loadGroups().find((g) => g.name === name && g.status === '启用') || null
+  const groups = loadGroups()
+  return (
+    groups.find((g) => g.name === name && g.status === '启用') ||
+    groups.find((g) => g.name === name) ||
+    null
+  )
 }
 
 export function getGroupWorkers(groupName = '') {
@@ -142,8 +200,22 @@ export function getLedGroupMembers(user) {
 
 export function getGroupLeaderName(groupName = '') {
   const group = getEmployeeGroupByName(groupName)
-  return group?.leaderName || ''
+  if (!group) return ''
+  if (group.leaderName) return group.leaderName
+  const leader = (group.workers || []).find((w) => w.isLeader)
+  return leader?.name || ''
 }
+
+export function isUserLeaderOfGroup(groupName, userOrNames) {
+  const names = Array.isArray(userOrNames) ? userOrNames : resolveUserAliases(userOrNames)
+  if (!names.length) return false
+  const leader = getGroupLeaderName(groupName)
+  if (leader && names.includes(leader)) return true
+  const group = getEmployeeGroupByName(groupName)
+  return !!(group?.workers || []).some((w) => w.isLeader && names.includes(w.name))
+}
+
+export { resolveUserAliases }
 
 export function resolveTaskGroupName(task = {}, user) {
   if (task.groupName) return task.groupName

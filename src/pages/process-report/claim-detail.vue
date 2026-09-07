@@ -77,6 +77,12 @@
       </template>
       <button v-else class="claim-btn" :loading="claiming" @tap="onClaim">领取任务</button>
     </view>
+    <ClaimGroupSelectModal
+      :open="claimGroupModalOpen"
+      :groups="claimGroupOptions"
+      @cancel="closeClaimGroupModal"
+      @confirm="onConfirmClaimGroup"
+    />
   </view>
 </template>
 
@@ -88,12 +94,14 @@ import {
   getClaimableReportTaskById,
   getReportTaskById,
   claimReportTask,
+  getClaimGroupChoices,
   getCollaborationPeers,
 } from '@/mock/processReportTasks'
 import { getMyRecords } from '@/mock/processReportRecords'
 import { getProcessReportMode } from '@/utils/iodomsStorage'
 import { resolveReportMode } from '@/utils/reportMode'
 import { resolveWorkerDisplayName } from '@/utils/workerGroup'
+import ClaimGroupSelectModal from '@/components/process-report/ClaimGroupSelectModal.vue'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -104,6 +112,8 @@ const pageMode = ref('claim')
 const reportFor = ref('')
 const task = ref(null)
 const claiming = ref(false)
+const claimGroupModalOpen = ref(false)
+const claimGroupOptions = ref([])
 const collaborationPeers = ref([])
 
 const isReportMode = computed(() => pageMode.value === 'report')
@@ -268,12 +278,17 @@ function onViewRecord() {
   uni.showToast({ title: '暂无报工记录', icon: 'none' })
 }
 
-function onClaim() {
+function doClaim(groupName = '') {
   if (!task.value || claiming.value) return
   claiming.value = true
-  const res = claimReportTask(task.value.id, getUser())
+  const res = claimReportTask(task.value.id, getUser(), groupName)
   claiming.value = false
   if (!res.ok) {
+    if (res.needSelectGroup && res.groups?.length) {
+      claimGroupOptions.value = res.groups
+      claimGroupModalOpen.value = true
+      return
+    }
     uni.showToast({ title: res.message, icon: 'none' })
     return
   }
@@ -281,6 +296,27 @@ function onClaim() {
   setTimeout(() => {
     uni.redirectTo({ url: '/pages/process-report/index?tab=today' })
   }, 500)
+}
+
+function onClaim() {
+  if (!task.value || claiming.value) return
+  const groups = getClaimGroupChoices(task.value, getUser())
+  if (groups.length > 1) {
+    claimGroupOptions.value = groups
+    claimGroupModalOpen.value = true
+    return
+  }
+  doClaim(groups[0] || '')
+}
+
+function closeClaimGroupModal() {
+  claimGroupModalOpen.value = false
+  claimGroupOptions.value = []
+}
+
+function onConfirmClaimGroup(groupName) {
+  closeClaimGroupModal()
+  doClaim(groupName)
 }
 
 function goBack() {

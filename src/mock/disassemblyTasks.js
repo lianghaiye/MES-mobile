@@ -10,7 +10,7 @@ import {
   getTaskAssignGroups,
   isMultiGroupTask,
 } from '@/utils/processReportTaskRules'
-import { getGroupLeaderName } from '@/mock/employeeGroups'
+import { isUserLeaderOfGroup } from '@/mock/employeeGroups'
 import { isParallelTaskDispatch } from '@/utils/businessRuleBridge'
 
 const STORAGE_KEY = 'i_doms_mobile_disassembly_tasks'
@@ -510,12 +510,13 @@ const seedTasks = [
     processRoute: '标准焊接工艺 v2',
     executor: '',
     executors: ['张三', '王五'],
-    claimTargets: ['张三', '王五'],
-    groupName: '焊接小组',
+    groupName: '加工小组',
+    groupNames: ['加工小组', '精加小组'],
     expectedQty: 20,
     taskStatus: '待领取',
     placement: 'claim',
-    resourceType: '工人',
+    resourceType: '工人小组',
+    claimedGroups: [],
     serialLocked: false,
     createdAt: `${formatTaskDate()} 07:30:00`,
   }),
@@ -638,7 +639,7 @@ const seedTasks = [
     processRoute: '表面处理路线',
     executor: '',
     groupName: '加工小组',
-    groupNames: ['加工小组', '焊接小组'],
+    groupNames: ['加工小组', '精加小组'],
     resourceType: '工人小组',
     expectedQty: 30,
     taskStatus: '待领取',
@@ -646,6 +647,33 @@ const seedTasks = [
     claimedGroups: [],
     serialLocked: false,
     createdAt: `${formatTaskDate()} 07:40:00`,
+  }),
+  taskSeed({
+    id: 'pt-claim-same-leader',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-8b',
+    workOrderCode: 'WO-071',
+    workOrderName: '法兰盘生产工单',
+    taskNo: 'T20260602027',
+    processName: '打磨',
+    processSeq: 2,
+    productName: '法兰盘',
+    itemCode: 'FL-2024-C',
+    specModel: 'DN150 PN16',
+    material: 'HT200',
+    drawingNo: 'FL-DN150-01',
+    barcodeType: '一批一码',
+    processRoute: '表面处理路线',
+    executor: '',
+    groupName: '加工小组',
+    groupNames: ['加工小组', '精加小组'],
+    resourceType: '工人小组',
+    expectedQty: 24,
+    taskStatus: '待领取',
+    placement: 'claim',
+    claimedGroups: [],
+    serialLocked: false,
+    createdAt: `${formatTaskDate()} 07:45:00`,
   }),
   // —— 多人协作（工人小组 + 时长报工）——
   taskSeed({
@@ -822,7 +850,7 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '10'
+const TASK_SEED_VERSION = '12'
 
 function buildSeedTasks() {
   const today = formatTaskDate()
@@ -1198,19 +1226,39 @@ export function getTaskList(tab = 'todo') {
   return list.filter((t) => t.taskStatus !== '已完成' && t.placement !== 'claim')
 }
 
-export function claimTask(taskId, userName = 'admin') {
+export function claimTask(taskId, userName = 'admin', selectedGroupName = '') {
   const task = getTaskById(taskId)
   if (!task) return { ok: false, message: '任务不存在' }
   if (task.hiddenByTerminate) return { ok: false, message: '工单已终止，任务不可领取' }
   if (task.controlStatus === '暂停') return { ok: false, message: '工单已暂停，任务不可领取' }
   if (task.placement !== 'claim') return { ok: false, message: '该任务不在待领列表' }
   if (task.resourceType === '工人小组' && isMultiGroupTask(task)) {
-    const myGroup = getTaskAssignGroups(task).find((groupName) => getGroupLeaderName(groupName) === userName)
-    if (!myGroup) return { ok: false, message: '仅小组组长可领取该任务' }
-    if ((task.claimedGroups || []).includes(myGroup)) {
-      return { ok: false, message: '该小组已领取此任务' }
+    const myGroups = getTaskAssignGroups(task).filter((groupName) =>
+      isUserLeaderOfGroup(groupName, { username: userName, displayName: userName }),
+    )
+    const claimed = task.claimedGroups || []
+    if (myGroups.some((groupName) => claimed.includes(groupName))) {
+      return { ok: false, message: '您已领取该任务' }
     }
-    task.claimedGroups = [...(task.claimedGroups || []), myGroup]
+    const unclaimed = myGroups.filter((groupName) => !claimed.includes(groupName))
+    if (!unclaimed.length) return { ok: false, message: '仅小组组长可领取该任务' }
+    let myGroup = selectedGroupName
+    if (myGroup) {
+      if (!unclaimed.includes(myGroup)) {
+        return { ok: false, message: '请选择您负责的执行小组' }
+      }
+    } else if (unclaimed.length === 1) {
+      myGroup = unclaimed[0]
+    } else {
+      return {
+        ok: false,
+        message: '请选择执行任务小组',
+        needSelectGroup: true,
+        groups: unclaimed,
+      }
+    }
+    task.claimedGroups = [...claimed, myGroup]
+    task.groupName = myGroup
     task.claimedBy = task.claimedBy || userName
     task.groupLeader = userName
     task.claimedAt = new Date().toISOString().slice(0, 19).replace('T', ' ')

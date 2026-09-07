@@ -8,4 +8,5 @@ export {
   getLedGroupMembers,
   getGroupLeaderName,
   getEmployeeGroupByName,
+  isUserLeaderOfGroup,
 } from '@/mock/employeeGroups'

@@ -21,15 +21,47 @@ export function isPersonalLeaderTask(task = {}, leaderName = '') {
   return task.executor === leaderName || task.claimedBy === leaderName
 }
 
+export function getLeaderGroupsForTask(task = {}, leaderName = '') {
+  if (!leaderName) return []
+  return getTaskAssignGroups(task).filter((groupName) => getGroupLeaderName(groupName) === leaderName)
+}
+
 export function getLeaderGroupForTask(task = {}, leaderName = '') {
-  return getTaskAssignGroups(task).find((groupName) => getGroupLeaderName(groupName) === leaderName) || ''
+  return getLeaderGroupsForTask(task, leaderName)[0] || ''
+}
+
+export function getUnclaimedLeaderGroups(task = {}, leaderName = '') {
+  const claimed = task.claimedGroups || []
+  return getLeaderGroupsForTask(task, leaderName).filter((groupName) => !claimed.includes(groupName))
+}
+
+export function formatTaskSpecLine(task = {}) {
+  const spec = task.specModel || '—'
+  const material = task.material || '—'
+  const drawing = task.drawingNo || '—'
+  return `${spec} / ${material} / ${drawing}`
+}
+
+export function getTaskResourceLabel(task = {}, leaderName = '') {
+  if (!isGroupReportTask(task)) return '工人'
+  if (leaderName) {
+    const claimedMine = getLeaderGroupsForTask(task, leaderName).find((groupName) =>
+      (task.claimedGroups || []).includes(groupName),
+    )
+    if (claimedMine) return claimedMine
+  }
+  const names = getTaskAssignGroups(task)
+  if (names.length === 1) return names[0]
+  if (names.length > 1) return names.join('、')
+  return task.groupName || '小组'
 }
 
 export function isGroupClaimedByLeader(task = {}, leaderName = '') {
   if (!isGroupReportTask(task)) return false
   if (isMultiGroupTask(task)) {
-    const myGroup = getLeaderGroupForTask(task, leaderName)
-    return !!myGroup && (task.claimedGroups || []).includes(myGroup)
+    return getLeaderGroupsForTask(task, leaderName).some((groupName) =>
+      (task.claimedGroups || []).includes(groupName),
+    )
   }
   const leader = getGroupLeaderName(task.groupName)
   return leader === leaderName && (task.claimedBy === leaderName || task.groupLeader === leaderName || task.placement === 'todo')

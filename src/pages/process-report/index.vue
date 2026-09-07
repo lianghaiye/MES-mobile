@@ -34,13 +34,11 @@
       >
         <view class="task-head">
           <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
-          <text v-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
-          <text v-else class="task-tag claim-tag">待领取</text>
+          <text class="task-tag" :class="resourceTagClass(task)">{{ task.resourceLabel }}</text>
         </view>
         <text class="task-wo">工单 {{ task.workOrderNo }} · {{ task.orderCategory }}</text>
-        <text class="task-spec">
-          材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
-        </text>
+        <text class="task-spec">{{ task.specLine }}</text>
+        <text v-if="task.salesOrderNo" class="task-sales">{{ task.salesOrderNo }}</text>
         <view class="task-body">
           <view class="proc-info">
             <text class="proc-seq">{{ task.processSeq }}</text>
@@ -157,19 +155,14 @@
               <view class="task-card" :class="task.status" @tap="goTaskDetail(task)">
                 <view class="task-head">
                   <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
-                  <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
-                  <text
-                    v-else-if="isGroupCollaborativeTask(task)"
-                    class="task-tag collab-tag"
-                  >多人协作</text>
-                  <text v-else-if="task.isGroupTask" class="task-tag group-tag">小组</text>
-                  <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
-                  <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
+                  <view class="task-head-tags">
+                    <text class="task-tag" :class="resourceTagClass(task)">{{ task.resourceLabel }}</text>
+                    <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
+                  </view>
                 </view>
                 <text class="task-wo">工单 {{ task.workOrderNo }}</text>
-                <text class="task-spec">
-                  材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
-                </text>
+                <text class="task-spec">{{ task.specLine }}</text>
+                <text v-if="task.salesOrderNo" class="task-sales">{{ task.salesOrderNo }}</text>
                 <view class="task-body">
                   <view class="proc-info">
                     <text class="proc-meta">{{ taskQtyText(task) }}</text>
@@ -213,20 +206,14 @@
             <view class="task-card" :class="task.status" @tap="goTaskDetail(task)">
               <view class="task-head">
                 <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
-                <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
-                <text
-                  v-else-if="isGroupCollaborativeTask(task)"
-                  class="task-tag collab-tag"
-                >多人协作</text>
-                <text v-else-if="task.isCollaborative" class="task-tag collab-tag">协作</text>
-                <text v-else-if="task.isGroupTask" class="task-tag group-tag">小组</text>
-                <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
-                <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
+                <view class="task-head-tags">
+                  <text class="task-tag" :class="resourceTagClass(task)">{{ task.resourceLabel }}</text>
+                  <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
+                </view>
               </view>
               <text class="task-wo">工单 {{ task.workOrderNo }}</text>
-              <text class="task-spec">
-                材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
-              </text>
+              <text class="task-spec">{{ task.specLine }}</text>
+              <text v-if="task.salesOrderNo" class="task-sales">{{ task.salesOrderNo }}</text>
               <view class="task-body">
                 <view class="proc-info">
                   <text class="proc-seq">{{ task.processSeq }}</text>
@@ -338,6 +325,12 @@
       @confirm="onBatchQuickConfirm"
       @abnormal="onBatchAbnormal"
     />
+    <ClaimGroupSelectModal
+      :open="claimGroupModalOpen"
+      :groups="claimGroupOptions"
+      @cancel="closeClaimGroupModal"
+      @confirm="onConfirmClaimGroup"
+    />
   </view>
 </template>
 
@@ -350,6 +343,7 @@ import {
   getClaimableReportTasks,
   getClaimableReportTaskCount,
   claimReportTask,
+  getClaimGroupChoices,
   hasTodayReportTasks,
   batchReportTasks,
 } from '@/mock/processReportTasks'
@@ -370,6 +364,7 @@ import {
 } from '@/utils/workerGroup'
 import { getQuickProductByCode } from '@/mock/processReportProducts'
 import BatchReportConfirmModal from '@/components/process-report/BatchReportConfirmModal.vue'
+import ClaimGroupSelectModal from '@/components/process-report/ClaimGroupSelectModal.vue'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -389,6 +384,9 @@ const reportForMember = ref('')
 const reportForMembers = ref([])
 const selectedTaskIds = ref([])
 const batchConfirmOpen = ref(false)
+const claimGroupModalOpen = ref(false)
+const claimGroupOptions = ref([])
+const pendingClaimTask = ref(null)
 const recordFilter = ref('all')
 const refreshKey = ref(0)
 const dateHeader = getDateHeader()
@@ -430,6 +428,10 @@ const showMemberSelector = computed(() => {
   }
   return reportTasks.value.some((t) => t.isGroupTask && t.status === 'pending')
 })
+
+function resourceTagClass(task) {
+  return task.isGroupTask || task.resourceType === '工人小组' ? 'group-tag' : 'worker-tag'
+}
 
 function isGroupCollaborativeTask(task) {
   return !!(task?.isGroupTask && isDurationReportMode(task.reportMode))
@@ -782,15 +784,45 @@ function buildExecuteQuery(params) {
     .join('&')
 }
 
-function onClaimTask(task) {
-  const res = claimReportTask(task.id, user.value)
+function doClaimTask(task, groupName = '') {
+  const res = claimReportTask(task.id, user.value, groupName)
   if (!res.ok) {
+    if (res.needSelectGroup && res.groups?.length) {
+      pendingClaimTask.value = task
+      claimGroupOptions.value = res.groups
+      claimGroupModalOpen.value = true
+      return
+    }
     uni.showToast({ title: res.message, icon: 'none' })
     return
   }
   uni.showToast({ title: '领取成功', icon: 'success' })
   refreshKey.value += 1
   activeTab.value = 'today'
+}
+
+function onClaimTask(task) {
+  const groups = getClaimGroupChoices(task, user.value)
+  if (groups.length > 1) {
+    pendingClaimTask.value = task
+    claimGroupOptions.value = groups
+    claimGroupModalOpen.value = true
+    return
+  }
+  doClaimTask(task, groups[0] || '')
+}
+
+function closeClaimGroupModal() {
+  claimGroupModalOpen.value = false
+  pendingClaimTask.value = null
+  claimGroupOptions.value = []
+}
+
+function onConfirmClaimGroup(groupName) {
+  const task = pendingClaimTask.value
+  closeClaimGroupModal()
+  if (!task) return
+  doClaimTask(task, groupName)
 }
 
 function goClaimDetail(task) {
@@ -1377,6 +1409,15 @@ $primary: #1677ff;
   font-weight: 700;
 }
 
+.task-head-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+  flex-shrink: 0;
+  max-width: 280rpx;
+}
+
 .task-tag {
   font-size: 22rpx;
   color: $primary;
@@ -1384,12 +1425,22 @@ $primary: #1677ff;
   padding: 4rpx 12rpx;
   border-radius: 8rpx;
   flex-shrink: 0;
+  max-width: 280rpx;
+  line-height: 1.3;
+  text-align: right;
+  white-space: normal;
+  word-break: break-all;
 
   &.sales {
     max-width: 240rpx;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  &.worker-tag {
+    color: #d46b08;
+    background: #fff7e6;
   }
 
   &.personal-tag {
@@ -1420,6 +1471,13 @@ $primary: #1677ff;
   margin-top: 6rpx;
   font-size: 22rpx;
   color: #595959;
+}
+
+.task-sales {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #8c8c8c;
 }
 
 .task-body {

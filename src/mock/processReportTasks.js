@@ -20,9 +20,9 @@ import { isParallelTaskDispatch } from '@/utils/businessRuleBridge'
 import { updateWorkOrderStatus, markWorkOrderClaimedOnClaim } from '@/utils/workOrderStatusBridge'
 import {
   resolveWorkerDisplayName,
-  getGroupLeaderName,
   getGroupWorkerNames,
   isGroupLeader,
+  isUserLeaderOfGroup,
 } from '@/utils/workerGroup'
 import {
   REPORTABLE_TASK_STATUS,
@@ -34,6 +34,8 @@ import {
   getTaskReportedTotal,
   getTaskRemainingQty,
   isCollaborativeTask,
+  formatTaskSpecLine,
+  getTaskResourceLabel,
 } from '@/utils/processReportTaskRules'
 
 const REPORTABLE_CATEGORIES = ['生产工单', '总装工单']
@@ -46,7 +48,7 @@ const PRODUCT_MATERIAL_MAP = {
   'BX-2024-03': { material: '45#', drawingNo: 'BX-2024-03-DWG' },
   'CP2610004': { material: '不锈钢304', drawingNo: 'QJ200-50/4-DWG' },
   'CP2610002': { material: 'HT250', drawingNo: 'ISG80-160-DWG' },
-  'FL-2024-C': { material: 'HT200', drawingNo: 'FL-DN150-01' },
+  'FL-2024-C': { material: 'HT200', drawingNo: 'FL-DN150-01', specModel: 'DN150 PN16' },
   'BK-2024-01': { material: 'HT200', drawingNo: 'BK-DWG-01' },
   'DJ-2024-B': { material: '冷轧板', drawingNo: 'DJ-B-DWG-01' },
 }
@@ -125,10 +127,12 @@ function isTaskClaimableForUser(task, names) {
   if (task.taskStatus !== '待领取' || task.placement !== 'claim') return false
   if (isGroupReportTask(task)) {
     if (!isMultiGroupTask(task)) return false
-    return getTaskAssignGroups(task).some((groupName) => {
-      const leader = getGroupLeaderName(groupName)
-      return leader && names.includes(leader) && !(task.claimedGroups || []).includes(groupName)
-    })
+    const myGroups = getTaskAssignGroups(task).filter((groupName) =>
+      isUserLeaderOfGroup(groupName, names),
+    )
+    if (!myGroups.length) return false
+    if (myGroups.some((groupName) => (task.claimedGroups || []).includes(groupName))) return false
+    return myGroups.some((groupName) => !(task.claimedGroups || []).includes(groupName))
   }
   if (task.claimedBy) return false
   const targets = task.claimTargets?.length ? task.claimTargets : task.executors
@@ -203,6 +207,8 @@ function enrichTask(task, user, options = {}) {
     reportedTotalQty,
     salesOrderNo: resolveSalesOrderNo(task),
     groupName: task.groupName || getTaskAssignGroups(task)[0] || '',
+    specLine: formatTaskSpecLine({ ...task, ...resolveTaskProductMeta(task) }),
+    resourceLabel: getTaskResourceLabel(task, leaderName),
     reportMode,
     isCollaborative: isCollaborativeTask(task),
     collaborationLabel: isCollaborativeTask(task)
@@ -222,8 +228,10 @@ function enrichTask(task, user, options = {}) {
   }
 }
 
-function enrichClaimTask(task) {
+function enrichClaimTask(task, user) {
   const groups = getTaskAssignGroups(task)
+  const productMeta = resolveTaskProductMeta(task)
+  const leaderName = resolveWorkerDisplayName(user)
   return {
     ...task,
     workOrderNo: task.workOrderCode,
@@ -233,10 +241,22 @@ function enrichClaimTask(task) {
     groupName: task.groupName || groups[0] || '',
     groupNames: groups,
     isMultiGroup: isMultiGroupTask(task),
+    isGroupTask: isGroupReportTask(task),
     isCollaborative: isCollaborativeTask(task),
+    specLine: formatTaskSpecLine({ ...task, ...productMeta }),
+    resourceLabel: getTaskResourceLabel(task, leaderName),
     reportMode: getProcessReportMode(task.processName) || task.reportMode,
-    ...resolveTaskProductMeta(task),
+    ...productMeta,
   }
+}
+
+export function getClaimGroupChoices(task, user) {
+  if (!task || !isMultiGroupTask(task)) return []
+  const names = resolveExecutorNames(user)
+  const claimed = task.claimedGroups || []
+  return getTaskAssignGroups(task).filter(
+    (groupName) => isUserLeaderOfGroup(groupName, names) && !claimed.includes(groupName),
+  )
 }
 
 export function getCollaborationPeers(taskId) {
@@ -277,7 +297,7 @@ export function getClaimableReportTasks(user) {
     .filter((t) => t.controlStatus !== '暂停')
     .filter((t) => isTaskClaimableForUser(t, executorNames))
     .filter((t) => isTaskInTodayScope(t, today) || isUnclaimedPoolTask(t))
-    .map(enrichClaimTask)
+    .map((t) => enrichClaimTask(t, user))
     .sort((a, b) => (a.processSeq || 0) - (b.processSeq || 0))
 }
 
@@ -289,9 +309,9 @@ export function getClaimableReportTaskById(taskId, user) {
   return getClaimableReportTasks(user).find((t) => t.id === taskId) || null
 }
 
-export function claimReportTask(taskId, user) {
+export function claimReportTask(taskId, user, groupName = '') {
   const userName = resolveWorkerDisplayName(user)
-  const result = claimTask(taskId, userName)
+  const result = claimTask(taskId, userName, groupName)
   if (result?.ok && result.task?.workOrderId) {
     markWorkOrderClaimedOnClaim(result.task.workOrderId, result.task.orderCategory || '生产工单')
   }
