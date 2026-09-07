@@ -94,6 +94,7 @@ export function ensureMobileIndustrialLabelSeed() {
         labelCode: 'IL02202609030001',
         status: '有效',
         qrStatus: '待绑定',
+      engraveStatus: '待刻录',
         requestOrderNo: requestNo,
         sourceType: 'sales_order',
         salesOrderId: 'so-seed-industrial-label-done',
@@ -115,6 +116,7 @@ export function ensureMobileIndustrialLabelSeed() {
         labelCode: 'IL02202609030002',
         status: '有效',
         qrStatus: '待绑定',
+      engraveStatus: '待刻录',
         requestOrderNo: requestNo,
         sourceType: 'sales_order',
         salesOrderId: 'so-seed-industrial-label-done',
@@ -136,6 +138,7 @@ export function ensureMobileIndustrialLabelSeed() {
         labelCode: 'IL02202609030003',
         status: '有效',
         qrStatus: '待绑定',
+      engraveStatus: '待刻录',
         requestOrderNo: requestNo,
         sourceType: 'sales_order',
         salesOrderId: 'so-seed-industrial-label-done',
@@ -157,6 +160,7 @@ export function ensureMobileIndustrialLabelSeed() {
         labelCode: 'IL02202609030004',
         status: '有效',
         qrStatus: '已绑定',
+      engraveStatus: '已刻录',
         requestOrderNo: requestNo,
         sourceType: 'sales_order',
         salesOrderId: 'so-seed-industrial-label-done',
@@ -202,6 +206,7 @@ export function ensureMobileIndustrialLabelSeed() {
         labelCode: 'IL03202609010001',
         status: '有效',
         qrStatus: '已绑定',
+      engraveStatus: '已刻录',
         requestOrderNo: 'GYHLBS260901001',
         sourceType: 'sales_order',
         salesOrderId: 'so-seed-industrial-label-all-done',
@@ -226,6 +231,7 @@ export function ensureMobileIndustrialLabelSeed() {
         labelCode: 'IL03202609010002',
         status: '有效',
         qrStatus: '已绑定',
+      engraveStatus: '已刻录',
         requestOrderNo: 'GYHLBS260901001',
         sourceType: 'sales_order',
         salesOrderId: 'so-seed-industrial-label-all-done',
@@ -308,7 +314,12 @@ export function listLabelsBySalesOrder(salesOrderNo) {
 }
 
 function isLabelMounted(label) {
-  return Boolean(label?.nameplateMountedAt || label?.boundAtInbound || label?.qrStatus === '已绑定')
+  return Boolean(
+    label?.nameplateMountedAt ||
+      label?.engraveStatus === '已刻录' ||
+      label?.boundAtInbound ||
+      label?.qrStatus === '已绑定',
+  )
 }
 
 /**
@@ -427,13 +438,14 @@ export function confirmNameplateMount(labelCode, { operator = '小程序', piece
   if (idx < 0) return { ok: false, message: '未找到该 SN' }
   const label = state.labels[idx]
   if (label.status === '作废') return { ok: false, message: '该标识已作废，不可装牌' }
-  if (label.nameplateMountedAt || label.boundAtInbound) {
+  if (label.nameplateMountedAt || label.engraveStatus === '已刻录' || label.boundAtInbound) {
     return { ok: true, label: enrichLabel(label), message: '该 SN 已装牌确认', already: true }
   }
 
   const now = nowText()
   label.qrStatus = '已绑定'
   label.boundAtInbound = true
+  label.engraveStatus = '已刻录'
   label.nameplateMountedAt = now
   label.nameplateMountedBy = operator || '小程序'
   if (pieceSerialNo) {
