@@ -1,4 +1,4 @@
-import { getPendingQcCount } from '@/mock/factoryQc'
+import { getPendingQcCount } from '@/mock/qcTask'
 import { getPendingTaskCount } from '@/mock/disassemblyTasks'
 import { getPendingApprovalCount } from '@/mock/approval'
 

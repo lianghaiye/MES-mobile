@@ -46,9 +46,15 @@
       }
     },
     {
+      "path": "pages/qc-task/index",
+      "style": {
+        "navigationBarTitleText": "质检任务"
+      }
+    },
+    {
       "path": "pages/qc-task/list",
       "style": {
-        "navigationBarTitleText": "质检任务",
+        "navigationBarTitleText": "质检列表",
         "enablePullDownRefresh": true
       }
     },

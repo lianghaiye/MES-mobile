@@ -1,51 +1,53 @@
 <template>
   <view class="qc-list-page">
+    <view class="top-bar">
+      <view class="hub-link" @tap="goHub">回到质检首页</view>
+    </view>
+
     <view class="search-bar">
       <input
         v-model="keyword"
         class="search-input"
-        placeholder="搜索质检单号 / 销售单号 / 客户"
+        :placeholder="searchPlaceholder"
         confirm-type="search"
-        @confirm="loadList"
+        @confirm="noop"
       />
     </view>
 
     <scroll-view scroll-x class="tabs">
       <view
-        v-for="tab in tabs"
-        :key="tab.value"
+        v-for="tab in statusTabs"
+        :key="String(tab.value)"
         class="tab"
         :class="{ active: statusFilter === tab.value }"
-        @tap="setFilter(tab.value)"
+        @tap="statusFilter = tab.value"
       >
         {{ tab.label }}
         <text v-if="tab.count > 0" class="tab-count">({{ tab.count }})</text>
       </view>
     </scroll-view>
 
-    <view v-if="!list.length" class="empty">暂无质检任务</view>
+    <view v-if="!list.length" class="empty">
+      <text class="empty-title">暂无{{ currentMeta?.title || '质检' }}任务</text>
+      <text class="empty-tip">请先在 WEB 端生成质检单；H5 同域可与 WEB 数据互通</text>
+    </view>
 
-    <view
-      v-for="item in list"
-      :key="item.id"
-      class="card"
-      @tap="goDetail(item)"
-    >
+    <view v-for="item in list" :key="item.id" class="card" @tap="goDetail(item)">
       <view class="card-head">
         <text class="qc-no">{{ item.qcNo || '待生成单号' }}</text>
         <StatusTag :text="item.qcStatus" />
       </view>
-      <view class="row">
-        <text class="label">销售单号</text>
-        <text class="val">{{ item.salesOrderNo }}</text>
+      <view v-for="row in summaryRows(item)" :key="row.label" class="row">
+        <text class="label">{{ row.label }}</text>
+        <text class="val">{{ row.value }}</text>
       </view>
       <view class="row">
-        <text class="label">客户</text>
-        <text class="val">{{ item.customerName }}</text>
+        <text class="label">创建人</text>
+        <text class="val">{{ item.creator || '—' }}</text>
       </view>
       <view class="row">
-        <text class="label">出库单号</text>
-        <text class="val">{{ item.outboundDocNo || '-' }}</text>
+        <text class="label">创建时间</text>
+        <text class="val">{{ formatTime(item.createdAt) }}</text>
       </view>
       <view v-if="item.qcResult" class="row">
         <text class="label">质检结果</text>
@@ -59,17 +61,22 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
+import { ref, computed, watch } from 'vue'
+import { onLoad, onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import StatusTag from '@/components/StatusTag.vue'
-import { getQcList } from '@/mock/factoryQc'
+import { getQcList, getQcBizScopeMeta, ensureSharedQcDemoSeed } from '@/mock/qcTask'
 
 const keyword = ref('')
-const statusFilter = ref('')
+const bizScope = ref('来料质检')
+const statusFilter = ref('待质检')
 const allList = ref([])
 
-const tabs = computed(() => {
-  const all = allList.value
+const currentMeta = computed(() => getQcBizScopeMeta(bizScope.value))
+
+const scopedAll = computed(() => allList.value.filter((r) => r.bizScope === bizScope.value))
+
+const statusTabs = computed(() => {
+  const all = scopedAll.value
   return [
     { label: '全部', value: '', count: all.length },
     { label: '待质检', value: '待质检', count: all.filter((r) => r.qcStatus === '待质检').length },
@@ -77,28 +84,97 @@ const tabs = computed(() => {
   ]
 })
 
-const list = computed(() => {
-  return getQcList({
+const list = computed(() =>
+  getQcList({
+    bizScope: bizScope.value || undefined,
     qcStatus: statusFilter.value || undefined,
     keyword: keyword.value.trim(),
-  })
+  }),
+)
+
+const searchPlaceholder = computed(() => {
+  if (bizScope.value === '来料质检' || bizScope.value === '外协回货检') {
+    return '搜索单号 / 物料 / 供应商'
+  }
+  if (bizScope.value === '生产过程检' || bizScope.value === '成品检') {
+    return '搜索单号 / 物料 / 工单'
+  }
+  return '搜索单号 / 销售单 / 客户'
 })
 
+function summaryRows(item) {
+  if (item.bizScope === '来料质检' || item.bizScope === '外协回货检') {
+    return [
+      { label: '来源单号', value: item.sourceDocNo || '—' },
+      { label: '供应商', value: item.supplier || '—' },
+      { label: '物料', value: item.itemName || '—' },
+    ]
+  }
+  if (item.bizScope === '生产过程检' || item.bizScope === '成品检') {
+    return [
+      { label: '工单号', value: item.workOrderNo || '—' },
+      { label: '工序', value: item.processName || '—' },
+      { label: '物料', value: item.itemName || '—' },
+    ]
+  }
+  return [
+    { label: '销售单号', value: item.salesOrderNo || '—' },
+    { label: '客户', value: item.customerName || '—' },
+    { label: '出库单号', value: item.outboundDocNo || '—' },
+  ]
+}
+
+function formatTime(value) {
+  if (!value) return '—'
+  const text = String(value)
+  return text.length >= 16 ? text.slice(0, 16) : text
+}
+
+function syncNavTitle() {
+  uni.setNavigationBarTitle({ title: currentMeta.value?.title || '质检任务' })
+}
+
 function loadList() {
+  ensureSharedQcDemoSeed()
   allList.value = getQcList({})
 }
 
-function setFilter(val) {
-  statusFilter.value = val
+function goHub() {
+  const pages = getCurrentPages()
+  for (let i = pages.length - 2; i >= 0; i--) {
+    if (pages[i].route?.includes('qc-task/index')) {
+      uni.navigateBack({ delta: pages.length - 1 - i })
+      return
+    }
+  }
+  uni.redirectTo({ url: '/pages/qc-task/index' })
 }
 
+function noop() {}
+
 function goDetail(item) {
-  uni.navigateTo({ url: `/pages/qc-task/detail?id=${item.id}` })
+  uni.navigateTo({
+    url: `/pages/qc-task/detail?id=${item.id}&bizScope=${encodeURIComponent(bizScope.value)}`,
+  })
 }
 
 function goInspect(item) {
-  uni.navigateTo({ url: `/pages/qc-task/inspect?id=${item.id}` })
+  uni.navigateTo({
+    url: `/pages/qc-task/inspect?id=${item.id}&bizScope=${encodeURIComponent(bizScope.value)}`,
+  })
 }
+
+watch(bizScope, () => syncNavTitle())
+
+onLoad((query) => {
+  const scope = decodeURIComponent(query.bizScope || '')
+  if (getQcBizScopeMeta(scope)) {
+    bizScope.value = scope
+  } else {
+    bizScope.value = '来料质检'
+  }
+  syncNavTitle()
+})
 
 onShow(() => loadList())
 
@@ -110,12 +186,26 @@ onPullDownRefresh(() => {
 
 <style lang="scss" scoped>
 .qc-list-page {
-  padding: 24rpx;
-  padding-bottom: 48rpx;
+  padding: 20rpx 24rpx 48rpx;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16rpx;
+}
+
+.hub-link {
+  padding: 12rpx 22rpx;
+  font-size: 24rpx;
+  color: #1677ff;
+  background: #e6f4ff;
+  border-radius: 999rpx;
+  font-weight: 600;
 }
 
 .search-bar {
-  margin-bottom: 20rpx;
+  margin-bottom: 16rpx;
 }
 
 .search-input {
@@ -128,7 +218,7 @@ onPullDownRefresh(() => {
 
 .tabs {
   white-space: nowrap;
-  margin-bottom: 24rpx;
+  margin-bottom: 20rpx;
 }
 
 .tab {
@@ -153,8 +243,21 @@ onPullDownRefresh(() => {
 
 .empty {
   text-align: center;
-  padding: 80rpx;
+  padding: 80rpx 40rpx;
   color: $text-secondary;
+}
+
+.empty-title {
+  display: block;
+  font-size: 28rpx;
+  margin-bottom: 12rpx;
+}
+
+.empty-tip {
+  display: block;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.35);
 }
 
 .card {
@@ -169,7 +272,7 @@ onPullDownRefresh(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16rpx;
+  margin-bottom: 12rpx;
 }
 
 .qc-no {

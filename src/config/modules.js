@@ -12,10 +12,10 @@ export const workbenchModules = [
   {
     key: 'qc-task',
     title: '质检任务',
-    desc: '出厂质检 · 待检执行',
+    desc: '五类分流 · 待检执行',
     icon: '✅',
     color: '#52c41a',
-    path: '/pages/qc-task/list',
+    path: '/pages/qc-task/index',
     placeholder: false,
   },
   {
