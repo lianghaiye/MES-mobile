@@ -73,6 +73,15 @@ export const workbenchModules = [
     placeholder: false,
   },
   {
+    key: 'sn-lookup',
+    title: '扫码查单',
+    desc: '扫铭牌 SN 查销售订单',
+    icon: '🔍',
+    color: '#1677ff',
+    path: '/pages/sn-lookup/index',
+    placeholder: false,
+  },
+  {
     key: 'industrial-label',
     title: '铭牌任务',
     desc: '按销售单看待刻 SN 与装牌确认',

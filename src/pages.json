@@ -273,6 +273,12 @@
       }
     },
     {
+      "path": "pages/sn-lookup/index",
+      "style": {
+        "navigationBarTitleText": "扫码查单"
+      }
+    },
+    {
       "path": "pages/mine/index",
       "style": {
         "navigationBarTitleText": "我的"

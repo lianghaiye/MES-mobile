@@ -463,3 +463,47 @@ export function confirmNameplateMount(labelCode, { operator = '小程序', piece
   saveLabelState(state)
   return { ok: true, label: enrichLabel(label), message: '装牌确认成功' }
 }
+
+/**
+ * 售后精确查单：完整 SN → 销售订单摘要（排除作废、须挂销售行）
+ * @param {string} labelCode
+ * @returns {{ ok: boolean, message?: string, card?: object }}
+ */
+export function lookupSalesOrderBySn(labelCode) {
+  ensureMobileIndustrialLabelSeed()
+  const code = String(labelCode || '').trim()
+  if (!code) return { ok: false, message: '请输入 SN 码' }
+
+  const state = loadLabelState()
+  const exact = state.labels.find(
+    (l) => String(l.labelCode || '').toUpperCase() === code.toUpperCase(),
+  )
+  if (!exact) return { ok: false, message: '未找到匹配 SN' }
+  if (exact.status === '作废') return { ok: false, message: '标识已作废' }
+  if (!String(exact.salesLineId || '').trim()) {
+    return { ok: false, message: '该 SN 未关联销售明细，无法查单' }
+  }
+
+  const label = enrichLabel(exact)
+  const meta = findSalesOrderMeta(label.salesOrderNo)
+  const mounted = isLabelMounted(label)
+
+  return {
+    ok: true,
+    card: {
+      labelCode: label.labelCode,
+      status: label.status || '有效',
+      mountStatus: mounted ? '已装牌' : '待装牌',
+      salesOrderNo: label.salesOrderNo || '',
+      salesOrderId: meta.orderId || label.salesOrderId || '',
+      salesLineId: label.salesLineId || '',
+      customerName: label.customerName || meta.customerName || '',
+      productName: label.productName || '',
+      productCode: label.productCode || '',
+      specModel: label.specModel || '',
+      material: label.material || '',
+      requestOrderNo: label.requestOrderNo || '',
+      regTime: label.regTime || '',
+    },
+  }
+}
