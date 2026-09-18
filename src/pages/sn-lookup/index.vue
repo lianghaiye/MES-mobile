@@ -5,16 +5,26 @@
       <text class="hero-desc">扫描或输入铭牌工业 SN，查询对应销售订单</text>
     </view>
 
-    <button class="btn-scan" type="primary" @tap="onScan">打开摄像头扫码</button>
-
     <view class="manual">
-      <input
-        v-model="snInput"
-        class="sn-input"
-        placeholder="输入完整工业 SN"
-        confirm-type="search"
-        @confirm="onQuery"
-      />
+      <view class="input-row">
+        <input
+          v-model="snInput"
+          class="sn-input"
+          placeholder="输入完整工业 SN"
+          confirm-type="search"
+          @confirm="onQuery"
+        />
+        <view class="scan-icon-btn" hover-class="scan-icon-btn--active" @tap="onScan">
+          <view class="scan-frame" aria-hidden="true">
+            <view class="scan-corner tl" />
+            <view class="scan-corner tr" />
+            <view class="scan-corner bl" />
+            <view class="scan-corner br" />
+            <view class="scan-line" />
+          </view>
+          <text class="scan-label">扫一扫</text>
+        </view>
+      </view>
       <button class="btn-query" type="primary" :loading="querying" @tap="onQuery">查询</button>
     </view>
 
@@ -178,46 +188,118 @@ onLoad((query) => {
   line-height: 1.5;
 }
 
-.btn-scan {
-  width: 100%;
-  height: 88rpx;
-  line-height: 88rpx;
-  background: #1677ff;
-  color: #fff;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  margin-bottom: 24rpx;
-  border: none;
-}
-
-.btn-scan::after {
-  border: none;
-}
-
 .manual {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 24rpx;
   margin-bottom: 24rpx;
 }
 
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
 .sn-input {
-  height: 88rpx;
+  flex: 1;
+  height: 96rpx;
   padding: 0 28rpx;
   background: #fff;
   border-radius: 12rpx;
   border: 1rpx solid #e8e8e8;
   font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.scan-icon-btn {
+  flex-shrink: 0;
+  width: 112rpx;
+  height: 96rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  background: #fff;
+  border-radius: 12rpx;
+  border: 1rpx solid #e8e8e8;
+  box-sizing: border-box;
+}
+
+.scan-icon-btn--active {
+  background: #f0f5ff;
+  border-color: #91caff;
+}
+
+.scan-frame {
+  position: relative;
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.scan-corner {
+  position: absolute;
+  width: 14rpx;
+  height: 14rpx;
+  border-color: #1677ff;
+  border-style: solid;
+}
+
+.scan-corner.tl {
+  top: 0;
+  left: 0;
+  border-width: 4rpx 0 0 4rpx;
+}
+
+.scan-corner.tr {
+  top: 0;
+  right: 0;
+  border-width: 4rpx 4rpx 0 0;
+}
+
+.scan-corner.bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 4rpx 4rpx;
+}
+
+.scan-corner.br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 4rpx 4rpx 0;
+}
+
+.scan-line {
+  position: absolute;
+  left: 6rpx;
+  right: 6rpx;
+  top: 50%;
+  height: 3rpx;
+  margin-top: -1.5rpx;
+  background: #1677ff;
+  opacity: 0.85;
+  border-radius: 2rpx;
+}
+
+.scan-label {
+  font-size: 20rpx;
+  color: #1677ff;
+  line-height: 1;
 }
 
 .btn-query {
-  height: 88rpx;
-  line-height: 88rpx;
+  width: 100%;
+  height: 104rpx;
+  line-height: 104rpx;
   background: #1677ff;
   color: #fff;
   border-radius: 12rpx;
-  font-size: 30rpx;
+  font-size: 34rpx;
+  font-weight: 600;
   border: none;
+  padding: 0;
+  margin: 0;
 }
 
 .btn-query::after {
