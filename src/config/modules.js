@@ -73,6 +73,15 @@ export const workbenchModules = [
     placeholder: false,
   },
   {
+    key: 'stocktake',
+    title: '盘点管理',
+    desc: '建单录实盘 · 明盘抽盘',
+    icon: '📦',
+    color: '#722ed1',
+    path: '/pages/stocktake/index',
+    placeholder: false,
+  },
+  {
     key: 'sn-lookup',
     title: '扫码查单',
     desc: '扫铭牌 SN 查销售订单',

@@ -303,6 +303,31 @@
       }
     },
     {
+      "path": "pages/stocktake/index",
+      "style": {
+        "navigationBarTitleText": "盘点管理",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/stocktake/edit",
+      "style": {
+        "navigationBarTitleText": "盘点单"
+      }
+    },
+    {
+      "path": "pages/stocktake/item-pick",
+      "style": {
+        "navigationBarTitleText": "添加盘点物品"
+      }
+    },
+    {
+      "path": "pages/stocktake/detail",
+      "style": {
+        "navigationBarTitleText": "盘点详情"
+      }
+    },
+    {
       "path": "pages/placeholder/index",
       "style": {
         "navigationBarTitleText": "功能开发中"
