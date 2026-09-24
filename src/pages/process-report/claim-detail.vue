@@ -8,6 +8,8 @@
       <view class="nav-placeholder" />
     </view>
 
+    <view v-if="scanTip" class="scan-tip-banner">{{ scanTip }}</view>
+
     <view class="status-banner">
       <text class="status-tag" :class="statusTagClass">{{ statusLabel }}</text>
       <text v-if="task.salesOrderNo" class="sales-no">{{ task.salesOrderNo }}</text>
@@ -102,6 +104,7 @@ function displayReportMode(mode) {
 const taskId = ref('')
 const pageMode = ref('claim')
 const reportFor = ref('')
+const scanTip = ref('')
 const task = ref(null)
 const claiming = ref(false)
 const collaborationPeers = ref([])
@@ -204,6 +207,7 @@ onLoad((query) => {
   taskId.value = query.id || ''
   pageMode.value = query.mode === 'report' ? 'report' : 'claim'
   reportFor.value = query.reportFor ? decodeURIComponent(query.reportFor) : ''
+  scanTip.value = query.tip ? decodeURIComponent(query.tip) : ''
   reload()
   if (!task.value) {
     uni.showToast({
@@ -211,6 +215,8 @@ onLoad((query) => {
       icon: 'none',
     })
     setTimeout(() => uni.navigateBack(), 1500)
+  } else if (scanTip.value) {
+    uni.showToast({ title: scanTip.value, icon: 'none', duration: 2500 })
   }
 })
 
@@ -337,6 +343,16 @@ $primary: #1677ff;
 
 .nav-placeholder {
   width: 72rpx;
+}
+
+.scan-tip-banner {
+  margin-bottom: 16rpx;
+  padding: 16rpx 20rpx;
+  background: #fff7e6;
+  color: #d48806;
+  border-radius: 8rpx;
+  font-size: 26rpx;
+  line-height: 1.4;
 }
 
 .status-banner {

@@ -111,6 +111,20 @@
       }
     },
     {
+      "path": "pages/process-report/scan-entry",
+      "style": {
+        "navigationBarTitleText": "扫码报工",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/process-report/wo-tasks",
+      "style": {
+        "navigationBarTitleText": "工单任务",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/process-report/record-detail",
       "style": {
         "navigationBarTitleText": "报工详情"

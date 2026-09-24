@@ -21,15 +21,36 @@
 
 <script setup>
 import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { login } from '@/utils/auth'
 
 const username = ref('admin')
 const password = ref('')
+const redirectUrl = ref('')
+
+onLoad((query) => {
+  if (query.redirect) {
+    try {
+      redirectUrl.value = decodeURIComponent(query.redirect)
+    } catch {
+      redirectUrl.value = query.redirect
+    }
+  }
+})
 
 function handleLogin() {
   const result = login(username.value, password.value)
   if (!result.ok) {
     uni.showToast({ title: result.message, icon: 'none' })
+    return
+  }
+  if (redirectUrl.value && redirectUrl.value.startsWith('/')) {
+    uni.redirectTo({
+      url: redirectUrl.value,
+      fail: () => {
+        uni.reLaunch({ url: redirectUrl.value })
+      },
+    })
     return
   }
   uni.switchTab({ url: '/pages/workbench/index' })
