@@ -1,5 +1,5 @@
 /**
- * 工序作业分项（小程序侧：报工校验与规范化）
+ * 工序作业分项（小程序侧）
  * 与 i-doms-web/src/utils/processWorkItem.js 对齐
  */
 
@@ -21,18 +21,37 @@ export function normalizeWageQtyMode(mode) {
   return mode === WAGE_QTY_MODE.ITEMIZED ? WAGE_QTY_MODE.ITEMIZED : WAGE_QTY_MODE.REPORTED
 }
 
-export function requiresWorkItemReport(reportQtyMode, wageQtyMode) {
-  const report = normalizeReportQtyMode(reportQtyMode)
-  const wage = normalizeWageQtyMode(wageQtyMode)
-  return report === REPORT_QTY_MODE.ITEMIZED || wage === WAGE_QTY_MODE.ITEMIZED
-}
-
 export function isScheduleReportMode(reportQtyMode) {
   return normalizeReportQtyMode(reportQtyMode) === REPORT_QTY_MODE.SCHEDULE
 }
 
+export function isItemizedReportMode(reportQtyMode) {
+  return normalizeReportQtyMode(reportQtyMode) === REPORT_QTY_MODE.ITEMIZED
+}
+
 export function isItemizedWageMode(wageQtyMode) {
   return normalizeWageQtyMode(wageQtyMode) === WAGE_QTY_MODE.ITEMIZED
+}
+
+/** 仅分项计薪时必须填分项数量 */
+export function requiresWorkItemQty(reportQtyMode, wageQtyMode) {
+  void reportQtyMode
+  return isItemizedWageMode(wageQtyMode)
+}
+
+export function requiresWorkItemReport(reportQtyMode, wageQtyMode) {
+  return requiresWorkItemQty(reportQtyMode, wageQtyMode)
+}
+
+/**
+ * - none: 无分项
+ * - select: 勾选分项不填量（排产+报工 / 分项+报工）
+ * - qty: 填分项数量（分项计薪）
+ */
+export function resolveWorkItemEntryMode(reportQtyMode, wageQtyMode, hasTemplates = false) {
+  if (requiresWorkItemQty(reportQtyMode, wageQtyMode)) return 'qty'
+  if (hasTemplates && !isItemizedWageMode(wageQtyMode)) return 'select'
+  return 'none'
 }
 
 export function normalizeReportWorkItems(list = [], snapshotCatalog = []) {
@@ -45,6 +64,7 @@ export function normalizeReportWorkItems(list = [], snapshotCatalog = []) {
       if (!itemCode) return null
       const hit = catalog.get(itemCode)
       const qty = Number(row.qty) || 0
+      const selected = row.selected === true || qty > 0
       const unitPrice =
         row.unitPriceSnapshot != null && row.unitPriceSnapshot !== ''
           ? Number(row.unitPriceSnapshot)
@@ -54,6 +74,7 @@ export function normalizeReportWorkItems(list = [], snapshotCatalog = []) {
         itemName: String(row.itemName || hit?.name || itemCode),
         unit: String(row.unit || hit?.unit || '个'),
         qty,
+        selected,
         unitPriceSnapshot: unitPrice,
       }
     })
@@ -66,8 +87,25 @@ export function validateReportWorkItems({
   workItems = [],
   catalog = [],
 } = {}) {
-  if (!requiresWorkItemReport(reportQtyMode, wageQtyMode)) return { ok: true }
+  const mode = resolveWorkItemEntryMode(
+    reportQtyMode,
+    wageQtyMode,
+    (catalog || []).length > 0 || (workItems || []).length > 0,
+  )
+  if (mode === 'none') return { ok: true }
+
   const normalized = normalizeReportWorkItems(workItems, catalog)
+
+  if (mode === 'select') {
+    if (isItemizedReportMode(reportQtyMode)) {
+      const selected = normalized.filter((r) => r.selected)
+      if (!selected.length) {
+        return { ok: false, message: '请至少勾选一条作业分项' }
+      }
+    }
+    return { ok: true }
+  }
+
   const positive = normalized.filter((r) => r.qty > 0)
   if (!positive.length) {
     return { ok: false, message: '请至少填写一条作业分项数量' }
@@ -81,13 +119,15 @@ export function validateReportWorkItems({
   return { ok: true }
 }
 
-export function buildWorkItemFormRows(catalog = []) {
+export function buildWorkItemFormRows(catalog = [], entryMode = 'qty') {
   return (Array.isArray(catalog) ? catalog : []).map((item) => ({
     itemCode: item.code || item.itemCode,
     itemName: item.name || item.itemName || item.code || item.itemCode,
     unit: item.unit || '个',
     qty: 0,
+    selected: false,
     unitPriceSnapshot: Number(item.unitPrice) || 0,
     plannedQtyTotal: item.plannedQtyTotal ?? null,
+    entryMode,
   }))
 }

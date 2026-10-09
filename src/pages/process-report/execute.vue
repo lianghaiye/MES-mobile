@@ -54,7 +54,7 @@
 
     <view class="mode-tags">
       <view class="mode-tag">{{ displayReportMode(reportMode) }}</view>
-      <view v-if="requiresWorkItems" class="mode-tag work-item-tag">作业分项</view>
+      <view v-if="workItemEntryMode !== 'none'" class="mode-tag work-item-tag">作业分项</view>
       <view class="source-tag">{{ displayReportSource(context.source) }}</view>
     </view>
 
@@ -72,8 +72,8 @@
         </view>
       </view>
 
-      <view v-if="requiresWorkItems" class="work-items-block">
-        <text class="work-items-title">作业分项{{ isScheduleMode ? '（需同时填写）' : '' }}</text>
+      <view v-if="workItemEntryMode === 'qty'" class="work-items-block">
+        <text class="work-items-title">作业分项{{ isScheduleMode ? '（需同时填写数量）' : '' }}</text>
         <view v-for="(item, idx) in form.workItems" :key="item.itemCode" class="work-item-row">
           <view class="work-item-meta">
             <text class="work-item-name">{{ item.itemName }}</text>
@@ -90,10 +90,37 @@
         </view>
       </view>
 
+      <view v-else-if="workItemEntryMode === 'select'" class="work-items-block">
+        <text class="work-items-title">
+          {{
+            isItemizedReport
+              ? '作业分项（勾选，不填数量）'
+              : '作业分项（可选，勾选即可）'
+          }}
+        </text>
+        <view
+          v-for="(item, idx) in form.workItems"
+          :key="item.itemCode"
+          class="work-item-select-row"
+          @tap="toggleWorkItemSelected(idx)"
+        >
+          <view class="work-item-check" :class="{ on: item.selected }">
+            <text v-if="item.selected">✓</text>
+          </view>
+          <view class="work-item-meta">
+            <text class="work-item-name">{{ item.itemName }}</text>
+            <text class="work-item-hint">{{ item.unit || '个' }} · 不填数量</text>
+          </view>
+        </view>
+      </view>
+
       <!-- 批量计件 -->
       <template v-if="!isDurationReportMode(reportMode) && showPieceQtyFields">
         <view class="field">
-          <text class="label" :class="{ required: isScheduleMode }">良品数量</text>
+          <text
+            class="label"
+            :class="{ required: isScheduleMode || isItemizedReport }"
+          >良品数量</text>
           <view class="stepper">
             <view class="step-btn" @tap="changeQty('good', -1)">−</view>
             <input v-model.number="form.goodQty" class="step-val" type="digit" />
@@ -237,11 +264,12 @@ import { getGroupWorkerNames, resolveWorkerDisplayName, getUserWorkerGroupNames,
 import { consumeSelectionResult } from '@/utils/selection'
 import {
   buildWorkItemFormRows,
+  isItemizedReportMode,
   isScheduleReportMode,
   normalizeReportQtyMode,
   normalizeReportWorkItems,
   normalizeWageQtyMode,
-  requiresWorkItemReport,
+  resolveWorkItemEntryMode,
   validateReportWorkItems,
 } from '@/utils/processWorkItem'
 
@@ -293,12 +321,18 @@ const form = reactive({
 const reportQtyMode = ref('schedule')
 const wageQtyMode = ref('reported')
 
-const requiresWorkItems = computed(() =>
-  requiresWorkItemReport(reportQtyMode.value, wageQtyMode.value),
+const workItemEntryMode = computed(() =>
+  resolveWorkItemEntryMode(
+    reportQtyMode.value,
+    wageQtyMode.value,
+    (form.workItems || []).length > 0,
+  ),
 )
 const isScheduleMode = computed(() => isScheduleReportMode(reportQtyMode.value))
+const isItemizedReport = computed(() => isItemizedReportMode(reportQtyMode.value))
+/** 排产口径，或「分项+报工」：都要填总报工数；仅「分项计薪」以分项数量为主可不填件数 */
 const showPieceQtyFields = computed(
-  () => isScheduleMode.value || !requiresWorkItems.value,
+  () => isScheduleMode.value || workItemEntryMode.value !== 'qty',
 )
 
 const isQuickSource = computed(() => isQuickReportSource(context.source))
@@ -517,7 +551,12 @@ function applyWorkItemSnapshotFromTask(task) {
   reportQtyMode.value = normalizeReportQtyMode(task.reportQtyMode)
   wageQtyMode.value = normalizeWageQtyMode(task.wageQtyMode)
   if (Array.isArray(task.workItems) && task.workItems.length) {
-    form.workItems = buildWorkItemFormRows(task.workItems)
+    const mode = resolveWorkItemEntryMode(
+      reportQtyMode.value,
+      wageQtyMode.value,
+      true,
+    )
+    form.workItems = buildWorkItemFormRows(task.workItems, mode)
   } else {
     form.workItems = []
   }
@@ -527,6 +566,14 @@ function changeWorkItemQty(index, delta) {
   const row = form.workItems[index]
   if (!row) return
   row.qty = Math.max(0, (Number(row.qty) || 0) + delta)
+  row.selected = row.qty > 0
+}
+
+function toggleWorkItemSelected(index) {
+  const row = form.workItems[index]
+  if (!row) return
+  row.selected = !row.selected
+  if (!row.selected) row.qty = 0
 }
 
 function refreshQtySnapshot() {
@@ -661,7 +708,7 @@ function onSubmit() {
     uni.showToast({ title: defectErr, icon: 'none' })
     return
   }
-  if (requiresWorkItems.value) {
+  if (workItemEntryMode.value !== 'none') {
     const workCheck = validateReportWorkItems({
       reportQtyMode: reportQtyMode.value,
       wageQtyMode: wageQtyMode.value,
@@ -673,22 +720,29 @@ function onSubmit() {
       return
     }
   }
-  if (!isQuickSource.value && remainingQty.value != null && isScheduleMode.value) {
+  // 排产报工 / 分项+报工：必须填总报工数（良品+不良）
+  if (!isQuickSource.value && showPieceQtyFields.value) {
     const total = (Number(form.goodQty) || 0) + (Number(form.defectQty) || 0)
-    if (total <= 0 && !requiresWorkItems.value) {
+    if (total <= 0) {
       uni.showToast({ title: '请填写报工数量', icon: 'none' })
       return
     }
-    if (total > remainingQty.value) {
+    if (isScheduleMode.value && remainingQty.value != null && total > remainingQty.value) {
       uni.showToast({ title: `报工数量不能超过待报 ${remainingQty.value} 件`, icon: 'none' })
       return
     }
   }
   submitting.value = true
   const legacy = breakdownToLegacy(form.defectBreakdown)
-  const workItemsPayload = requiresWorkItems.value
-    ? normalizeReportWorkItems(form.workItems, form.workItems)
-    : []
+  let workItemsPayload = []
+  if (workItemEntryMode.value === 'qty') {
+    workItemsPayload = normalizeReportWorkItems(form.workItems, form.workItems)
+  } else if (workItemEntryMode.value === 'select') {
+    workItemsPayload = normalizeReportWorkItems(form.workItems, form.workItems).filter(
+      (r) => r.selected,
+    )
+  }
+  const goodQty = form.goodQty
   const payload = {
     ...context,
     productId: resolveProductId(),
@@ -700,9 +754,9 @@ function onSubmit() {
     reportQtyMode: reportQtyMode.value,
     wageQtyMode: wageQtyMode.value,
     workItems: workItemsPayload,
-    goodQty: form.goodQty,
+    goodQty,
     defectQty: form.defectQty,
-    finishedQty: (Number(form.goodQty) || 0) + (Number(form.defectQty) || 0),
+    finishedQty: (Number(goodQty) || 0) + (Number(form.defectQty) || 0),
     workHours: form.workHours,
     startTime: form.startTime,
     endTime: form.endTime,
@@ -1005,6 +1059,32 @@ $primary: #1677ff;
   align-items: center;
   gap: 16rpx;
   margin-bottom: 16rpx;
+}
+
+.work-item-select-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+  padding: 12rpx 0;
+}
+
+.work-item-check {
+  width: 40rpx;
+  height: 40rpx;
+  border: 2rpx solid #d9d9d9;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  color: #fff;
+  flex-shrink: 0;
+
+  &.on {
+    background: #1677ff;
+    border-color: #1677ff;
+  }
 }
 
 .work-item-meta {
