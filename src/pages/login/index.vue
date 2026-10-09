@@ -1,8 +1,11 @@
 <template>
   <view class="login-page">
     <view class="brand">
-      <text class="logo">I-DOMS</text>
-      <text class="sub">制造执行系统 · 移动端</text>
+      <view class="brand-text">
+        <text class="logo">I-DOMS</text>
+        <text class="sub">制造执行系统 · 移动端</text>
+      </view>
+      <image class="mascot" :src="mascotImg" mode="aspectFit" />
     </view>
     <view class="form-card">
       <view class="field">
@@ -23,6 +26,7 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { login } from '@/utils/auth'
+import mascotImg from '@/assets/brand/beng-xiaozhi.png'
 
 const username = ref('admin')
 const password = ref('')
@@ -61,11 +65,30 @@ function handleLogin() {
 .login-page {
   min-height: 100vh;
   background: linear-gradient(160deg, #1677ff 0%, #0958d9 45%, #f5f6f8 45%);
-  padding: 120rpx 48rpx 48rpx;
+  padding: 100rpx 40rpx 48rpx;
 }
 
 .brand {
-  margin-bottom: 64rpx;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 40rpx;
+  padding-right: 8rpx;
+}
+
+.brand-text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 28rpx;
+}
+
+.mascot {
+  width: 220rpx;
+  height: 220rpx;
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  margin-top: -12rpx;
 }
 
 .logo {

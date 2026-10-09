@@ -10,7 +10,11 @@
     {
       "path": "pages/workbench/index",
       "style": {
-        "navigationBarTitleText": "工作台"
+        "navigationBarTitleText": "工作台",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#4c9aff",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#4c9aff"
       }
     },
     {
