@@ -20,7 +20,10 @@
           </view>
           <text class="hero-hint">泵小智陪你高效开工</text>
         </view>
-        <image class="hero-mascot" :src="mascotImg" mode="aspectFit" />
+        <view
+          class="hero-mascot"
+          :style="{ backgroundImage: 'url(' + mascotImg + ')' }"
+        />
       </view>
     </view>
 
@@ -219,6 +222,9 @@ function onModuleTap(mod) {
   flex-shrink: 0;
   margin-right: -8rpx;
   margin-bottom: -4rpx;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
 }
 
 .body {

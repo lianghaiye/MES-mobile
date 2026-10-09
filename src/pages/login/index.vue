@@ -5,7 +5,10 @@
         <text class="logo">I-DOMS</text>
         <text class="sub">制造执行系统 · 移动端</text>
       </view>
-      <image class="mascot" :src="mascotImg" mode="aspectFit" />
+      <view
+        class="mascot"
+        :style="{ backgroundImage: 'url(' + mascotImg + ')' }"
+      />
     </view>
     <view class="form-card">
       <view class="field">
@@ -89,6 +92,9 @@ function handleLogin() {
   flex-shrink: 0;
   margin-left: 12rpx;
   margin-top: -12rpx;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
 }
 
 .logo {
