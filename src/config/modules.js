@@ -48,7 +48,7 @@ export const workbenchModules = [
   {
     key: 'approval',
     title: '审批管理',
-    desc: '单据审批流转',
+    desc: '三类分流 · 待审订单',
     icon: '📝',
     color: '#722ed1',
     path: '/pages/approval/index',

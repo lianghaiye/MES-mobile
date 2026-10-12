@@ -1,22 +1,28 @@
+/**
+ * 成品入库申请（与 WEB 共用 storage key：i_doms_mobile_finished_inbounds）
+ * 对齐领料申请：小程序提交 → 功能参数控制是否自动审核 → 通过后生成入库单。
+ */
 import { getUser } from '@/utils/auth'
 import { appendInboundFromMiniProgram, getInboundOrderById } from '@/utils/inboundBridge'
 import { getInboundTaskById } from '@/utils/inboundTaskStore'
-import { generateProductInboundNo, formatDateTime } from '@/utils/productInboundNo'
+import { generateFinishedInboundReqNo, formatDateTime } from '@/utils/productInboundNo'
 import { mergeProductInboundLinesWithSources } from '@/utils/productInboundHelpers'
 
-const STORAGE_KEY = 'i_doms_mobile_product_inbounds'
-const SEED_VERSION_KEY = 'i_doms_mobile_product_inbounds_seed_v'
-const SEED_VERSION = '3'
+const STORAGE_KEY = 'i_doms_mobile_finished_inbounds'
+const LEGACY_STORAGE_KEY = 'i_doms_mobile_product_inbounds'
+const SEED_VERSION_KEY = 'i_doms_mobile_finished_inbounds_seed_v'
+const SEED_VERSION = '1'
 
 function ensureSeedRecords() {
   try {
     if (uni.getStorageSync(SEED_VERSION_KEY) === SEED_VERSION) return
     const existing = loadRecords()
-    const hasDemo = existing.some((r) => r.id === 'pi-seed-applied-1')
+    const hasDemo = existing.some((r) => r.id === 'fi-seed-mobile-1' || r.id === 'pi-seed-applied-1')
     if (!hasDemo) {
       existing.unshift({
-        id: 'pi-seed-applied-1',
-        inboundNo: 'CPRK-SEED-001',
+        id: 'fi-seed-mobile-1',
+        reqNo: 'FI202608110001',
+        inboundNo: 'FI202608110001',
         mode: 'work-order',
         workOrderId: 'wo-done-1',
         workOrderCode: 'WO20260608001',
@@ -41,37 +47,22 @@ function ensureSeedRecords() {
         specModel: 'ISG50-160',
         orderCategory: '生产工单',
         workshop: '总装车间',
-        remark: '演示：已申请入库标记',
+        warehouse: '成品主仓',
+        remark: '演示：成品入库申请',
         lineCount: 1,
         totalQty: 10,
         lines: [],
         inboundId: '',
         inboundDocNo: '',
-        inboundStatus: '待处理',
+        inboundStatus: '—',
+        auditStatus: '待审核',
+        rejectReason: '',
         miniProgramTaskId: '',
         applicant: '演示用户',
         createdAt: '2026-08-11 09:00',
+        sourceChannel: 'mini-program',
       })
       saveRecords(existing)
-    } else {
-      // 升级已有演示种子的工单清单字段
-      const row = existing.find((r) => r.id === 'pi-seed-applied-1')
-      if (row) {
-        row.workOrders = [
-          {
-            id: row.workOrderId || 'wo-done-1',
-            code: row.workOrderCode || 'WO20260608001',
-            productName: row.productName || '清水离心泵 ISG50-160',
-            productCode: row.productCode || 'CP2610001',
-            specModel: row.specModel || 'ISG50-160',
-            material: row.material || '',
-            drawingNo: row.drawingNo || '',
-            planQty: 10,
-            scheduleQty: 10,
-          },
-        ]
-        saveRecords(existing)
-      }
     }
     uni.setStorageSync(SEED_VERSION_KEY, SEED_VERSION)
   } catch {
@@ -79,12 +70,56 @@ function ensureSeedRecords() {
   }
 }
 
+function loadLegacyRecords() {
+  try {
+    const raw = uni.getStorageSync(LEGACY_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return Array.isArray(parsed?.items) ? parsed.items : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeRecord(row) {
+  if (!row) return row
+  const reqNo = row.reqNo || row.inboundNo || ''
+  const auditStatus =
+    row.auditStatus ||
+    (row.inboundId || row.inboundDocNo ? '审核通过' : '待审核')
+  return {
+    ...row,
+    reqNo,
+    inboundNo: row.inboundNo || reqNo,
+    auditStatus,
+    rejectReason: row.rejectReason || '',
+    sourceChannel: row.sourceChannel || 'mini-program',
+  }
+}
+
 function loadRecords() {
   try {
     const raw = uni.getStorageSync(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return parsed?.items || []
+    let items = []
+    if (raw) {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      items = Array.isArray(parsed?.items) ? parsed.items : []
+    }
+    // 兼容旧版小程序独立 storage，合并进申请单池（仅首次有旧数据时）
+    if (!items.length) {
+      const legacy = loadLegacyRecords()
+      if (legacy.length) {
+        items = legacy.map((r) =>
+          normalizeRecord({
+            ...r,
+            reqNo: r.reqNo || r.inboundNo,
+            auditStatus: r.auditStatus || (r.inboundDocNo ? '审核通过' : '待审核'),
+          }),
+        )
+        saveRecords(items)
+      }
+    }
+    return items.map(normalizeRecord)
   } catch {
     return []
   }
@@ -101,7 +136,7 @@ function currentUserName() {
 
 function modeLabel(mode) {
   if (mode === 'quick') return '快速入库'
-  if (mode === 'batch-work-order') return '批量入库'
+  if (mode === 'batch-work-order') return '工单入库（多工单）'
   return '工单入库'
 }
 
@@ -140,6 +175,7 @@ function listInboundRefs(row) {
           docNo: o.docNo || '',
           warehouse: o.warehouse || '',
           status: o.status || '',
+          inboundType: o.inboundType || '',
         }))
         .filter((o) => o.id || o.docNo)
     : []
@@ -149,8 +185,9 @@ function listInboundRefs(row) {
       {
         id: row.inboundId || '',
         docNo: row.inboundDocNo || '',
-        warehouse: '',
+        warehouse: row.warehouse || '',
         status: row.inboundStatus || '',
+        inboundType: '',
       },
     ]
   }
@@ -158,7 +195,8 @@ function listInboundRefs(row) {
 }
 
 function enrichRecord(row) {
-  const refs = listInboundRefs(row)
+  const normalized = normalizeRecord(row)
+  const refs = listInboundRefs(normalized)
   const enrichedRefs = refs.map((ref) => {
     const live = getInboundOrderById(ref.id)
     return {
@@ -171,17 +209,31 @@ function enrichRecord(row) {
   })
   const docNos = enrichedRefs.map((r) => r.docNo).filter(Boolean)
   const statuses = enrichedRefs.map((r) => r.status).filter(Boolean)
-  const task = row.miniProgramTaskId ? getInboundTaskById(row.miniProgramTaskId) : null
-  let inboundStatus = row.inboundStatus || task?.inboundStatus || '—'
+  const task = normalized.miniProgramTaskId
+    ? getInboundTaskById(normalized.miniProgramTaskId)
+    : null
+  let inboundStatus = normalized.inboundStatus || task?.inboundStatus || '—'
   if (statuses.length) {
     inboundStatus = statuses.every((s) => s === statuses[0]) ? statuses[0] : '多单进行中'
   }
   return {
-    ...row,
+    ...normalized,
+    modeLabel: modeLabel(normalized.mode),
     inboundOrders: enrichedRefs,
     inboundStatus,
-    inboundDocNo: docNos.join('、') || row.inboundDocNo || task?.inboundDocNo || '',
-    inboundId: enrichedRefs[0]?.id || row.inboundId || '',
+    inboundDocNo: docNos.join('、') || normalized.inboundDocNo || task?.inboundDocNo || '',
+    inboundId: enrichedRefs[0]?.id || normalized.inboundId || '',
+  }
+}
+
+function isFinishedInboundAutoApprove() {
+  try {
+    const raw = uni.getStorageSync('i_doms_function_params')
+    if (!raw) return false
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return Boolean(parsed?.autoApproveDocs?.finishedInbound)
+  } catch {
+    return false
   }
 }
 
@@ -189,12 +241,21 @@ export function listProductInbounds() {
   ensureSeedRecords()
   return loadRecords()
     .map(enrichRecord)
-    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+}
+
+/** 别名：成品入库申请列表 */
+export function listFinishedInboundApplications() {
+  return listProductInbounds()
 }
 
 export function getProductInboundById(id) {
   const row = loadRecords().find((r) => r.id === id)
   return row ? enrichRecord(row) : null
+}
+
+export function getFinishedInboundApplicationById(id) {
+  return getProductInboundById(id)
 }
 
 /**
@@ -218,19 +279,23 @@ export function submitProductInbound(payload) {
   }
 
   const existing = loadRecords()
-  const inboundNo = generateProductInboundNo(existing)
+  const reqNo = generateFinishedInboundReqNo(existing)
   const userName = currentUserName()
   const workshop = payload.workshop || '默认工厂'
+  const warehouse = payload.warehouse || lines[0]?.warehouse || '成品主仓'
+  const reqId = `fi-${Date.now()}`
   const inboundId = `ib-${Date.now()}`
   const miniProgramTaskId = `mp-task-${Date.now()}`
+  const autoApprove = isFinishedInboundAutoApprove()
+  const auditStatus = autoApprove ? '审核通过' : '待审核'
 
   const sourceOrderNo = isBatch
     ? resolveBatchSourceOrderNo(payload)
     : payload.workOrderCode || ''
 
   const remarkBase = payload.remark
-    ? `小程序入库：${payload.remark}`
-    : `小程序入库（${modeLabel(payload.mode)}）`
+    ? `成品入库申请：${payload.remark}`
+    : `成品入库申请（${modeLabel(payload.mode)}）`
 
   const workOrdersPayload =
     Array.isArray(payload.workOrders) && payload.workOrders.length
@@ -253,42 +318,45 @@ export function submitProductInbound(payload) {
           ]
         : []
 
-  const inboundResult = appendInboundFromMiniProgram({
-    inboundId,
-    miniProgramTaskId,
-    mode: payload.mode,
-    handler: userName,
-    creator: userName,
-    warehouseKeeper: userName,
-    workshop,
-    workOrderCode: isBatch ? sourceOrderNo : payload.workOrderCode || '',
-    productName: payload.productName || lines[0]?.itemName || '',
-    remark: remarkBase,
-    warehouse: '',
-    workOrders: workOrdersPayload,
-    lineItems: lines.map((line) => ({
-      itemCode: line.itemCode,
-      itemName: line.itemName,
-      itemType: line.itemType || '产品',
-      materialType: line.materialType || '',
-      inboundType: line.inboundType || '',
-      specModel: line.specModel,
-      specAttr: line.specAttr || '',
-      material: line.material,
-      drawingNo: line.drawingNo,
-      qty: line.qty,
-      unit: line.unit || '件',
-      warehouse: line.warehouse,
-      unitPrice: line.unitPrice ?? null,
-      weight: line.weight ?? null,
-      lineSource: '工单入库',
-      sourceDocNo: resolveLineSourceDocNo(payload, line),
-      sourceWorkOrders: line.sourceWorkOrders || [],
-    })),
-  })
-
-  if (!inboundResult.ok) {
-    return inboundResult
+  let inboundResult = { ok: true, order: null, orders: [], taskId: '' }
+  if (autoApprove) {
+    inboundResult = appendInboundFromMiniProgram({
+      inboundId,
+      miniProgramTaskId,
+      mode: payload.mode,
+      handler: userName,
+      creator: userName,
+      warehouseKeeper: userName,
+      workshop,
+      workOrderCode: isBatch ? sourceOrderNo : payload.workOrderCode || '',
+      productName: payload.productName || lines[0]?.itemName || '',
+      remark: remarkBase,
+      warehouse: '',
+      workOrders: workOrdersPayload,
+      finishedInboundReqId: reqId,
+      finishedInboundReqNo: reqNo,
+      lineItems: lines.map((line) => ({
+        itemCode: line.itemCode,
+        itemName: line.itemName,
+        itemType: line.itemType || '产品',
+        materialType: line.materialType || '',
+        inboundType: line.inboundType || '',
+        specModel: line.specModel,
+        specAttr: line.specAttr || '',
+        material: line.material,
+        drawingNo: line.drawingNo,
+        variantSummary: line.variantSummary || '',
+        qty: line.qty,
+        unit: line.unit || '件',
+        warehouse: line.warehouse,
+        unitPrice: line.unitPrice ?? null,
+        weight: line.weight ?? null,
+        lineSource: '成品入库申请',
+        sourceDocNo: resolveLineSourceDocNo(payload, line),
+        sourceWorkOrders: line.sourceWorkOrders || [],
+      })),
+    })
+    if (!inboundResult.ok) return inboundResult
   }
 
   const createdOrders = inboundResult.orders || (inboundResult.order ? [inboundResult.order] : [])
@@ -301,14 +369,15 @@ export function submitProductInbound(payload) {
   }))
 
   const record = {
-    id: `pi-${Date.now()}`,
-    inboundNo,
+    id: reqId,
+    reqNo,
+    inboundNo: reqNo,
     mode: payload.mode,
     workOrderId: payload.workOrderId || '',
     workOrderCode: payload.workOrderCode || '',
     workOrderName: payload.workOrderName || '',
     workOrderIds: payload.workOrderIds || [],
-    workOrders: payload.workOrders || [],
+    workOrders: payload.workOrders || workOrdersPayload,
     salesOrderNo: payload.salesOrderNo || '',
     productName: payload.productName || lines[0]?.itemName || '',
     productCode: payload.productCode || lines[0]?.itemCode || '',
@@ -317,6 +386,7 @@ export function submitProductInbound(payload) {
     drawingNo: payload.drawingNo || lines[0]?.drawingNo || '',
     orderCategory: payload.orderCategory || '',
     workshop,
+    warehouse,
     remark: payload.remark || '',
     lineCount: lines.length,
     totalQty: lines.reduce((s, l) => s + (Number(l.qty) || 0), 0),
@@ -329,12 +399,20 @@ export function submitProductInbound(payload) {
         ? inboundRefs[0].status
         : '多单进行中'
       : '—',
-    miniProgramTaskId: inboundResult.taskId,
+    auditStatus,
+    rejectReason: '',
+    miniProgramTaskId: inboundResult.taskId || '',
     applicant: userName,
     createdAt: formatDateTime(),
+    sourceChannel: 'mini-program',
   }
 
   existing.unshift(record)
   saveRecords(existing)
-  return { ok: true, record, order: createdOrders[0] || null, orders: createdOrders }
+  return { ok: true, record: enrichRecord(record), order: createdOrders[0] || null, orders: createdOrders }
+}
+
+/** 别名：提交成品入库申请 */
+export function submitFinishedInboundApplication(payload) {
+  return submitProductInbound(payload)
 }

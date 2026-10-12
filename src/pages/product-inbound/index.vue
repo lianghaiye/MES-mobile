@@ -26,19 +26,25 @@
     >
       <view class="req-head">
         <view class="req-head-left">
-          <text class="req-no">{{ item.inboundNo }}</text>
+          <text class="req-no">{{ item.reqNo || item.inboundNo }}</text>
           <text class="req-mode">{{ modeLabel(item.mode) }}</text>
         </view>
-        <text class="req-status">{{ item.inboundStatus }}</text>
+        <text class="req-status" :class="auditStatusClass(item.auditStatus)">
+          {{ item.auditStatus || '待审核' }}
+        </text>
       </view>
       <text class="req-main">
         {{ displayMain(item) }}
-        <text v-if="item.workOrderCode && item.mode !== 'batch-work-order'" class="req-sub"> · {{ item.workOrderCode }}</text>
+        <text v-if="item.workOrderCode && item.mode !== 'batch-work-order'" class="req-sub">
+          · {{ item.workOrderCode }}
+        </text>
       </text>
       <view class="req-foot">
         <text>{{ item.totalQty }} 件</text>
         <text class="dot">·</text>
         <text>{{ item.inboundDocNo || '待生成入库单' }}</text>
+        <text class="dot">·</text>
+        <text>{{ item.inboundStatus && item.inboundStatus !== '—' ? item.inboundStatus : '—' }}</text>
         <text class="dot">·</text>
         <text>{{ formatTime(item.createdAt) }}</text>
       </view>
@@ -82,8 +88,14 @@ function goDetail(item) {
 
 function modeLabel(mode) {
   if (mode === 'quick') return '快速入库'
-  if (mode === 'batch-work-order') return '批量入库'
+  if (mode === 'batch-work-order') return '工单入库'
   return '工单入库'
+}
+
+function auditStatusClass(status) {
+  if (status === '审核通过') return 'is-approved'
+  if (status === '审核驳回') return 'is-rejected'
+  return 'is-pending'
 }
 
 function displayMain(item) {
@@ -92,7 +104,11 @@ function displayMain(item) {
     if (count) return `${count} 个工单 · ${item.lineCount || 0} 项产品`
     return item.productName || '批量入库'
   }
-  return item.productName || '—'
+  if (item.productName) return item.productName
+  const first = item.lines?.[0]?.itemName
+  if (!first) return '—'
+  if ((item.lineCount || 0) > 1) return `${first} 等${item.lineCount}项`
+  return first
 }
 
 function formatTime(value) {
@@ -209,6 +225,18 @@ $primary: #1677ff;
   font-size: 22rpx;
   color: #fa8c16;
   flex-shrink: 0;
+
+  &.is-approved {
+    color: #52c41a;
+  }
+
+  &.is-rejected {
+    color: #ff4d4f;
+  }
+
+  &.is-pending {
+    color: #fa8c16;
+  }
 }
 
 .req-main {

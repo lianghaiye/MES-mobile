@@ -199,6 +199,19 @@
       }
     },
     {
+      "path": "pages/approval/list",
+      "style": {
+        "navigationBarTitleText": "审批列表",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/approval/sales-detail",
+      "style": {
+        "navigationBarTitleText": "销售订单详情"
+      }
+    },
+    {
       "path": "pages/material-req/index",
       "style": {
         "navigationBarTitleText": "领料管理",

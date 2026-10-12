@@ -2,16 +2,28 @@
   <view class="detail-page">
     <view v-if="record" class="card">
       <view class="head-row">
-        <text class="req-no">{{ record.inboundNo }}</text>
-        <text class="status-tag">{{ record.inboundStatus }}</text>
+        <text class="req-no">{{ record.reqNo || record.inboundNo }}</text>
+        <text class="status-tag">{{ record.auditStatus || '待审核' }}</text>
       </view>
       <view class="info-row">
         <text class="label">入库方式</text>
         <text class="val">{{ modeLabel(record.mode) }}</text>
       </view>
       <view class="info-row">
+        <text class="label">申请状态</text>
+        <text class="val">{{ record.auditStatus || '待审核' }}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">入库状态</text>
+        <text class="val">{{ record.inboundStatus || '—' }}</text>
+      </view>
+      <view class="info-row">
         <text class="label">来源车间</text>
-        <text class="val">{{ record.workshop }}</text>
+        <text class="val">{{ record.workshop || '—' }}</text>
+      </view>
+      <view v-if="record.warehouse" class="info-row">
+        <text class="label">入库仓库</text>
+        <text class="val">{{ formatWarehouse(record.warehouse) }}</text>
       </view>
       <view class="info-row">
         <text class="label">申请人</text>
@@ -21,6 +33,10 @@
         <text class="label">申请时间</text>
         <text class="val">{{ record.createdAt }}</text>
       </view>
+      <view v-if="record.rejectReason" class="info-row">
+        <text class="label">驳回原因</text>
+        <text class="val">{{ record.rejectReason }}</text>
+      </view>
       <view v-if="record.remark" class="info-row">
         <text class="label">备注</text>
         <text class="val">{{ record.remark }}</text>
@@ -29,7 +45,9 @@
 
     <view v-if="record" class="card">
       <text class="section-title">入库信息（{{ inboundOrders.length }}）</text>
-      <view v-if="!inboundOrders.length" class="empty-hint">暂无入库单</view>
+      <view v-if="!inboundOrders.length" class="empty-hint">
+        {{ record.auditStatus === '待审核' ? '待审核通过后生成入库单' : '暂无入库单' }}
+      </view>
       <view v-for="order in inboundOrders" :key="order.id || order.docNo" class="doc-row">
         <view class="doc-main">
           <text class="doc-no">{{ order.docNo || '—' }}</text>
@@ -80,9 +98,6 @@
       </view>
     </view>
 
-    <view v-if="record" class="tip-card">
-      <text>多仓/多类型会拆成多张入库单（成品入库或半成品入库）；仓管在 WEB 入库管理审批/确认。</text>
-    </view>
   </view>
 </template>
 
@@ -136,7 +151,7 @@ function formatWarehouse(value) {
 
 function modeLabel(mode) {
   if (mode === 'quick') return '快速入库'
-  if (mode === 'batch-work-order') return '批量入库'
+  if (mode === 'batch-work-order') return '工单入库（多工单）'
   return '工单入库'
 }
 

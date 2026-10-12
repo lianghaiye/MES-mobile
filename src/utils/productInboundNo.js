@@ -13,13 +13,23 @@ function formatDateTime(d = new Date()) {
   return `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)} ${h}:${min}:${s}`
 }
 
-/** 成品入库申请单号 RK{YYYYMMDD}{seq} */
-export function generateProductInboundNo(existing = []) {
+/** 成品入库申请单号 FI{YYYYMMDD}{seq}（与 WEB 一致） */
+export function generateFinishedInboundReqNo(existing = []) {
   const date = padDate()
-  const prefix = `RK${date}`
-  const sameDay = existing.filter((r) => r.inboundNo?.startsWith(prefix))
-  const seq = String(sameDay.length + 1).padStart(4, '0')
-  return `${prefix}${seq}`
+  const prefix = `FI${date}`
+  let max = 0
+  ;(existing || []).forEach((row) => {
+    const no = String(row.reqNo || row.inboundNo || '')
+    if (!no.startsWith(prefix)) return
+    const n = Number(no.slice(prefix.length))
+    if (Number.isFinite(n) && n > max) max = n
+  })
+  return `${prefix}${String(max + 1).padStart(4, '0')}`
+}
+
+/** @deprecated 使用 generateFinishedInboundReqNo */
+export function generateProductInboundNo(existing = []) {
+  return generateFinishedInboundReqNo(existing)
 }
 
 /** 入库单号（与 WEB 一致）1-{YYYYMMDD}-{seq} */
