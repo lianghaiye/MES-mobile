@@ -10,10 +10,26 @@
       />
     </view>
 
-    <template v-if="!keyword.trim() && warehouseStockList.length">
-      <text class="section-label">本仓库存物品 ({{ warehouseStockList.length }})</text>
+    <view class="tabs">
       <view
-        v-for="item in warehouseStockList"
+        class="tab"
+        :class="{ active: activeTab === 'warehouse' }"
+        @tap="activeTab = 'warehouse'"
+      >
+        本仓物品 ({{ filteredWarehouseList.length }})
+      </view>
+      <view
+        class="tab"
+        :class="{ active: activeTab === 'catalog' }"
+        @tap="activeTab = 'catalog'"
+      >
+        全部产品/物料 ({{ searchList.length }})
+      </view>
+    </view>
+
+    <template v-if="activeTab === 'warehouse'">
+      <view
+        v-for="item in filteredWarehouseList"
         :key="`wh-${item.code}-${item.batchId || ''}`"
         class="card recent"
         @tap="onSelectStock(item)"
@@ -29,24 +45,25 @@
         <text class="stock">账面 {{ item.bookQty }}{{ item.unit ? ` ${item.unit}` : '' }}</text>
         <text v-if="item.salesOrderNo" class="so">销售单 {{ item.salesOrderNo }}</text>
       </view>
+      <view v-if="!filteredWarehouseList.length" class="empty">
+        {{ keyword.trim() ? '本仓没有匹配的库存物品' : '本仓暂无库存，可切换到全部产品/物料添加' }}
+      </view>
     </template>
 
-    <text class="section-label">{{ listTitle }} ({{ searchList.length }})</text>
-    <view v-for="item in searchList" :key="item.id" class="card" @tap="onSelectCatalog(item)">
-      <view class="card-head">
-        <text class="name">{{ item.name }}</text>
-        <text class="link">选择 ›</text>
+    <template v-else>
+      <view v-for="item in searchList" :key="item.id" class="card" @tap="onSelectCatalog(item)">
+        <view class="card-head">
+          <text class="name">{{ item.name }}</text>
+          <text class="link">选择 ›</text>
+        </view>
+        <text class="meta">
+          {{ item.itemType }} · 编码 {{ item.code }}
+          <text v-if="item.spec"> · 规格 {{ item.spec }}</text>
+        </text>
+        <text v-if="item.drawingNo" class="meta">图号 {{ item.drawingNo }}</text>
       </view>
-      <text class="meta">
-        {{ item.itemType }} · 编码 {{ item.code }}
-        <text v-if="item.spec"> · 规格 {{ item.spec }}</text>
-      </text>
-      <text v-if="item.drawingNo" class="meta">图号 {{ item.drawingNo }}</text>
-    </view>
-
-    <view v-if="!warehouseStockList.length && !searchList.length" class="empty">
-      未找到匹配产品，请调整搜索关键词
-    </view>
+      <view v-if="!searchList.length" class="empty">未找到匹配产品，请调整搜索关键词</view>
+    </template>
   </view>
 </template>
 
@@ -62,10 +79,21 @@ import {
 
 const warehouse = ref('')
 const keyword = ref('')
+const activeTab = ref('warehouse')
 const warehouseStockList = ref([])
 const searchList = ref([])
 
-const listTitle = computed(() => (keyword.value.trim() ? '搜索结果（全量产品/物料）' : '全部产品/物料'))
+const filteredWarehouseList = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+  if (!kw) return warehouseStockList.value
+  return warehouseStockList.value.filter((item) => {
+    const hay = [item.name, item.code, item.spec, item.drawingNo, item.salesOrderNo]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(kw)
+  })
+})
 
 function refreshWarehouseStock() {
   const lines = loadWarehouseStockLines(warehouse.value)
@@ -129,7 +157,31 @@ $primary: #1677ff;
 }
 
 .search-bar {
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.tabs {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 8rpx;
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  font-size: 26rpx;
+  color: #595959;
+  line-height: 64rpx;
+  border-radius: 12rpx;
+}
+
+.tab.active {
+  background: #e6f4ff;
+  color: $primary;
+  font-weight: 600;
 }
 
 .search-input {
