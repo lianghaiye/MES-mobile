@@ -123,6 +123,7 @@ function goNext() {
     `processName=${encodeURIComponent(selectedName.value)}`,
     `productName=${encodeURIComponent(product.value.name)}`,
     `productCode=${product.value.code}`,
+    `specModel=${encodeURIComponent(product.value.spec || '')}`,
     `reportMode=${encodeURIComponent(mode)}`,
     'source=quick',
   ]

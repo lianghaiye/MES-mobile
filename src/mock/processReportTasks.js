@@ -35,58 +35,11 @@ import {
   getTaskRemainingQty,
   isCollaborativeTask,
 } from '@/utils/processReportTaskRules'
+import { resolveProductMeta, resolveSalesOrderNo } from './processReportProductMeta'
 
 const REPORTABLE_CATEGORIES = ['生产工单', '总装工单']
 const AUTO_COMPLETE_CATEGORIES = ['生产工单', '总装工单', '外协工单']
 const ACTIVE_TASK_STATUS = REPORTABLE_TASK_STATUS
-
-/** 演示：物品编码 → 材质/图号（任务种子未填时兜底） */
-const PRODUCT_MATERIAL_MAP = {
-  'SJ-2024-A': { material: 'Q235', drawingNo: 'SJ-A-DWG-001' },
-  'BX-2024-03': { material: '45#', drawingNo: 'BX-2024-03-DWG' },
-  'CP2610004': { material: '不锈钢304', drawingNo: 'QJ200-50/4-DWG' },
-  'CP2610002': { material: 'HT250', drawingNo: 'ISG80-160-DWG' },
-  'FL-2024-C': { material: 'HT200', drawingNo: 'FL-DN150-01' },
-  'BK-2024-01': { material: 'HT200', drawingNo: 'BK-DWG-01' },
-  'DJ-2024-B': { material: '冷轧板', drawingNo: 'DJ-B-DWG-01' },
-}
-
-function resolveTaskProductMeta(task) {
-  const code = task.itemCode || task.productCode || ''
-  const hit = PRODUCT_MATERIAL_MAP[code] || {}
-  return {
-    material: task.material || hit.material || '',
-    drawingNo: task.drawingNo || hit.drawingNo || '',
-    specModel: task.specModel || hit.specModel || '',
-  }
-}
-
-/** 演示：工单号 → 销售订单号 */
-const SALES_ORDER_BY_WO_CODE = {
-  'WO-062': '1-20260602-001',
-  'WO-058': '1-20260529-002',
-  'WO-055': '1-20260528-003',
-  'WO-071': '1-20260604-001',
-  'WO-068': '1-20260603-002',
-  'WO-072': '1-20260606-001',
-  'WO-ZZ-012': '1-20260605-001',
-  'WO-LH-01': '1-20260606-101',
-  'WO-LH-02': '1-20260606-102',
-  'WO-LH-03': '1-20260606-103',
-  'WO-LH-04': '1-20260606-104',
-  'WO-LH-05': '1-20260606-105',
-  'WO-LH-06': '1-20260606-106',
-  'WO-LH-07': '1-20260606-106',
-}
-
-function resolveSalesOrderNo(task) {
-  return (
-    task.salesOrderNo ||
-    task.sourceOrderNo ||
-    SALES_ORDER_BY_WO_CODE[task.workOrderCode] ||
-    ''
-  )
-}
 
 function todayStr() {
   return formatReportDate()
@@ -218,7 +171,7 @@ function enrichTask(task, user, options = {}) {
     reportedDefectQty: Number(task.reportedDefectQty) || 0,
     reportStatus: remainingQty <= 0 ? task.reportStatus || '待审核' : '',
     reportRecordId: '',
-    ...resolveTaskProductMeta(task),
+    ...resolveProductMeta(task),
   }
 }
 
@@ -235,7 +188,7 @@ function enrichClaimTask(task) {
     isMultiGroup: isMultiGroupTask(task),
     isCollaborative: isCollaborativeTask(task),
     reportMode: getProcessReportMode(task.processName) || task.reportMode,
-    ...resolveTaskProductMeta(task),
+    ...resolveProductMeta(task),
   }
 }
 
@@ -431,6 +384,10 @@ function buildBatchReportPayload(task, reportContext) {
     processName: task.processName,
     productName: task.productName,
     productCode: task.productCode,
+    specModel: task.specModel,
+    material: task.material,
+    drawingNo: task.drawingNo,
+    salesOrderNo: task.salesOrderNo,
     targetQty: task.targetQty,
     reportMode: task.reportMode,
     goodQty: remainingQty,
@@ -558,6 +515,10 @@ export function buildCustomReportPayload(task, form, sharedRemark = '', reportCo
     processName: task.processName,
     productName: task.productName,
     productCode: task.productCode,
+    specModel: task.specModel,
+    material: task.material,
+    drawingNo: task.drawingNo,
+    salesOrderNo: task.salesOrderNo,
     targetQty: task.targetQty,
     reportMode: task.reportMode,
     goodQty: Number(form.goodQty) || 0,

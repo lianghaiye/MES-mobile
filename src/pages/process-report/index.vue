@@ -39,7 +39,7 @@
         </view>
         <text class="task-wo">工单 {{ task.workOrderNo }} · {{ task.orderCategory }}</text>
         <text class="task-spec">
-          材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
+          规格: {{ task.specModel || '—' }} · 材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
         </text>
         <view class="task-body">
           <view class="proc-info">
@@ -168,7 +168,7 @@
                 </view>
                 <text class="task-wo">工单 {{ task.workOrderNo }}</text>
                 <text class="task-spec">
-                  材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
+                  规格: {{ task.specModel || '—' }} · 材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
                 </text>
                 <view class="task-body">
                   <view class="proc-info">
@@ -225,7 +225,7 @@
               </view>
               <text class="task-wo">工单 {{ task.workOrderNo }}</text>
               <text class="task-spec">
-                材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
+                规格: {{ task.specModel || '—' }} · 材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
               </text>
               <view class="task-body">
                 <view class="proc-info">
@@ -300,13 +300,21 @@
         <view class="rc-head">
           <view class="rc-title-wrap">
             <text class="rc-title">{{ r.processName }} · {{ r.productName }}</text>
-            <view v-if="r.source === 'workorder' && r.taskScope" class="rc-scope-tags">
-              <text class="scope-tag" :class="r.taskScope === '小组' ? 'group' : 'personal'">{{ r.taskScope }}</text>
+            <view class="rc-scope-tags">
+              <text v-if="r.salesOrderNo" class="task-tag sales">{{ r.salesOrderNo }}</text>
+              <text
+                v-if="r.source === 'workorder' && r.taskScope"
+                class="scope-tag"
+                :class="r.taskScope === '小组' ? 'group' : 'personal'"
+              >{{ r.taskScope }}</text>
             </view>
           </view>
           <text class="rc-status">{{ resolveRecordPushStatus(r) }}</text>
         </view>
         <text class="rc-meta">{{ r.workOrderNo ? r.workOrderNo + ' · ' : '' }}{{ r.timeLabel }}</text>
+        <text class="rc-spec">
+          规格: {{ r.specModel || '—' }} · 材质: {{ r.material || '—' }} · 图号: {{ r.drawingNo || '—' }}
+        </text>
         <view class="rc-metrics">
           <text>报工方式: {{ displayReportSource(r.source) }}</text>
           <text>审核状态: {{ r.status }}</text>
@@ -832,6 +840,7 @@ function goWorkReport(task) {
     specModel: task.specModel,
     material: task.material,
     drawingNo: task.drawingNo,
+    salesOrderNo: task.salesOrderNo,
     targetQty: task.targetQty,
     remainingQty: task.remainingQty ?? task.targetQty,
     isGroupTask: task.isGroupTask ? '1' : '0',
@@ -852,6 +861,7 @@ function goQuickFromFreq(f) {
     processName: f.processName,
     productName: f.productName,
     productCode: f.productCode,
+    specModel: product?.spec || '',
     reportMode: f.reportMode || getProcessReportMode(f.processName),
   })
   uni.navigateTo({ url: `/pages/process-report/execute?${q}` })
@@ -1616,6 +1626,17 @@ $primary: #1677ff;
 
 .rc-scope-tags {
   margin-top: 8rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  align-items: center;
+}
+
+.rc-spec {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #595959;
 }
 
 .scope-tag {

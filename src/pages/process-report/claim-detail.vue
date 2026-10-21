@@ -247,6 +247,7 @@ function onGoReport() {
     specModel: t.specModel,
     material: t.material,
     drawingNo: t.drawingNo,
+    salesOrderNo: t.salesOrderNo,
     targetQty: t.targetQty,
     remainingQty: t.remainingQty ?? t.targetQty,
     isGroupTask: t.isGroupTask ? '1' : '0',

@@ -9,6 +9,22 @@
         <text class="label">工单号</text>
         <text class="val">{{ record.workOrderNo }}</text>
       </view>
+      <view v-if="record.salesOrderNo" class="row">
+        <text class="label">销售订单号</text>
+        <text class="val">{{ record.salesOrderNo }}</text>
+      </view>
+      <view class="row">
+        <text class="label">规格型号</text>
+        <text class="val">{{ record.specModel || '—' }}</text>
+      </view>
+      <view class="row">
+        <text class="label">材质</text>
+        <text class="val">{{ record.material || '—' }}</text>
+      </view>
+      <view class="row">
+        <text class="label">图号</text>
+        <text class="val">{{ record.drawingNo || '—' }}</text>
+      </view>
       <view v-if="record.source === 'workorder' && (record.reporter || record.operator)" class="row">
         <text class="label">执行人</text>
         <text class="val">{{ record.reporter || record.operator }}</text>

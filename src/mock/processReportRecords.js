@@ -5,9 +5,10 @@ import { isDurationReportMode, resolveReportMode } from '@/utils/reportMode'
 import { breakdownToLegacy, validateDefectBreakdown } from '@/utils/defectBreakdown'
 import { getProcessDefectItems } from '@/utils/iodomsStorage'
 import { PUSH_STATUS, TASK_STATUS, isAutoSalaryPush } from '@/utils/laborWageConstants'
+import { attachRecordProductMeta } from './processReportProductMeta'
 
 const MIGRATE_KEY = 'i_doms_process_report_mode_migrate_v'
-const MIGRATE_VERSION = '3'
+const MIGRATE_VERSION = '4'
 
 function withNormalizedMode(row) {
   if (!row) return row
@@ -45,7 +46,7 @@ function migrateRecord(row) {
       ? '小组'
       : '个人'
   }
-  return next
+  return attachRecordProductMeta(next)
 }
 
 function migrateStoredRecords(list) {
@@ -298,6 +299,10 @@ function buildRecordFromPayload(payload, base = {}) {
       processName: payload.processName,
       productName: payload.productName,
       productCode: payload.productCode,
+      specModel: payload.specModel || base.specModel || '',
+      material: payload.material || base.material || '',
+      drawingNo: payload.drawingNo || base.drawingNo || '',
+      salesOrderNo: payload.salesOrderNo || base.salesOrderNo || '',
       targetQty: payload.targetQty ?? base.targetQty ?? null,
       reportMode: resolveReportMode(payload.reportMode),
       reportQtyMode: payload.reportQtyMode || base.reportQtyMode || 'schedule',

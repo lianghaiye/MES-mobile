@@ -29,8 +29,14 @@
     <view v-for="item in forms" :key="item.taskId" class="task-card">
       <view class="card-head">
         <view class="card-head-main">
-          <text class="product">{{ item.task.productName }} · {{ item.task.productCode }}</text>
+          <view class="product-row">
+            <text class="product">{{ item.task.productName }} · {{ item.task.productCode }}</text>
+            <text v-if="item.task.salesOrderNo" class="sales-tag">{{ item.task.salesOrderNo }}</text>
+          </view>
           <text class="card-sub">工单 {{ item.task.workOrderNo }} · {{ item.task.processName }}</text>
+          <text class="card-spec">
+            规格: {{ item.task.specModel || '—' }} · 材质: {{ item.task.material || '—' }} · 图号: {{ item.task.drawingNo || '—' }}
+          </text>
         </view>
         <view class="card-head-actions">
           <text class="target-badge piece">目标 {{ item.task.targetQty }} 件</text>
@@ -442,12 +448,32 @@ $primary: #1677ff;
   gap: 12rpx;
 }
 
+.product-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
 .product {
   flex: 1;
+  min-width: 0;
   font-size: 30rpx;
   font-weight: 600;
   color: #1a1a1a;
   display: block;
+}
+
+.sales-tag {
+  flex-shrink: 0;
+  max-width: 240rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 22rpx;
+  color: $primary;
+  background: #e6f4ff;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
 }
 
 .card-sub {
@@ -455,6 +481,13 @@ $primary: #1677ff;
   margin-top: 8rpx;
   font-size: 24rpx;
   color: #8c8c8c;
+}
+
+.card-spec {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #595959;
 }
 
 .card-delete {

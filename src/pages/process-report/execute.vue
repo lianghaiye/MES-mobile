@@ -257,6 +257,7 @@ function displayReportMode(mode) {
 }
 import { getQuickProductByCode } from '@/mock/processReportProducts'
 import { getRecordById, resubmitProcessReport, submitProcessReport } from '@/mock/processReportRecords'
+import { resolveProductMeta, resolveSalesOrderNo } from '@/mock/processReportProductMeta'
 import { markTaskReported, getCollaborationPeers } from '@/mock/processReportTasks'
 import { getTaskById } from '@/mock/disassemblyTasks'
 import { getUser } from '@/utils/auth'
@@ -299,6 +300,7 @@ const context = reactive({
   groupName: '',
   reportFor: '',
   isGroupTask: false,
+  salesOrderNo: '',
 })
 
 const form = reactive({
@@ -422,6 +424,7 @@ onLoad((query) => {
   context.groupName = query.groupName ? decodeURIComponent(query.groupName) : ''
   context.reportFor = query.reportFor ? decodeURIComponent(query.reportFor) : ''
   context.isGroupTask = query.isGroupTask === '1'
+  context.salesOrderNo = query.salesOrderNo ? decodeURIComponent(query.salesOrderNo) : ''
   reportForMembers.value = query.reportForMembers
     ? decodeURIComponent(query.reportForMembers)
         .split(',')
@@ -446,6 +449,7 @@ onLoad((query) => {
     }
     applyWorkItemSnapshotFromTask(getTaskById(context.taskId))
   }
+  fillMissingProductMeta()
   form.startTime = nowTime()
   form.endTime = nowTime()
   if (targetQty.value && isScheduleMode.value) {
@@ -506,10 +510,32 @@ function goSelectOperator() {
   uni.navigateTo({ url: `/pages/quick-report/personnel-select?${q}` })
 }
 
+function fillMissingProductMeta() {
+  const task = context.taskId ? getTaskById(context.taskId) : null
+  const source = {
+    ...(task || {}),
+    productCode: productCode.value || task?.itemCode || task?.productCode || '',
+    specModel: specModel.value,
+    material: material.value,
+    drawingNo: drawingNo.value,
+    salesOrderNo: context.salesOrderNo,
+    workOrderNo: context.workOrderNo || task?.workOrderCode || '',
+    workOrderCode: context.workOrderNo || task?.workOrderCode || '',
+  }
+  const meta = resolveProductMeta(source)
+  specModel.value = meta.specModel
+  material.value = meta.material
+  drawingNo.value = meta.drawingNo
+  if (!context.salesOrderNo) context.salesOrderNo = resolveSalesOrderNo(source)
+}
+
 function loadFromRecord(row) {
   processName.value = row.processName || ''
   productName.value = row.productName || ''
   productCode.value = row.productCode || ''
+  specModel.value = row.specModel || ''
+  material.value = row.material || ''
+  drawingNo.value = row.drawingNo || ''
   targetQty.value = row.targetQty ?? null
   context.source = row.source || 'quick'
   context.productId = row.productId || ''
@@ -519,6 +545,7 @@ function loadFromRecord(row) {
   context.workOrderId = row.workOrderId || ''
   context.processId = row.processId || ''
   context.groupName = row.groupName || ''
+  context.salesOrderNo = row.salesOrderNo || ''
 
   reportMode.value = row.reportMode || getProcessReportMode(processName.value)
   reportQtyMode.value = normalizeReportQtyMode(row.reportQtyMode)
@@ -544,6 +571,7 @@ function loadFromRecord(row) {
   applyDefectLegacy()
   refreshQtySnapshot()
   initTaskOperator()
+  fillMissingProductMeta()
 }
 
 function applyWorkItemSnapshotFromTask(task) {
@@ -749,6 +777,10 @@ function onSubmit() {
     processName: processName.value,
     productName: productName.value,
     productCode: productCode.value,
+    specModel: specModel.value,
+    material: material.value,
+    drawingNo: drawingNo.value,
+    salesOrderNo: context.salesOrderNo,
     targetQty: targetQty.value,
     reportMode: reportMode.value,
     reportQtyMode: reportQtyMode.value,
