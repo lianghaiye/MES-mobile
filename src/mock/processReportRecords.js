@@ -212,6 +212,21 @@ export function reloadProcessReportRecords() {
   return cache
 }
 
+/** 清除本机报工记录缓存，恢复仓库种子 */
+export function resetProcessReportRecordDemoData() {
+  try {
+    uni.removeStorageSync(STORAGE_KEY)
+    uni.removeStorageSync(MIGRATE_KEY)
+    uni.removeStorageSync(FREQ_KEY)
+  } catch {
+    /* ignore */
+  }
+  cache = migrateStoredRecords(createSeed())
+  save()
+  uni.setStorageSync(MIGRATE_KEY, MIGRATE_VERSION)
+  return cache
+}
+
 function save() {
   uni.setStorageSync(STORAGE_KEY, JSON.stringify(cache))
 }

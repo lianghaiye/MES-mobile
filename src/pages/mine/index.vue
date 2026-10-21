@@ -14,6 +14,13 @@
         <text>切换账号</text>
         <text class="arrow">›</text>
       </view>
+      <view class="menu-item" @tap="handleResetMobileDemo">
+        <view class="menu-copy">
+          <text>重置演示数据</text>
+          <text class="menu-desc">报工、领料、入库、盘点恢复为仓库种子</text>
+        </view>
+        <text class="arrow">›</text>
+      </view>
       <view class="menu-item" @tap="handleLogout">
         <text class="danger">退出登录</text>
         <text class="arrow">›</text>
@@ -28,6 +35,7 @@
 import { computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getUser, logout, isLoggedIn } from '@/utils/auth'
+import { resetMobileDemoData } from '@/mock/resetProcessReportDemo'
 
 const user = computed(() => getUser())
 const avatarText = computed(() => (user.value?.displayName || 'U').slice(0, 1))
@@ -40,6 +48,23 @@ onShow(() => {
 
 function goLogin() {
   uni.navigateTo({ url: '/pages/login/index' })
+}
+
+function handleResetMobileDemo() {
+  uni.showModal({
+    title: '重置演示数据',
+    content: '将清除本机工序报工、领料、入库、盘点缓存（含出库/入库单据与库存批次），恢复为仓库种子数据。登录账号不受影响。此操作不可撤销。',
+    confirmText: '重置',
+    confirmColor: '#ff4d4f',
+    success(res) {
+      if (!res.confirm) return
+      resetMobileDemoData()
+      uni.showToast({ title: '已恢复仓库演示数据', icon: 'success' })
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/workbench/index' })
+      }, 400)
+    },
+  })
 }
 
 function handleLogout() {
@@ -105,9 +130,22 @@ function handleLogout() {
 .menu-item {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 32rpx;
   border-bottom: 1rpx solid $border;
   font-size: 30rpx;
+}
+
+.menu-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: $text-secondary;
 }
 
 .menu-item:last-child {

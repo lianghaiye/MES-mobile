@@ -785,6 +785,130 @@ const seedTasks = [
     ebomKey: 'ebom-sewage-pump',
     createdAt: '2026-06-03 08:30:00',
   }),
+  // —— 返工任务（对应 rw-demo-*）——
+  taskSeed({
+    id: 'mobile-rw-demo-1-0',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-rework-mock-1',
+    workOrderCode: 'WO-RW-001',
+    workOrderName: '潜水电泵返工演示',
+    taskNo: 'RW20261021001',
+    processName: '粗车',
+    processSeq: 2,
+    productName: '潜水电泵 QJ200-40/3',
+    itemCode: 'CP2610004',
+    specModel: 'QJ200-40/3',
+    material: 'HT200',
+    drawingNo: 'DWG-QJ200',
+    barcodeType: '一批一码',
+    processRoute: '机加标准路线',
+    executor: '张三',
+    executors: ['张三'],
+    expectedQty: 2,
+    scheduleQty: 2,
+    taskStatus: '待报工',
+    placement: 'todo',
+    serialLocked: false,
+    dispatchControl: 'parallel',
+    isRework: true,
+    reworkOrderId: 'rw-demo-1',
+    reworkNo: 'FG20261021001',
+    createdAt: `${formatTaskDate()} 09:10:00`,
+    remark: '返工任务 · FG20261021001',
+  }),
+  taskSeed({
+    id: 'mobile-rw-demo-1-1',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-rework-mock-1',
+    workOrderCode: 'WO-RW-001',
+    workOrderName: '潜水电泵返工演示',
+    taskNo: 'RW20261021002',
+    processName: '精车',
+    processSeq: 3,
+    productName: '潜水电泵 QJ200-40/3',
+    itemCode: 'CP2610004',
+    specModel: 'QJ200-40/3',
+    material: 'HT200',
+    drawingNo: 'DWG-QJ200',
+    barcodeType: '一批一码',
+    processRoute: '机加标准路线',
+    executor: '张三',
+    executors: ['张三'],
+    expectedQty: 2,
+    scheduleQty: 2,
+    taskStatus: '待报工',
+    placement: 'todo',
+    serialLocked: false,
+    dispatchControl: 'parallel',
+    isRework: true,
+    reworkOrderId: 'rw-demo-1',
+    reworkNo: 'FG20261021001',
+    createdAt: `${formatTaskDate()} 09:12:00`,
+    remark: '返工任务 · FG20261021001',
+  }),
+  taskSeed({
+    id: 'mobile-rw-demo-2-0',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-lh-demo-1',
+    workOrderCode: 'WO202605270-LH01',
+    workOrderName: '工时演示-批量计件计件生产工单',
+    taskNo: 'RW20261020003',
+    processName: '机加工',
+    processSeq: 1,
+    productName: '工时演示-批量计件计件',
+    itemCode: 'LH-MAT-01',
+    specModel: 'DEMO-BC-P',
+    material: 'HT250',
+    drawingNo: 'LH-01-DWG',
+    barcodeType: '一批一码',
+    processRoute: '机加标准路线',
+    executor: '张三',
+    executors: ['张三'],
+    expectedQty: 3,
+    scheduleQty: 3,
+    reportedGoodQty: 1,
+    taskStatus: '待报工',
+    placement: 'todo',
+    serialLocked: false,
+    dispatchControl: 'parallel',
+    isRework: true,
+    reworkOrderId: 'rw-demo-2',
+    reworkNo: 'FG20261021002',
+    createdAt: `${formatTaskDate()} 08:40:00`,
+    remark: '返工任务 · FG20261021002（已报 1 件）',
+  }),
+  taskSeed({
+    id: 'mobile-rw-demo-3-0',
+    orderCategory: '生产工单',
+    workOrderId: 'wo-pr-1',
+    workOrderCode: 'WO-062',
+    workOrderName: '货架支架生产工单',
+    taskNo: 'RW20261019004',
+    processName: '点焊',
+    processSeq: 1,
+    productName: '货架支架',
+    itemCode: 'SJ-2024-A',
+    specModel: '1200×600mm',
+    material: 'Q235',
+    drawingNo: 'SJ-2024-A-DWG',
+    barcodeType: '一批一码',
+    processRoute: '标准焊接工艺 v2',
+    executor: '张三',
+    executors: ['张三'],
+    expectedQty: 4,
+    scheduleQty: 4,
+    reportedGoodQty: 4,
+    taskStatus: '已完成',
+    placement: 'todo',
+    serialLocked: false,
+    dispatchControl: 'parallel',
+    isRework: true,
+    reworkOrderId: 'rw-demo-3',
+    reworkNo: 'FG20261020003',
+    createdAt: `${formatTaskDate()} 10:15:00`,
+    finishedAt: `${formatTaskDate()} 10:15:00`,
+    remark: '返工任务 · FG20261020003',
+  }),
 ]
 
 function taskSeed(partial) {
@@ -822,13 +946,17 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '10'
+const TASK_SEED_VERSION = '11'
 
 function buildSeedTasks() {
   const today = formatTaskDate()
   const fresh = JSON.parse(JSON.stringify(seedTasks))
   fresh.forEach((t) => {
-    if (typeof t.id === 'string' && (t.id.startsWith('pt-') || t.id.startsWith('pt-claim-')) && t.createdAt) {
+    if (
+      typeof t.id === 'string' &&
+      (t.id.startsWith('pt-') || t.id.startsWith('pt-claim-') || t.id.startsWith('mobile-rw-demo-')) &&
+      t.createdAt
+    ) {
       const timePart = t.createdAt.split(' ').slice(1).join(' ') || '08:00:00'
       t.createdAt = `${today} ${timePart}`
     }
@@ -856,6 +984,31 @@ let cache = load()
 
 function save() {
   uni.setStorageSync(STORAGE_KEY, JSON.stringify(cache))
+}
+
+function removeStorageQuiet(key) {
+  try {
+    uni.removeStorageSync(key)
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(key)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 清除本机任务缓存与同步队列，恢复仓库种子 */
+export function resetDisassemblyTaskDemoData() {
+  removeStorageQuiet(STORAGE_KEY)
+  removeStorageQuiet(TASK_SEED_VERSION_KEY)
+  removeStorageQuiet(MOBILE_TASK_SYNC_KEY)
+  removeStorageQuiet(SYNC_KEY)
+  cache = buildSeedTasks()
+  uni.setStorageSync(STORAGE_KEY, JSON.stringify(cache))
+  uni.setStorageSync(TASK_SEED_VERSION_KEY, TASK_SEED_VERSION)
+  return cache
 }
 
 function loadDrafts() {
@@ -1180,6 +1333,41 @@ export function mergePcSyncedTasks() {
     generateLinesFromSyncedTasks(newTasks)
   }
   return merged
+}
+
+/** 小程序新建返工单后写入待报工任务 */
+export function appendReworkMobileTasks(tasks = []) {
+  if (!Array.isArray(tasks) || !tasks.length) return 0
+  mergePcSyncedTasks()
+  let added = 0
+  for (const task of tasks) {
+    if (!task?.id) continue
+    const normalized = taskSeed({
+      orderCategory: task.orderCategory || '生产工单',
+      placement: 'todo',
+      ...task,
+    })
+    const idx = cache.findIndex((t) => t.id === task.id)
+    if (idx >= 0) {
+      cache[idx] = { ...cache[idx], ...normalized }
+    } else {
+      cache.unshift(normalized)
+      added += 1
+    }
+  }
+  save()
+  try {
+    const raw = uni.getStorageSync(MOBILE_TASK_SYNC_KEY)
+    const queue = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : []
+    const map = new Map((Array.isArray(queue) ? queue : []).map((t) => [t.id, t]))
+    tasks.forEach((t) => {
+      if (t?.id) map.set(t.id, t)
+    })
+    uni.setStorageSync(MOBILE_TASK_SYNC_KEY, JSON.stringify([...map.values()]))
+  } catch {
+    /* ignore */
+  }
+  return added
 }
 
 function visibleTasks() {

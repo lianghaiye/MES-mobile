@@ -79,6 +79,52 @@ function resolveCreatedAt(row = {}) {
   )
 }
 
+export const MOCK_MACHINING_PROCESSES = [
+  { name: '下料', index: 1, executors: ['张三'] },
+  { name: '粗车', index: 2, executors: ['李四'] },
+  { name: '精车', index: 3, executors: ['李四'] },
+  { name: '钻孔', index: 4, executors: ['王五'] },
+  { name: '检验', index: 5, executors: ['赵六'] },
+]
+
+export const MOCK_ASSEMBLY_PROCESSES = [
+  { name: '预装', index: 1, executors: ['孙琴丽'] },
+  { name: '总装', index: 2, executors: ['孙琴丽'] },
+  { name: '试车', index: 3, executors: ['张三'] },
+  { name: '入库', index: 4, executors: ['李四'] },
+]
+
+export function normalizeWorkOrderProcessList(row = {}) {
+  const rawList =
+    row.processes ||
+    row.processList ||
+    row.routeProcesses ||
+    row.processRouteSnapshot?.processes ||
+    row.raw?.processes ||
+    []
+  return (Array.isArray(rawList) ? rawList : [])
+    .map((p, i) => ({
+      id: p.id || '',
+      name: p.name || p.processName || '',
+      processName: p.name || p.processName || '',
+      index: p.index ?? p.stepNo ?? i + 1,
+      executors: Array.isArray(p.executors) ? p.executors : p.executor ? [p.executor] : [],
+    }))
+    .filter((p) => p.name)
+}
+
+export function withDefaultProcesses(order) {
+  if (!order) return order
+  const processes = normalizeWorkOrderProcessList(order)
+  if (processes.length) return { ...order, processes }
+  const isAsm = String(order.orderCategory || '').includes('总装')
+  return {
+    ...order,
+    processes: (isAsm ? MOCK_ASSEMBLY_PROCESSES : MOCK_MACHINING_PROCESSES).map((p) => ({ ...p })),
+    processRouteName: order.processRouteName || (isAsm ? '装配标准路线' : '机加标准路线'),
+  }
+}
+
 function normalizeProductionOrder(row, sourceKey, defaultCategory) {
   return {
     id: row.id,
@@ -100,6 +146,8 @@ function normalizeProductionOrder(row, sourceKey, defaultCategory) {
     componentLines: row.componentLines || [],
     ebomSnapshot: row.ebomSnapshot || null,
     skipEbom: Boolean(row.skipEbom),
+    processes: normalizeWorkOrderProcessList(row),
+    processRouteName: row.processRouteName || '',
     createdAt: resolveCreatedAt(row),
     source: sourceKey,
     raw: row,

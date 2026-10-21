@@ -149,6 +149,14 @@ function onConfirm() {
     uni.navigateBack()
     return
   }
+  if (selectionType.value === 'reworkAssignee') {
+    setSelectionResult('reworkAssignee', {
+      processName: processId.value,
+      name: selected.value[0] || '',
+    })
+    uni.navigateBack()
+    return
+  }
   setSelectionResult('personnel', {
     processId: processId.value,
     operators: [...selected.value],

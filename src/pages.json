@@ -82,6 +82,31 @@
       }
     },
     {
+      "path": "pages/rework/index",
+      "style": {
+        "navigationBarTitleText": "返工管理",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/rework/work-order-select",
+      "style": {
+        "navigationBarTitleText": "选择工单"
+      }
+    },
+    {
+      "path": "pages/rework/create",
+      "style": {
+        "navigationBarTitleText": "新建返工单"
+      }
+    },
+    {
+      "path": "pages/rework/detail",
+      "style": {
+        "navigationBarTitleText": "返工单详情"
+      }
+    },
+    {
       "path": "pages/process-report/execute",
       "style": {
         "navigationBarTitleText": "填写报工",

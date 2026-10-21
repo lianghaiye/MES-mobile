@@ -157,6 +157,7 @@
               <view class="task-card" :class="task.status" @tap="goTaskDetail(task)">
                 <view class="task-head">
                   <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
+                  <text v-if="task.isRework" class="task-tag rework-tag">返工</text>
                   <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
                   <text
                     v-else-if="isGroupCollaborativeTask(task)"
@@ -166,7 +167,7 @@
                   <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
                   <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
                 </view>
-                <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+                <text class="task-wo">工单 {{ task.workOrderNo }}<text v-if="task.reworkNo"> · {{ task.reworkNo }}</text></text>
                 <text class="task-spec">
                   规格: {{ task.specModel || '—' }} · 材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
                 </text>
@@ -213,6 +214,7 @@
             <view class="task-card" :class="task.status" @tap="goTaskDetail(task)">
               <view class="task-head">
                 <text class="task-title">{{ task.productName }} · {{ task.productCode }}</text>
+                <text v-if="task.isRework" class="task-tag rework-tag">返工</text>
                 <text v-if="task.isPersonalTask" class="task-tag personal-tag">个人</text>
                 <text
                   v-else-if="isGroupCollaborativeTask(task)"
@@ -223,7 +225,7 @@
                 <text v-if="task.status === 'reported'" class="task-tag reported-tag">{{ task.reportStatus || '已报工' }}</text>
                 <text v-else-if="task.salesOrderNo" class="task-tag sales">{{ task.salesOrderNo }}</text>
               </view>
-              <text class="task-wo">工单 {{ task.workOrderNo }}</text>
+              <text class="task-wo">工单 {{ task.workOrderNo }}<text v-if="task.reworkNo"> · {{ task.reworkNo }}</text></text>
               <text class="task-spec">
                 规格: {{ task.specModel || '—' }} · 材质: {{ task.material || '—' }} · 图号: {{ task.drawingNo || '—' }}
               </text>
@@ -1372,6 +1374,11 @@ $primary: #1677ff;
 .claim-tag {
   color: #fa8c16 !important;
   background: #fff7e6 !important;
+}
+
+.task-tag.rework-tag {
+  color: #d46b08;
+  background: #fff7e6;
 }
 
 .task-head {

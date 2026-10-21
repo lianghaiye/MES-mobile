@@ -19,6 +19,19 @@ function saveInboundOrders(orders) {
   uni.setStorageSync(INBOUND_STORAGE_KEY, JSON.stringify({ orders }))
 }
 
+export function resetInboundOrderDemoData() {
+  try {
+    uni.removeStorageSync(INBOUND_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(INBOUND_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 function createInboundLine(partial = {}) {
   return {
     id: `ib-line-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,

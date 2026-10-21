@@ -29,6 +29,14 @@ export function buildMockPickableWorkOrders() {
       workCenter: '机加车间',
       scheduleQty: 10,
       createdAt: dayOffsetDate(0, 10, 20),
+      processRouteName: '机加标准路线',
+      processes: [
+        { name: '下料', index: 1, executors: ['张三'] },
+        { name: '粗车', index: 2, executors: ['李四'] },
+        { name: '精车', index: 3, executors: ['李四'] },
+        { name: '钻孔', index: 4, executors: ['王五'] },
+        { name: '检验', index: 5, executors: ['赵六'] },
+      ],
       bomId: '',
       bom: '立式多级泵',
       componentLines: [

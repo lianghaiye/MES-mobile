@@ -25,6 +25,19 @@ export const defaultReceiveWarehouse = ''
 /** @deprecated 使用 defaultPickWarehouse */
 export const defaultWarehouse = defaultPickWarehouse
 
+export function resetInventoryStockDemoData() {
+  try {
+    uni.removeStorageSync(STOCK_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(STOCK_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 function loadStockRecords() {
   try {
     const raw = uni.getStorageSync(STOCK_STORAGE_KEY)

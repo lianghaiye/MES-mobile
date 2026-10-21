@@ -17,6 +17,19 @@ function saveOutboundOrders(orders) {
   uni.setStorageSync(OUTBOUND_STORAGE_KEY, JSON.stringify({ orders }))
 }
 
+export function resetOutboundOrderDemoData() {
+  try {
+    uni.removeStorageSync(OUTBOUND_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(OUTBOUND_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 function createOutboundLine(partial = {}) {
   return {
     id: `ob-line-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,

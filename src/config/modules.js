@@ -28,6 +28,15 @@ export const workbenchModules = [
     placeholder: false,
   },
   {
+    key: 'rework',
+    title: '返工管理',
+    desc: '新建返工单 · 查看任务',
+    icon: '🔧',
+    color: '#fa541c',
+    path: '/pages/rework/index',
+    placeholder: false,
+  },
+  {
     key: 'report-confirm',
     title: '报工确认',
     desc: '核对报工数据并推送工人确认',

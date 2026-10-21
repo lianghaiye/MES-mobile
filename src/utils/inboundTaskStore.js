@@ -17,6 +17,14 @@ function saveTasks(tasks) {
   uni.setStorageSync(MP_INBOUND_TASK_KEY, JSON.stringify(tasks))
 }
 
+export function resetInboundTaskDemoData() {
+  try {
+    uni.removeStorageSync(MP_INBOUND_TASK_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getInboundTaskById(taskId) {
   if (!taskId) return null
   return loadTasks().find((t) => t.id === taskId) || null

@@ -18,6 +18,15 @@
       </view>
     </view>
 
+    <view class="filter-bar">
+      <input
+        v-model="keyword"
+        class="search-input"
+        placeholder="领料单号 / 工单号 / 产品名称 / 编号 / 图号"
+        confirm-type="search"
+      />
+    </view>
+
     <view class="list-head">
       <text class="list-title">我的领料申请</text>
       <text class="list-count">共 {{ list.length }} 条</text>
@@ -49,19 +58,27 @@
       </view>
     </view>
 
-    <view v-if="!list.length" class="empty">暂无领料申请，点击上方按钮发起</view>
+    <view v-if="!list.length" class="empty">{{
+      keyword.trim() ? '没有匹配的领料申请' : '暂无领料申请，点击上方按钮发起'
+    }}</view>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import { listMaterialRequisitions } from '@/store/materialRequisitionStore'
 
-const list = ref([])
+const keyword = ref('')
+const refreshKey = ref(0)
+
+const list = computed(() => {
+  refreshKey.value
+  return listMaterialRequisitions({ keyword: keyword.value })
+})
 
 function loadList() {
-  list.value = listMaterialRequisitions()
+  refreshKey.value += 1
 }
 
 onShow(() => {
@@ -172,6 +189,18 @@ $primary: #1677ff;
 
 .action-card:not(.primary) .action-desc {
   color: #8c8c8c;
+}
+
+.filter-bar {
+  margin-bottom: 16rpx;
+}
+
+.search-input {
+  background: #fff;
+  border-radius: 12rpx;
+  height: 72rpx;
+  padding: 0 24rpx;
+  font-size: 26rpx;
 }
 
 .list-head {

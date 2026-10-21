@@ -104,10 +104,42 @@ function resolveLineSourceDocNo(payload, line) {
   return resolveBatchSourceOrderNo(payload)
 }
 
-export function listMaterialRequisitions() {
+export function resetMaterialRequisitionDemoData() {
+  try {
+    uni.removeStorageSync(STORAGE_KEY)
+    uni.removeStorageSync(SEED_VERSION_KEY)
+  } catch {
+    /* ignore */
+  }
+  ensureSeedReqs()
+}
+
+function matchesReqKeyword(row, keyword) {
+  const kw = String(keyword || '').trim().toLowerCase()
+  if (!kw) return true
+  const parts = [
+    row.reqNo,
+    row.workOrderCode,
+    row.productName,
+    row.productCode,
+    row.drawingNo,
+    ...(row.workOrders || []).map((w) => w.code || w.workOrderCode),
+    ...(row.lines || []).flatMap((l) => [
+      l.itemName,
+      l.itemCode,
+      l.productName,
+      l.productCode,
+      l.drawingNo,
+    ]),
+  ]
+  return parts.filter(Boolean).join(' ').toLowerCase().includes(kw)
+}
+
+export function listMaterialRequisitions({ keyword = '' } = {}) {
   ensureSeedReqs()
   return loadReqs()
     .map(enrichRequisition)
+    .filter((row) => matchesReqKeyword(row, keyword))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
 }
 

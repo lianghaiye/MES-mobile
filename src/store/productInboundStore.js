@@ -237,10 +237,44 @@ function isFinishedInboundAutoApprove() {
   }
 }
 
-export function listProductInbounds() {
+export function resetProductInboundDemoData() {
+  try {
+    uni.removeStorageSync(STORAGE_KEY)
+    uni.removeStorageSync(LEGACY_STORAGE_KEY)
+    uni.removeStorageSync(SEED_VERSION_KEY)
+  } catch {
+    /* ignore */
+  }
+  ensureSeedRecords()
+}
+
+function matchesInboundKeyword(row, keyword) {
+  const kw = String(keyword || '').trim().toLowerCase()
+  if (!kw) return true
+  const parts = [
+    row.reqNo,
+    row.inboundNo,
+    row.workOrderCode,
+    row.productName,
+    row.productCode,
+    row.drawingNo,
+    ...(row.workOrders || []).map((w) => w.code || w.workOrderCode),
+    ...(row.lines || []).flatMap((l) => [
+      l.itemName,
+      l.itemCode,
+      l.productName,
+      l.productCode,
+      l.drawingNo,
+    ]),
+  ]
+  return parts.filter(Boolean).join(' ').toLowerCase().includes(kw)
+}
+
+export function listProductInbounds({ keyword = '' } = {}) {
   ensureSeedRecords()
   return loadRecords()
     .map(enrichRecord)
+    .filter((row) => matchesInboundKeyword(row, keyword))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
 }
 

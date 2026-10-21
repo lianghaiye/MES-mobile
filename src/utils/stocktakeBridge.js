@@ -102,6 +102,27 @@ function saveBatches(batches) {
   writeStore(BATCH_STORAGE_KEY, { batches })
 }
 
+function removeStore(storageKey) {
+  try {
+    uni.removeStorageSync(storageKey)
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(storageKey)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 清除本机盘点单与演示批次，再写入仓库种子 */
+export function resetStocktakeDemoData() {
+  removeStore(STORAGE_KEY)
+  removeStore(BATCH_STORAGE_KEY)
+  removeStore(MOBILE_SEED_FLAG)
+  ensureMobileStocktakeDemoSeed()
+}
+
 /** 小程序无 PC 库存时写入演示批次 + 盘点单，便于验证「加载本仓」 */
 export function ensureMobileStocktakeDemoSeed() {
   let seedFlag = ''

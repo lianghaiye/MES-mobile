@@ -112,6 +112,16 @@ function save() {
   uni.setStorageSync(STORAGE_KEY, JSON.stringify({ assignments: cache }))
 }
 
+export function resetProcessAssignmentDemoData() {
+  try {
+    uni.removeStorageSync(STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  cache = null
+  cacheUser = ''
+}
+
 export function getTodayAssignments(user) {
   const userName = user?.displayName || '张三'
   if (cacheUser !== userName || !cache) {
