@@ -241,7 +241,7 @@ export function parseWorkOrderCreatedAtMs(order) {
   return Number.isFinite(t) ? t : 0
 }
 
-function matchDateRange(order, dateRange) {
+export function matchDateRange(order, dateRange) {
   const range = String(dateRange || '').trim()
   if (!range) return true
   const createdMs = parseWorkOrderCreatedAtMs(order)
@@ -257,7 +257,7 @@ function matchDateRange(order, dateRange) {
   return true
 }
 
-function matchOrderType(order, orderType) {
+export function matchOrderType(order, orderType) {
   const type = String(orderType || '').trim()
   if (!type) return true
   const categories = ORDER_TYPE_CATEGORIES[type]

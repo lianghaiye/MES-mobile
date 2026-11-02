@@ -1,6 +1,8 @@
 import {
   getWorkOrderById,
   loadAllWorkOrders,
+  matchDateRange,
+  matchOrderType,
   withDefaultProcesses,
 } from '@/mock/workOrderBridge'
 import { appendReworkMobileTasks } from '@/mock/disassemblyTasks'
@@ -324,7 +326,14 @@ export function getReworkOrderById(id) {
   return listReworkOrders().find((o) => o.id === id) || null
 }
 
+function todayStamp() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 09:00:00`
+}
+
 function buildReworkDemoWorkOrders() {
+  const createdAt = todayStamp()
   return [
     withDefaultProcesses({
       id: 'wo-rework-mock-1',
@@ -340,6 +349,7 @@ function buildReworkDemoWorkOrders() {
       workCenter: '机加车间',
       scheduleQty: 20,
       processRouteName: '机加标准路线',
+      createdAt,
     }),
     withDefaultProcesses({
       id: 'wo-rework-mock-2',
@@ -355,6 +365,7 @@ function buildReworkDemoWorkOrders() {
       workCenter: '机加车间',
       scheduleQty: 10,
       processRouteName: '机加标准路线',
+      createdAt,
     }),
     withDefaultProcesses({
       id: 'wo-rework-mock-3',
@@ -370,12 +381,20 @@ function buildReworkDemoWorkOrders() {
       workCenter: '总装车间',
       scheduleQty: 6,
       processRouteName: '装配标准路线',
+      createdAt,
     }),
   ]
 }
 
-export function listReworkableWorkOrders({ keyword = '' } = {}) {
+/** 返工可选工单（支持与领料选单相同的时间 / 类型 / 车间筛选） */
+export function listReworkableWorkOrders({
+  keyword = '',
+  workCenter = '',
+  dateRange = '',
+  orderType = '',
+} = {}) {
   const kw = String(keyword || '').trim().toLowerCase()
+  const wc = String(workCenter || '').trim()
   const live = loadAllWorkOrders()
     .filter((o) => {
       if (!OPEN_WO_STATUSES.has(o.status)) return false
@@ -386,13 +405,25 @@ export function listReworkableWorkOrders({ keyword = '' } = {}) {
   const demo = buildReworkDemoWorkOrders()
   const ids = new Set(live.map((o) => o.id))
   const merged = [...demo.filter((d) => !ids.has(d.id)), ...live]
-  if (!kw) return merged
   return merged.filter((o) => {
-    const blob = [o.code, o.productName, o.productCode, o.specModel, o.drawingNo]
+    if (wc && o.workCenter !== wc) return false
+    if (!matchDateRange(o, dateRange)) return false
+    if (!matchOrderType(o, orderType)) return false
+    if (!kw) return true
+    const blob = [o.code, o.productName, o.productCode, o.specModel, o.drawingNo, o.workCenter]
       .join(' ')
       .toLowerCase()
     return blob.includes(kw)
   })
+}
+
+/** 返工选单页车间下拉选项（基于当前可返工工单） */
+export function listDistinctReworkableWorkCenters() {
+  const set = new Set()
+  for (const wo of listReworkableWorkOrders()) {
+    if (wo.workCenter) set.add(wo.workCenter)
+  }
+  return [...set].sort()
 }
 
 export function getReworkableWorkOrderById(id) {
