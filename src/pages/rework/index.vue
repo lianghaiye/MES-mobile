@@ -37,6 +37,8 @@
       <view class="req-foot">
         <text>返工 {{ item.qty }} 件</text>
         <text class="dot">·</text>
+        <text>{{ formatScheduleBatchLabel(item) }}</text>
+        <text class="dot">·</text>
         <text>{{ item.workCenter || '—' }}</text>
         <text class="dot">·</text>
         <text>{{ processText(item) }}</text>
@@ -54,7 +56,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { listReworkOrders } from '@/store/reworkOrderStore'
+import { formatScheduleBatchLabel, listReworkOrders } from '@/store/reworkOrderStore'
 
 const keyword = ref('')
 const refreshKey = ref(0)

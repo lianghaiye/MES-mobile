@@ -17,6 +17,10 @@
         <text class="label">排产数量</text>
         <text class="val">{{ workOrder.scheduleQty || workOrder.planQty || '—' }}</text>
       </view>
+      <view class="wo-row" @tap="onPickBatch">
+        <text class="label">排产批次</text>
+        <text class="val" :class="{ primary: canPickBatch }">{{ batchLabel }}</text>
+      </view>
       <view class="wo-row">
         <text class="label">加工中心</text>
         <text class="val">{{ workOrder.workCenter || '—' }}</text>
@@ -71,12 +75,15 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { consumeSelectionResult } from '@/utils/selection'
 import {
   createReworkOrderFromWorkOrder,
+  formatScheduleBatchLabel,
   getReworkableWorkOrderById,
+  listReworkableScheduleBatches,
+  resolveReworkScheduleBatch,
 } from '@/store/reworkOrderStore'
 
 const workOrder = ref(null)
@@ -88,6 +95,18 @@ const form = reactive({
   qty: 1,
   reason: '',
   remark: '',
+  scheduleBatchId: '',
+})
+
+const scheduleBatches = computed(() => listReworkableScheduleBatches(workOrder.value))
+const selectedBatch = computed(
+  () => scheduleBatches.value.find((b) => b.id === form.scheduleBatchId) || null,
+)
+const canPickBatch = computed(() => scheduleBatches.value.length > 1)
+const batchLabel = computed(() => {
+  if (!selectedBatch.value) return canPickBatch.value ? '请选择' : '—'
+  const qty = Number(selectedBatch.value.qty) || 0
+  return qty ? `${formatScheduleBatchLabel(selectedBatch.value)}（${qty}）` : formatScheduleBatchLabel(selectedBatch.value)
 })
 
 onLoad((query) => {
@@ -98,7 +117,10 @@ onLoad((query) => {
     return
   }
   workOrder.value = wo
-  form.qty = Math.max(1, Number(wo.scheduleQty) || Number(wo.planQty) || 1)
+  const resolved = resolveReworkScheduleBatch(wo, {})
+  form.scheduleBatchId = resolved?.id || ''
+  const batchQty = Number(resolved?.qty) || Number(wo.scheduleQty) || Number(wo.planQty) || 1
+  form.qty = Math.max(1, batchQty)
   const procs = (wo.processes || [])
     .map((p) => ({
       name: p.name || p.processName,
@@ -137,6 +159,23 @@ function toggleProcess(name) {
   selected.value = next
 }
 
+function onPickBatch() {
+  if (!canPickBatch.value) return
+  uni.showActionSheet({
+    itemList: scheduleBatches.value.map((b) => {
+      const qty = Number(b.qty) || 0
+      return qty ? `${formatScheduleBatchLabel(b)}（${qty}）` : formatScheduleBatchLabel(b)
+    }),
+    success: (res) => {
+      const batch = scheduleBatches.value[res.tapIndex]
+      if (!batch) return
+      form.scheduleBatchId = batch.id
+      const max = Number(batch.qty) || 0
+      if (max > 0 && Number(form.qty) > max) form.qty = max
+    },
+  })
+}
+
 function pickAssignee(proc) {
   if (!selected.value.has(proc.name)) {
     toggleProcess(proc.name)
@@ -156,6 +195,11 @@ function onSubmit() {
   processNames.forEach((name) => {
     if (assignees[name]) processAssignees[name] = assignees[name]
   })
+  if (canPickBatch.value && !form.scheduleBatchId) {
+    submitting.value = false
+    uni.showToast({ title: '请选择排产批次', icon: 'none' })
+    return
+  }
   const res = createReworkOrderFromWorkOrder({
     workOrderId: workOrder.value.id,
     qty: Number(form.qty),
@@ -163,6 +207,8 @@ function onSubmit() {
     remark: form.remark,
     processNames,
     processAssignees,
+    scheduleBatchId: form.scheduleBatchId,
+    scheduleBatchNo: selectedBatch.value?.batchNo,
   })
   submitting.value = false
   if (!res.ok) {

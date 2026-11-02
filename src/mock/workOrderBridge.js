@@ -148,6 +148,7 @@ function normalizeProductionOrder(row, sourceKey, defaultCategory) {
     skipEbom: Boolean(row.skipEbom),
     processes: normalizeWorkOrderProcessList(row),
     processRouteName: row.processRouteName || '',
+    scheduleBatches: Array.isArray(row.scheduleBatches) ? row.scheduleBatches : [],
     createdAt: resolveCreatedAt(row),
     source: sourceKey,
     raw: row,

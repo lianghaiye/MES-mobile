@@ -14,6 +14,10 @@
         <text class="val primary">{{ record.workOrderNo || '—' }}</text>
       </view>
       <view class="info-row">
+        <text class="label">排产批次</text>
+        <text class="val">{{ formatScheduleBatchLabel(record) }}</text>
+      </view>
+      <view class="info-row">
         <text class="label">加工中心</text>
         <text class="val">{{ record.workCenter || '—' }}</text>
       </view>
@@ -70,6 +74,7 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
   closeReworkOrder,
+  formatScheduleBatchLabel,
   getReworkOrderById,
   isReworkOrderOpen,
 } from '@/store/reworkOrderStore'

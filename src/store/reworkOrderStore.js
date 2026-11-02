@@ -7,7 +7,53 @@ import { appendReworkMobileTasks } from '@/mock/disassemblyTasks'
 
 const STORAGE_KEY = 'i_doms_rework_orders'
 const SEED_VERSION_KEY = 'i_doms_rework_orders_seed_v'
-const SEED_VERSION = '1'
+const SEED_VERSION = '2'
+
+export function fallbackScheduleBatchId(workOrderId) {
+  return workOrderId ? `sb-fallback-${workOrderId}` : ''
+}
+
+export function formatScheduleBatchLabel(batchOrNo) {
+  const no =
+    batchOrNo && typeof batchOrNo === 'object'
+      ? batchOrNo.batchNo ?? batchOrNo.scheduleBatchNo
+      : batchOrNo
+  if (no === undefined || no === null || String(no).trim() === '') return '—'
+  return `批次 #${no}`
+}
+
+export function listReworkableScheduleBatches(wo) {
+  const real = Array.isArray(wo?.scheduleBatches) ? wo.scheduleBatches.filter(Boolean) : []
+  if (real.length) return real
+  const rawBatches = Array.isArray(wo?.raw?.scheduleBatches) ? wo.raw.scheduleBatches : []
+  if (rawBatches.length) return rawBatches
+  const qty = Number(wo?.scheduleQty) || Number(wo?.planQty) || 0
+  return [
+    {
+      id: fallbackScheduleBatchId(wo?.id),
+      batchNo: 1,
+      qty,
+      status: wo?.status || '',
+      synthetic: true,
+    },
+  ]
+}
+
+export function resolveReworkScheduleBatch(wo, payload = {}) {
+  const batches = listReworkableScheduleBatches(wo)
+  const id = String(payload.scheduleBatchId || '').trim()
+  const no = payload.scheduleBatchNo
+  if (id) {
+    const hit = batches.find((b) => String(b.id) === id)
+    if (hit) return hit
+  }
+  if (no !== undefined && no !== null && String(no).trim() !== '') {
+    const hit = batches.find((b) => String(b.batchNo) === String(no))
+    if (hit) return hit
+  }
+  if (batches.length === 1) return batches[0]
+  return null
+}
 
 export const REWORK_ORDER_STATUS = {
   PENDING: '待返工',
@@ -51,6 +97,9 @@ function seedReworkOrders() {
       processRouteName: '机加标准路线',
       scheduleQty: 20,
       planQty: 20,
+      scheduleBatchId: fallbackScheduleBatchId('wo-rework-mock-1'),
+      scheduleBatchNo: 1,
+      scheduleBatchQty: 20,
       qty: 2,
       reason: '尺寸超差',
       remark: '过程检判定超差，指定张三返工',
@@ -99,6 +148,9 @@ function seedReworkOrders() {
       processRouteName: '机加标准路线',
       scheduleQty: 10,
       planQty: 10,
+      scheduleBatchId: fallbackScheduleBatchId('wo-lh-demo-1'),
+      scheduleBatchNo: 1,
+      scheduleBatchQty: 10,
       qty: 3,
       reason: '气孔超标',
       remark: '已报 1 件，剩余待返工',
@@ -137,6 +189,9 @@ function seedReworkOrders() {
       processRouteName: '标准焊接工艺 v2',
       scheduleQty: 25,
       planQty: 25,
+      scheduleBatchId: fallbackScheduleBatchId('wo-pr-1'),
+      scheduleBatchNo: 1,
+      scheduleBatchQty: 25,
       qty: 4,
       reason: '焊缝未熔合',
       remark: '成品检返工已全部报完',
@@ -175,6 +230,9 @@ function seedReworkOrders() {
       processRouteName: '机加标准路线',
       scheduleQty: 10,
       planQty: 10,
+      scheduleBatchId: fallbackScheduleBatchId('wo-rework-mock-2'),
+      scheduleBatchNo: 1,
+      scheduleBatchQty: 10,
       qty: 1,
       reason: '',
       remark: '现场关闭，未继续返工',
@@ -365,6 +423,12 @@ export function createReworkOrderFromWorkOrder(payload = {}) {
   if (!(qty > 0)) return { ok: false, message: '返工数量须大于 0' }
   const processNames = payload.processNames || []
   if (!processNames.length) return { ok: false, message: '请至少勾选一道重做工序' }
+  const batch = resolveReworkScheduleBatch(wo, payload)
+  if (!batch) return { ok: false, message: '请选择排产批次' }
+  const batchQty = Number(batch.qty) || 0
+  if (batchQty > 0 && qty > batchQty) {
+    return { ok: false, message: `返工数量不能超过该批次排产数量 ${batchQty}` }
+  }
   const reason = String(payload.reason || '').trim()
 
   const assignees = payload.processAssignees || {}
@@ -404,6 +468,9 @@ export function createReworkOrderFromWorkOrder(payload = {}) {
     processRouteName: wo.processRouteName || '',
     scheduleQty: Number(wo.scheduleQty) || Number(wo.planQty) || 0,
     planQty: Number(wo.planQty) || Number(wo.scheduleQty) || 0,
+    scheduleBatchId: batch.id || '',
+    scheduleBatchNo: batch.batchNo ?? '',
+    scheduleBatchQty: batchQty,
     qty,
     reason,
     remark: payload.remark || '',
@@ -442,6 +509,9 @@ export function createReworkOrderFromWorkOrder(payload = {}) {
       reworkOrderId: order.id,
       reworkNo: order.reworkNo,
       orderCategory: wo.orderCategory || '生产工单',
+      scheduleBatchId: order.scheduleBatchId || '',
+      scheduleBatchNo: order.scheduleBatchNo ?? '',
+      batchId: order.scheduleBatchId || '',
       createdAt,
       remark: `返工任务 · ${order.reworkNo}`,
     }

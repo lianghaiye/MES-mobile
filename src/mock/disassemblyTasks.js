@@ -813,6 +813,9 @@ const seedTasks = [
     isRework: true,
     reworkOrderId: 'rw-demo-1',
     reworkNo: 'FG20261021001',
+    scheduleBatchId: 'sb-fallback-wo-rework-mock-1',
+    scheduleBatchNo: 1,
+    batchId: 'sb-fallback-wo-rework-mock-1',
     createdAt: `${formatTaskDate()} 09:10:00`,
     remark: '返工任务 · FG20261021001',
   }),
@@ -843,6 +846,9 @@ const seedTasks = [
     isRework: true,
     reworkOrderId: 'rw-demo-1',
     reworkNo: 'FG20261021001',
+    scheduleBatchId: 'sb-fallback-wo-rework-mock-1',
+    scheduleBatchNo: 1,
+    batchId: 'sb-fallback-wo-rework-mock-1',
     createdAt: `${formatTaskDate()} 09:12:00`,
     remark: '返工任务 · FG20261021001',
   }),
@@ -874,6 +880,9 @@ const seedTasks = [
     isRework: true,
     reworkOrderId: 'rw-demo-2',
     reworkNo: 'FG20261021002',
+    scheduleBatchId: 'sb-fallback-wo-lh-demo-1',
+    scheduleBatchNo: 1,
+    batchId: 'sb-fallback-wo-lh-demo-1',
     createdAt: `${formatTaskDate()} 08:40:00`,
     remark: '返工任务 · FG20261021002（已报 1 件）',
   }),
@@ -905,6 +914,9 @@ const seedTasks = [
     isRework: true,
     reworkOrderId: 'rw-demo-3',
     reworkNo: 'FG20261020003',
+    scheduleBatchId: 'sb-fallback-wo-pr-1',
+    scheduleBatchNo: 1,
+    batchId: 'sb-fallback-wo-pr-1',
     createdAt: `${formatTaskDate()} 10:15:00`,
     finishedAt: `${formatTaskDate()} 10:15:00`,
     remark: '返工任务 · FG20261020003',
@@ -946,7 +958,7 @@ function getNextProcess(current) {
 }
 
 const TASK_SEED_VERSION_KEY = 'i_doms_mobile_tasks_seed_v'
-const TASK_SEED_VERSION = '11'
+const TASK_SEED_VERSION = '12'
 
 function buildSeedTasks() {
   const today = formatTaskDate()
