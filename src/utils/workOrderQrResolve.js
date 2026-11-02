@@ -48,6 +48,48 @@ export function parseWorkOrderQrToken(token) {
   }
 }
 
+/**
+ * 从扫码原始内容提取报工 token。
+ * 兼容：path+query、完整 URL、纯 token。
+ */
+export function extractWorkOrderQrTokenFromScan(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+
+  const tryQuery = (queryStr) => {
+    if (!queryStr) return ''
+    try {
+      const params = new URLSearchParams(
+        queryStr.startsWith('?') ? queryStr.slice(1) : queryStr,
+      )
+      const t = params.get('token')
+      return t ? String(t).trim() : ''
+    } catch {
+      const m = /(?:^|[?&])token=([^&]+)/.exec(queryStr)
+      if (!m) return ''
+      try {
+        return decodeURIComponent(m[1]).trim()
+      } catch {
+        return m[1].trim()
+      }
+    }
+  }
+
+  const qIdx = text.indexOf('?')
+  if (qIdx >= 0) {
+    const fromQuery = tryQuery(text.slice(qIdx + 1))
+    if (fromQuery) return fromQuery
+  }
+
+  if (/scan-entry/i.test(text) || /token=/i.test(text)) {
+    const fromLoose = tryQuery(text)
+    if (fromLoose) return fromLoose
+  }
+
+  if (parseWorkOrderQrToken(text)) return text
+  return ''
+}
+
 const CLOSED_STATUSES = new Set(['已完成', '完成', '终止', '已关闭'])
 const QR_GRACE_MS = 7 * 24 * 60 * 60 * 1000
 

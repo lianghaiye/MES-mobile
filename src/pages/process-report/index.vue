@@ -5,7 +5,16 @@
         <text class="back-arrow">‹</text>
       </view>
       <text class="nav-title">工序报工</text>
-      <view class="nav-placeholder" />
+      <view class="nav-scan" hover-class="nav-scan--active" @tap="onScanReportQr">
+        <view class="nav-scan-frame" aria-hidden="true">
+          <view class="nav-scan-corner tl" />
+          <view class="nav-scan-corner tr" />
+          <view class="nav-scan-corner bl" />
+          <view class="nav-scan-corner br" />
+          <view class="nav-scan-line" />
+        </view>
+        <text class="nav-scan-text">扫码报工</text>
+      </view>
     </view>
 
     <view class="tabs">
@@ -380,6 +389,7 @@ import {
 } from '@/utils/workerGroup'
 import { getQuickProductByCode } from '@/mock/processReportProducts'
 import BatchReportConfirmModal from '@/components/process-report/BatchReportConfirmModal.vue'
+import { extractWorkOrderQrTokenFromScan } from '@/utils/workOrderQrResolve'
 
 function displayReportMode(mode) {
   return resolveReportMode(mode)
@@ -900,6 +910,33 @@ function goBack() {
     uni.switchTab({ url: '/pages/workbench/index' })
   }
 }
+
+function openScanEntry(token) {
+  uni.navigateTo({
+    url: `/pages/process-report/scan-entry?token=${encodeURIComponent(token)}`,
+  })
+}
+
+function onScanReportQr() {
+  uni.scanCode({
+    onlyFromCamera: false,
+    scanType: ['qrCode'],
+    success: (res) => {
+      const raw = String(res?.result || '').trim()
+      const token = extractWorkOrderQrTokenFromScan(raw)
+      if (!token) {
+        uni.showToast({ title: '未识别到报工二维码', icon: 'none' })
+        return
+      }
+      openScanEntry(token)
+    },
+    fail: (err) => {
+      const msg = err?.errMsg || ''
+      if (/cancel/i.test(msg)) return
+      uni.showToast({ title: '扫码失败，请重试', icon: 'none' })
+    },
+  })
+}
 </script>
 
 <style lang="scss" scoped>
@@ -949,6 +986,78 @@ $primary: #1677ff;
 
 .nav-placeholder {
   width: 72rpx;
+}
+
+.nav-scan {
+  min-width: 140rpx;
+  height: 64rpx;
+  padding: 0 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8rpx;
+  border-radius: 12rpx;
+}
+
+.nav-scan--active {
+  background: rgba(22, 119, 255, 0.08);
+}
+
+.nav-scan-frame {
+  position: relative;
+  width: 32rpx;
+  height: 32rpx;
+  flex-shrink: 0;
+}
+
+.nav-scan-corner {
+  position: absolute;
+  width: 10rpx;
+  height: 10rpx;
+  border-color: $primary;
+  border-style: solid;
+}
+
+.nav-scan-corner.tl {
+  top: 0;
+  left: 0;
+  border-width: 3rpx 0 0 3rpx;
+}
+
+.nav-scan-corner.tr {
+  top: 0;
+  right: 0;
+  border-width: 3rpx 3rpx 0 0;
+}
+
+.nav-scan-corner.bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 3rpx 3rpx;
+}
+
+.nav-scan-corner.br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 3rpx 3rpx 0;
+}
+
+.nav-scan-line {
+  position: absolute;
+  left: 5rpx;
+  right: 5rpx;
+  top: 50%;
+  height: 2rpx;
+  margin-top: -1rpx;
+  background: $primary;
+  opacity: 0.85;
+}
+
+.nav-scan-text {
+  font-size: 28rpx;
+  color: $primary;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .tabs {
