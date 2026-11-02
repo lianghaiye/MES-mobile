@@ -227,6 +227,7 @@ export function getClaimableReportTasks(user) {
   return getAllTasks()
     .filter((t) => REPORTABLE_CATEGORIES.includes(t.orderCategory))
     .filter((t) => !isTaskHiddenFromMobile(t))
+    .filter((t) => !t.serialLocked)
     .filter((t) => t.controlStatus !== '暂停')
     .filter((t) => isTaskClaimableForUser(t, executorNames))
     .filter((t) => isTaskInTodayScope(t, today) || isUnclaimedPoolTask(t))

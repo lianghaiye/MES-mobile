@@ -1391,6 +1391,7 @@ export function claimTask(taskId, userName = 'admin') {
   if (!task) return { ok: false, message: '任务不存在' }
   if (task.hiddenByTerminate) return { ok: false, message: '工单已终止，任务不可领取' }
   if (task.controlStatus === '暂停') return { ok: false, message: '工单已暂停，任务不可领取' }
+  if (task.serialLocked) return { ok: false, message: '上道工序未报工完成，暂不可领取' }
   if (task.placement !== 'claim') return { ok: false, message: '该任务不在待领列表' }
   if (task.resourceType === '工人小组' && isMultiGroupTask(task)) {
     const myGroup = getTaskAssignGroups(task).find((groupName) => getGroupLeaderName(groupName) === userName)
